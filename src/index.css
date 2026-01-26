@@ -1,0 +1,42 @@
+:root {
+  --primary-color: #0d5f68;
+  /* Dark Teal */
+  --primary-hover: #084a52;
+  --text-main: #1f2937;
+  --text-secondary: #6b7280;
+  --bg-input: #f9fafb;
+  --border-input: #e5e7eb;
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f3f4f6;
+  /* Light gray background for the full window */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+
+input {
+  font-family: inherit;
+}
