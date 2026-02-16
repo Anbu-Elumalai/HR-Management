@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Calendar, UserPlus, Heart } from 'lucide-react';
+import { Users, Calendar, UserPlus, Heart, Briefcase, Clock } from 'lucide-react';
 import StatsCard from '../components/dashboard/StatsCard';
 import WorkingFormatChart from '../components/dashboard/WorkingFormatChart';
 import ProjectEmploymentChart from '../components/dashboard/ProjectEmploymentChart';
@@ -40,6 +40,20 @@ const DashboardHome = () => {
           icon={Heart}
           trend="down"
           trendValue="-11%"
+        />
+        <StatsCard
+          title="Total Projects"
+          value="12"
+          icon={Briefcase}
+          trend="up"
+          trendValue="+5%"
+        />
+        <StatsCard
+          title="Avg. Attendance"
+          value="95%"
+          icon={Clock}
+          trend="up"
+          trendValue="+2%"
         />
       </div>
 

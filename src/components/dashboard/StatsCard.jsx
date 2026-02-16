@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-const StatsCard = ({ title, value, icon: Icon, trend, trendValue, trendLabel }) => {
+const StatsCard = ({ title, value, icon: Icon, trend, trendValue }) => {
     const isPositive = trend === 'up';
     const trendColor = isPositive ? 'text-green-500' : 'text-red-500';
 

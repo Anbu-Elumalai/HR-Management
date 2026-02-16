@@ -115,6 +115,8 @@ const Employees = () => {
                     display: flex;
                     flex-direction: column;
                     gap: 1.5rem;
+                    height: calc(100vh - 64px); /* Full height minus topbar */
+                    overflow: hidden; /* Prevent outer scroll */
                 }
 
                 .page-header {
@@ -225,26 +227,35 @@ const Employees = () => {
                     overflow: hidden;
                     display: flex;
                     flex-direction: column;
+                    flex: 1; /* Take remaining vertical space */
+                    min-height: 0; /* Allow shrinking */
                 }
                 .table-wrapper {
                     overflow-x: auto;
+                    overflow-y: auto;
+                    flex: 1; /* Scrollable area */
                 }
                 .employee-table {
                     width: 100%;
-                    border-collapse: collapse;
+                    border-collapse: separate; /* Changed from collapse for sticky to work better with borders */
+                    border-spacing: 0;
                     text-align: left;
                 }
                 .employee-table th {
-                    padding: 1rem 1.5rem;
+                    position: sticky;
+                    top: 0;
+                    z-index: 10;
+                    padding: 1rem 0.75rem;
                     background-color: #f9fafb;
                     color: #4b5563;
                     font-weight: 600;
                     font-size: 0.85rem;
                     border-bottom: 1px solid #e5e7eb;
                     white-space: nowrap;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
                 }
                 .employee-table td {
-                    padding: 1rem 1.5rem;
+                    padding: 1rem 0.75rem;
                     border-bottom: 1px solid #f3f4f6;
                     color: #1f2937;
                     font-size: 0.9rem;

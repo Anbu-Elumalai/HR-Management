@@ -3,14 +3,14 @@ import LoginHero from '../components/LoginHero';
 import LoginForm from '../components/LoginForm';
 
 const LoginPage = () => {
-    return (
-        <div className="login-page">
-            <div className="login-card-wrapper">
-                <LoginHero />
-                <LoginForm />
-            </div>
+  return (
+    <div className="login-page">
+      <div className="login-card-wrapper">
+        <LoginHero />
+        <LoginForm />
+      </div>
 
-            <style>{`
+      <style>{`
         .login-page {
           width: 100%;
           height: 100vh;
@@ -45,8 +45,8 @@ const LoginPage = () => {
           }
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 };
 
 export default LoginPage;

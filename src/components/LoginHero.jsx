@@ -2,15 +2,15 @@ import React from 'react';
 import loginHeroImage from '../assets/login_hero.png';
 
 const LoginHero = () => {
-    return (
-        <div className="login-hero">
-            <div className="hero-content">
-                <img src={loginHeroImage} alt="Empowering Your Workday" className="hero-image" />
-                <div className="hero-overlay">
-                    <h1>Empowering Your Workday.</h1>
-                </div>
-            </div>
-            <style>{`
+  return (
+    <div className="login-hero">
+      <div className="hero-content">
+        <img src={loginHeroImage} alt="Empowering Your Workday" className="hero-image" />
+        <div className="hero-overlay">
+          <h1>Empowering Your Workday.</h1>
+        </div>
+      </div>
+      <style>{`
         .login-hero {
           flex: 1;
           position: relative;
@@ -50,8 +50,8 @@ const LoginHero = () => {
           font-family: serif; /* Matches the serif font in the reference */
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 };
 
 export default LoginHero;

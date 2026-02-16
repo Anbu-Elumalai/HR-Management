@@ -1,25 +1,16 @@
 import React from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 
 const DashboardLayout = () => {
-  const location = useLocation();
-
-  // Get current page name from path (e.g. /app/employees -> Employees)
-  // Default to 'Dashboard' if strictly at /app/dashboard
-  const getPageTitle = () => {
-    const path = location.pathname.split('/').pop();
-    if (!path || path === 'dashboard') return 'Dashboard';
-    // Capitalize first letter
-    return path.charAt(0).toUpperCase() + path.slice(1);
-  };
+  const navigate = useNavigate();
 
   return (
     <div className="dashboard-layout">
       <Sidebar />
       <main className="main-content">
         <header className="topbar">
-          <div className="user-profile">
+          <div className="user-profile" onClick={() => navigate('/app/profile')} style={{ cursor: 'pointer' }}>
             <div className="avatar">A</div>
             <span className="font-medium">Admin User</span>
           </div>
@@ -74,6 +65,13 @@ const DashboardLayout = () => {
           display: flex;
           align-items: center;
           gap: 0.75rem;
+          transition: all 0.2s;
+          padding: 0.5rem;
+          border-radius: 8px;
+        }
+
+        .user-profile:hover {
+          background: rgba(255, 255, 255, 0.1);
         }
 
         .avatar {
