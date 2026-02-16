@@ -423,9 +423,9 @@ const Roles = () => {
                                     </td>
                                     <td className="text-right">
                                         <div className="actions-flex-alt">
-                                            <button className="action-icon-btn-premium view" title="View" onClick={() => handleViewRole(role)}><Eye size={16} /></button>
-                                            <button className="action-icon-btn-premium edit" title="Edit" onClick={() => handleEditRole(role)}><Edit size={16} /></button>
-                                            <button className="action-icon-btn-premium delete" title="Delete" onClick={() => handleDeleteRole(role)}><Trash2 size={16} /></button>
+                                            <button className="action-icon-btn-premium view" title="View" onClick={() => handleViewRole(role)}><Eye size={18} /></button>
+                                            <button className="action-icon-btn-premium edit" title="Edit" onClick={() => handleEditRole(role)}><Edit size={18} /></button>
+                                            <button className="action-icon-btn-premium delete" title="Delete" onClick={() => handleDeleteRole(role)}><Trash2 size={18} /></button>
                                         </div>
                                     </td>
                                 </tr>
@@ -744,11 +744,11 @@ const Roles = () => {
                 }
                 .employee-table-alt th {
                     background: #f8fafc;
-                    padding: 0.75rem 1.5rem;
+                    padding: 1rem 1.5rem;
                     text-align: left;
                     font-size: 0.7rem;
                     font-weight: 700;
-                    color: #64748b;
+                    color: #475569;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
                     border-bottom: 1px solid #f1f5f9;
@@ -779,7 +779,7 @@ const Roles = () => {
                     border-color: #0d5f68;
                 }
                 .employee-table-alt td {
-                    padding: 1rem 1.5rem;
+                    padding: 1.25rem 1.5rem;
                     border-bottom: 1px solid #f1f5f9;
                     font-size: 0.85rem;
                     color: #334155;
@@ -830,8 +830,8 @@ const Roles = () => {
                     gap: 0.4rem;
                 }
                 .action-icon-btn-premium {
-                    width: 32px;
-                    height: 32px;
+                    width: 38px;
+                    height: 38px;
                     border-radius: 8px;
                     display: flex;
                     align-items: center;

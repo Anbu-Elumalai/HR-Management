@@ -216,8 +216,9 @@ const Sidebar = () => {
         }
 
         .nav-item.active, .nav-item.active-parent {
-          background-color: #f0fdfa; /* Light teal bg */
-          color: #0f4c54;
+          background-color: rgba(13, 95, 104, 0.08); /* Subtle teal with opacity */
+          color: #0d5f68;
+          font-weight: 600;
         }
         
         .nav-children {

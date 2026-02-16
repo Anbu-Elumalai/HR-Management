@@ -310,54 +310,169 @@ const SettingsPage = () => {
     const [usersListReal, setUsersListReal] = useState([]);
     const usersToDisplay = usersListReal;
 
-    // Mock Data for Drop Values Categories
-    // Mock Data for Drop Values Categories
-    const [categories, setCategories] = useState([
-        { id: 1, name: 'Department', values: ['IT', 'HR', 'Finance', 'Marketing', 'Operations', 'Sales'] },
-        { id: 2, name: 'Employment Type', values: ['Permanent', 'Contract', 'Internship', 'Probation'] },
-        { id: 3, name: 'Shift', values: ['General', 'Morning', 'Night', 'Rotational'] },
-        { id: 4, name: 'Status', values: ['Active', 'Inactive', 'Pending', 'On Hold'] },
-    ]);
-
-    const [selectedCategory, setSelectedCategory] = useState(categories[0]);
+    // Master Data / Drop Values State
+    const [categories, setCategories] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState(null);
     const [showAddValueModal, setShowAddValueModal] = useState(false);
+    const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
     const [newValue, setNewValue] = useState('');
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [loadingCategories, setLoadingCategories] = useState(false);
+    const [loadingValues, setLoadingValues] = useState(false);
 
-    const handleAddValue = () => {
+    // Fetch categories from API
+    const fetchCategories = async () => {
+        setLoadingCategories(true);
+        try {
+            const response = await api.get('/master-data/categories');
+            if (response.data.status === 200 || response.data.statusCode === 200) {
+                const cats = response.data.data || [];
+                setCategories(cats);
+                if (cats.length > 0 && !selectedCategory) {
+                    setSelectedCategory(cats[0]);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching categories:', error);
+            showToast('Failed to load categories', 'error');
+        } finally {
+            setLoadingCategories(false);
+        }
+    };
+
+    // Fetch values for a specific category
+    const fetchCategoryValues = async (categoryId) => {
+        setLoadingValues(true);
+        try {
+            const isDepartment = selectedCategory?.name?.toLowerCase() === 'department' || selectedCategory?.name?.toLowerCase() === 'departments';
+
+            let response;
+            if (isDepartment) {
+                response = await api.get('/departments/');
+            } else {
+                response = await api.get(`/master-data/categories/${categoryId}/values`);
+            }
+
+            if (response.data.status === 200 || response.data.statusCode === 200) {
+                const updatedCategories = categories.map(cat =>
+                    cat._id === categoryId || cat.id === categoryId
+                        ? { ...cat, values: response.data.data || [] }
+                        : cat
+                );
+                setCategories(updatedCategories);
+                const updated = updatedCategories.find(c => (c._id === categoryId || c.id === categoryId));
+                setSelectedCategory(updated);
+            }
+        } catch (error) {
+            console.error('Error fetching category values:', error);
+            showToast('Failed to load values', 'error');
+        } finally {
+            setLoadingValues(false);
+        }
+    };
+
+    // Load categories on mount
+    React.useEffect(() => {
+        if (activeTab === 'drop-values') {
+            fetchCategories();
+        }
+    }, [activeTab]);
+
+    // Add new category
+    const handleAddCategory = async () => {
+        if (!newCategoryName.trim()) {
+            showToast('Please enter a category name', 'error');
+            return;
+        }
+
+        setLoadingCategories(true);
+        try {
+            const response = await api.post('/master-data/categories', {
+                name: newCategoryName.trim()
+            });
+
+            if (response.data.status === 200 || response.data.status === 201 || response.data.statusCode === 200 || response.data.statusCode === 201) {
+                showToast(response.data.message || 'Category added successfully');
+                setNewCategoryName('');
+                setShowAddCategoryModal(false);
+                fetchCategories();
+            } else {
+                showToast(response.data.message || 'Failed to add category', 'error');
+            }
+        } catch (error) {
+            console.error('Error adding category:', error);
+            showToast(error.response?.data?.message || 'Error adding category', 'error');
+        } finally {
+            setLoadingCategories(false);
+        }
+    };
+
+    const handleAddValue = async () => {
         if (!newValue.trim()) {
             showToast('Please enter a value', 'error');
             return;
         }
 
-        const updatedCategories = categories.map(cat => {
-            if (cat.id === selectedCategory.id) {
-                return { ...cat, values: [...cat.values, newValue.trim()] };
+        setLoadingValues(true);
+        try {
+            const isDepartment = selectedCategory?.name?.toLowerCase() === 'department' || selectedCategory?.name?.toLowerCase() === 'departments';
+            const categoryId = selectedCategory._id || selectedCategory.id;
+
+            let response;
+            if (isDepartment) {
+                response = await api.post('/departments/', {
+                    name: newValue.trim()
+                });
+            } else {
+                response = await api.post(`/master-data/categories/${categoryId}/values`, {
+                    value: newValue.trim()
+                });
             }
-            return cat;
-        });
 
-        setCategories(updatedCategories);
-        // Update selected category to reflect changes immediately
-        const updatedSelected = updatedCategories.find(c => c.id === selectedCategory.id);
-        setSelectedCategory(updatedSelected);
-
-        setNewValue('');
-        setShowAddValueModal(false);
-        showToast(`${selectedCategory.name} value added successfully`);
+            if (response.data.status === 200 || response.data.status === 201 || response.data.statusCode === 200 || response.data.statusCode === 201) {
+                showToast(response.data.message || `${selectedCategory.name} value added successfully`);
+                setNewValue('');
+                setShowAddValueModal(false);
+                // Refresh the values
+                fetchCategoryValues(categoryId);
+            } else {
+                showToast(response.data.message || 'Failed to add value', 'error');
+            }
+        } catch (error) {
+            console.error('Error adding value:', error);
+            showToast(error.response?.data?.message || 'Error adding value', 'error');
+        } finally {
+            setLoadingValues(false);
+        }
     };
 
-    const handleDeleteValue = (valueToDelete) => {
-        const updatedCategories = categories.map(cat => {
-            if (cat.id === selectedCategory.id) {
-                return { ...cat, values: cat.values.filter(v => v !== valueToDelete) };
-            }
-            return cat;
-        });
+    const handleDeleteValue = async (valueToDelete) => {
+        setLoadingValues(true);
+        try {
+            const isDepartment = selectedCategory?.name?.toLowerCase() === 'department' || selectedCategory?.name?.toLowerCase() === 'departments';
+            const categoryId = selectedCategory._id || selectedCategory.id;
+            const valueId = typeof valueToDelete === 'object' ? (valueToDelete._id || valueToDelete.id) : valueToDelete;
 
-        setCategories(updatedCategories);
-        const updatedSelected = updatedCategories.find(c => c.id === selectedCategory.id);
-        setSelectedCategory(updatedSelected);
-        showToast(`${selectedCategory.name} value deleted`);
+            let response;
+            if (isDepartment) {
+                response = await api.delete(`/departments/${valueId}`);
+            } else {
+                response = await api.delete(`/master-data/categories/${categoryId}/values/${valueId}`);
+            }
+
+            if (response.data.status === 200 || response.data.statusCode === 200) {
+                showToast(response.data.message || `${selectedCategory.name} value deleted`);
+                // Refresh the values
+                fetchCategoryValues(categoryId);
+            } else {
+                showToast(response.data.message || 'Failed to delete value', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting value:', error);
+            showToast(error.response?.data?.message || 'Error deleting value', 'error');
+        } finally {
+            setLoadingValues(false);
+        }
     };
 
     const renderSkeletonRows = (count) => {
@@ -449,14 +564,16 @@ const SettingsPage = () => {
                                 renderSkeletonRows(5)
                             ) : usersToDisplay.length === 0 ? (
                                 <tr>
-                                    <td colSpan="8">
+                                    <td colSpan="8" style={{ textAlign: 'center', padding: 0 }}>
                                         <div style={{
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             height: '300px',
-                                            color: '#94a3b8'
+                                            color: '#94a3b8',
+                                            width: '100%',
+                                            margin: '0 auto'
                                         }}>
                                             <Search size={40} style={{ marginBottom: '1rem', opacity: 0.5 }} />
                                             <p style={{ margin: 0, fontWeight: 600 }}>No users found for these filters.</p>
@@ -487,9 +604,9 @@ const SettingsPage = () => {
                                     </td>
                                     <td className="text-right">
                                         <div className="actions-flex-alt">
-                                            <button className="action-icon-btn-premium view" title="View" onClick={() => handleViewUser(user)}><Eye size={18} /></button>
-                                            <button className="action-icon-btn-premium edit" title="Edit" onClick={() => handleEditUser(user)}><Edit size={18} /></button>
-                                            <button className="action-icon-btn-premium delete" title="Delete" onClick={() => handleDeleteUser(user)}><Trash2 size={18} /></button>
+                                            <button className="action-icon-btn-premium view" title="View" onClick={() => handleViewUser(user)}><Eye size={20} /></button>
+                                            <button className="action-icon-btn-premium edit" title="Edit" onClick={() => handleEditUser(user)}><Edit size={20} /></button>
+                                            <button className="action-icon-btn-premium delete" title="Delete" onClick={() => handleDeleteUser(user)}><Trash2 size={20} /></button>
                                         </div>
                                     </td>
                                 </tr>
@@ -785,79 +902,157 @@ const SettingsPage = () => {
             `}</style>
         </div>
     );
-    const renderAddValueModal = () => (
-        <div className={`modal-overlay-premium ${showAddValueModal ? 'show' : ''}`}>
-            <div className="modal-content-premium">
-                <div className="modal-header-premium" style={{ marginBottom: '1rem', textAlign: 'left' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>Add {selectedCategory.name}</h3>
-                </div>
-                <div className="modal-body-premium" style={{ textAlign: 'left', marginBottom: '1.5rem' }}>
-                    <div className="form-group-settings">
-                        <label>Value Name</label>
-                        <input
-                            type="text"
-                            value={newValue}
-                            onChange={(e) => setNewValue(e.target.value)}
-                            placeholder={`Enter ${selectedCategory.name.toLowerCase()} name`}
-                            autoFocus
-                        />
+    const renderAddValueModal = () => {
+        if (!showAddValueModal || !selectedCategory) return null;
+        return (
+            <div className={`modal-overlay-premium ${showAddValueModal ? 'show' : ''}`}>
+                <div className="modal-content-premium" style={{ textAlign: 'left', maxWidth: '450px' }}>
+                    <div className="modal-header-premium" style={{ marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b', textAlign: 'center' }}>Add {selectedCategory.name}</h3>
+                    </div>
+                    <div className="modal-body-premium" style={{ marginBottom: '2rem' }}>
+                        <div className="form-group-settings">
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#475569', fontSize: '0.9rem' }}>Value Name</label>
+                            <input
+                                type="text"
+                                value={newValue}
+                                onChange={(e) => setNewValue(e.target.value)}
+                                placeholder={`Enter ${selectedCategory.name.toLowerCase()} name`}
+                                autoFocus
+                                onKeyPress={(e) => e.key === 'Enter' && !loadingValues && handleAddValue()}
+                                style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0' }}
+                            />
+                        </div>
+                    </div>
+                    <div className="modal-footer-premium" style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                        <button className="btn-secondary-alt" onClick={() => setShowAddValueModal(false)} disabled={loadingValues} style={{ padding: '0.6rem 1.5rem', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>Cancel</button>
+                        <button className="btn-primary-alt" onClick={handleAddValue} disabled={loadingValues} style={{ padding: '0.6rem 1.5rem', borderRadius: '10px', border: 'none', background: '#0d5f68', color: 'white', fontWeight: 600, cursor: 'pointer' }}>
+                            {loadingValues ? 'Adding...' : 'Add Value'}
+                        </button>
                     </div>
                 </div>
-                <div className="modal-footer-premium" style={{ justifyContent: 'flex-end' }}>
-                    <button className="btn-secondary-alt" onClick={() => setShowAddValueModal(false)}>Cancel</button>
-                    <button className="btn-primary-alt" onClick={handleAddValue}>Add Value</button>
-                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const renderDropValues = () => (
         <div className="drop-values-container">
             <div className="settings-sidebar">
-                <h3 className="settings-sidebar-title">Categories</h3>
+                <div className="sidebar-header-flex">
+                    <h3 className="settings-sidebar-title">Categories</h3>
+                    <button className="icon-btn-add-sm" title="Add Category" onClick={() => setShowAddCategoryModal(true)}>
+                        <Plus size={14} />
+                    </button>
+                </div>
                 <div className="category-list">
-                    {categories.map(cat => (
-                        <div
-                            key={cat.id}
-                            className={`category-item ${selectedCategory.id === cat.id ? 'active' : ''}`}
-                            onClick={() => setSelectedCategory(cat)}
-                        >
-                            <span>{cat.name}</span>
+                    {loadingCategories ? (
+                        <div style={{ padding: '1rem', textAlign: 'center', color: '#64748b' }}>Loading...</div>
+                    ) : categories.length === 0 ? (
+                        <div style={{ padding: '1rem', textAlign: 'center', color: '#64748b' }}>
+                            <p style={{ fontSize: '0.8rem', marginBottom: '0.5rem' }}>No categories found</p>
+                            <button className="btn-text-action" onClick={() => setShowAddCategoryModal(true)}>+ Create One</button>
                         </div>
-                    ))}
+                    ) : (
+                        categories.map(cat => (
+                            <div
+                                key={cat._id || cat.id}
+                                className={`category-item ${selectedCategory && (selectedCategory._id === cat._id || selectedCategory.id === cat.id) ? 'active' : ''}`}
+                                onClick={() => setSelectedCategory(cat)}
+                            >
+                                <span>{cat.name}</span>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 
             <div className="settings-main-content">
-                <div className="card-header-flex">
-                    <h2 className="card-title">{selectedCategory.name} List</h2>
-                    <button className="btn-primary-alt" onClick={() => setShowAddValueModal(true)}>
-                        <Plus size={16} />
-                        <span>Add Value</span>
-                    </button>
-                </div>
+                {selectedCategory ? (
+                    <>
+                        <div className="card-header-flex">
+                            <h2 className="card-title">{selectedCategory.name} List</h2>
+                            <button className="btn-primary-alt" onClick={() => setShowAddValueModal(true)} disabled={loadingValues}>
+                                <Plus size={16} />
+                                <span>Add Value</span>
+                            </button>
+                        </div>
 
-                <div className="values-list-container">
-                    <div className="values-list-header">
-                        <div className="header-col">Value Name</div>
-                        <div className="header-col text-right">Actions</div>
-                    </div>
-                    <div className="values-list-body">
-                        {selectedCategory.values.map((val, idx) => (
-                            <div key={idx} className="value-list-item">
-                                <span className="value-text">{val}</span>
-                                <div className="value-actions">
-                                    <button className="action-icon-btn" title="Edit"><Edit size={14} /></button>
-                                    <button className="action-icon-btn delete" title="Delete" onClick={() => handleDeleteValue(val)}><Trash2 size={14} /></button>
-                                </div>
+                        <div className="values-list-container">
+                            <div className="values-list-header">
+                                <div className="header-col">Value Name</div>
+                                <div className="header-col text-right">Actions</div>
                             </div>
-                        ))}
+                            <div className="values-list-body">
+                                {loadingValues ? (
+                                    <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                                        Loading values...
+                                    </div>
+                                ) : !selectedCategory.values || selectedCategory.values.length === 0 ? (
+                                    <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                                        No values found. Click "Add Value" to create one.
+                                    </div>
+                                ) : (
+                                    selectedCategory.values.map((val, idx) => {
+                                        const valueId = val._id || val.id || val;
+                                        const valueName = val.name || val.value || val;
+                                        return (
+                                            <div key={valueId || idx} className="value-list-item">
+                                                <span className="value-text">{valueName}</span>
+                                                <div className="value-actions">
+                                                    <button className="action-icon-btn delete" title="Delete" onClick={() => handleDeleteValue(val)} disabled={loadingValues}>
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
+                        Select a category to view and manage its values
+                    </div>
+                )}
+            </div>
+            {renderAddValueModal()}
+            {renderAddCategoryModal()}
+        </div>
+    );
+
+    function renderAddCategoryModal() {
+        if (!showAddCategoryModal) return null;
+        return (
+            <div className={`modal-overlay-premium show`}>
+                <div className="modal-content-premium" style={{ textAlign: 'left', maxWidth: '450px' }}>
+                    <div className="modal-header-premium" style={{ marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b', textAlign: 'center' }}>Add New Category</h3>
+                    </div>
+                    <div className="modal-body-premium" style={{ marginBottom: '2rem' }}>
+                        <div className="form-group-settings">
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#475569', fontSize: '0.9rem' }}>Category Name</label>
+                            <input
+                                type="text"
+                                value={newCategoryName}
+                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                placeholder="e.g. Department, Employment Type"
+                                autoFocus
+                                onKeyPress={(e) => e.key === 'Enter' && !loadingCategories && handleAddCategory()}
+                                style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0' }}
+                            />
+                        </div>
+                    </div>
+                    <div className="modal-footer-premium" style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                        <button className="btn-secondary-alt" onClick={() => setShowAddCategoryModal(false)} disabled={loadingCategories} style={{ padding: '0.6rem 1.5rem', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>Cancel</button>
+                        <button className="btn-primary-alt" onClick={handleAddCategory} disabled={loadingCategories} style={{ padding: '0.6rem 1.5rem', borderRadius: '10px', border: 'none', background: '#0d5f68', color: 'white', fontWeight: 600, cursor: 'pointer' }}>
+                            {loadingCategories ? 'Adding...' : 'Add Category'}
+                        </button>
                     </div>
                 </div>
             </div>
-            {renderAddValueModal()}
-        </div>
-    );
+        );
+    }
 
     const renderDeleteModal = () => (
         <div className={`modal-overlay-premium ${showDeleteModal ? 'show' : ''}`}>
@@ -1315,12 +1510,49 @@ const SettingsPage = () => {
                     flex-direction: column;
                     gap: 1rem;
                 }
+                .sidebar-header-flex {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 0.5rem;
+                }
                 .settings-sidebar-title {
                     font-size: 0.9rem;
                     font-weight: 700;
                     color: #64748b;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
+                    margin: 0;
+                }
+                .icon-btn-add-sm {
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 6px;
+                    background: #f1f5f9;
+                    border: 1px solid #e2e8f0;
+                    color: #0d5f68;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .icon-btn-add-sm:hover {
+                    background: #0d5f68;
+                    color: white;
+                    border-color: #0d5f68;
+                }
+                .btn-text-action {
+                    background: none;
+                    border: none;
+                    color: #0d5f68;
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    padding: 0;
+                }
+                .btn-text-action:hover {
+                    text-decoration: underline;
                 }
                 .category-item {
                     padding: 0.75rem 1rem;
@@ -1612,11 +1844,11 @@ const SettingsPage = () => {
                 }
                 .table-wrapper-alt th {
                     background: #f8fafc;
-                    padding: 0.75rem 1rem;
+                    padding: 1rem 1rem;
                     text-align: left;
                     font-size: 0.7rem;
                     font-weight: 700;
-                    color: #64748b;
+                    color: #475569;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
                     border-bottom: 1px solid #f1f5f9;
@@ -1684,20 +1916,20 @@ const SettingsPage = () => {
                     border-radius: 6px;
                 }
                 .table-wrapper-alt td {
-                    padding: 0.75rem 1rem;
+                    padding: 1rem 1rem;
                     border-bottom: 1px solid #f1f5f9;
                     font-size: 0.85rem;
                     color: #334155;
                     vertical-align: middle;
-                    height: 64px; /* Fixed row height to prevent jerking */
+                    height: 70px; /* Fixed row height to prevent jerking */
                 }
                 .table-wrapper-alt tr {
-                    height: 64px;
+                    height: 70px;
                 }
                 .text-user-id {
                     font-family: 'JetBrains Mono', monospace;
                     font-weight: 600;
-                    color: #0d5f68;
+                    color: #0a4a52;
                     font-size: 0.8rem;
                 }
                 .candidate-info-cell {
@@ -1785,8 +2017,8 @@ const SettingsPage = () => {
                     justify-content: flex-end;
                 }
                 .action-icon-btn-premium {
-                    width: 38px;
-                    height: 38px;
+                    width: 42px;
+                    height: 42px;
                     border-radius: 10px;
                     display: flex;
                     align-items: center;
