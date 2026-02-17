@@ -92,19 +92,20 @@ const DashboardHome = () => {
                     padding: 1.5rem;
                     display: flex;
                     flex-direction: column;
-                    gap: 1.5rem;
+                    gap: 1rem; /* Compact layout */
                 }
 
                 .stats-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-                    gap: 1.5rem;
+                    gap: 1rem; /* Reduced gap */
+                    align-items: stretch; /* Equal height */
                 }
 
                 .charts-row {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-                    gap: 1.5rem;
+                    gap: 1rem; /* Reduced gap */
                 }
 
                 .chart-wrapper {

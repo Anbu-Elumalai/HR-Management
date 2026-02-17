@@ -16,8 +16,9 @@ import {
   Users2,
   Lock
 } from 'lucide-react';
+import MarsLogo from '../assets/Marslogo.png';
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
   const [activeMenuPath, setActiveMenuPath] = useState(null);
 
@@ -75,6 +76,11 @@ const Sidebar = () => {
       // If navigating to a top-level item without children, close all accordions
       setActiveMenuPath(null);
     }
+
+    // Close sidebar on mobile when route changes
+    if (window.innerWidth <= 768 && onClose) {
+      onClose();
+    }
   }, [location.pathname]);
 
   const toggleMenu = (path) => {
@@ -82,69 +88,75 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="sidebar">
-      <div className="sidebar-header">
-        <div className="logo-icon">HR</div>
-        <span className="logo-text">System</span>
-      </div>
+    <>
+      {/* Mobile Overlay */}
+      <div
+        className={`mobile-overlay ${isOpen ? 'open' : ''}`}
+        onClick={onClose}
+      />
 
-      <nav className="sidebar-nav">
-        {menuItems.map((item) => {
-          if (item.children) {
-            const isExpanded = activeMenuPath === item.path;
-            const isActiveParent = item.children.some(child => location.pathname.startsWith(child.path));
+      <div className={`sidebar ${isOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <img src={MarsLogo} alt="Mars Solutions" className="sidebar-logo" />
+        </div>
+
+        <nav className="sidebar-nav">
+          {menuItems.map((item) => {
+            if (item.children) {
+              const isExpanded = activeMenuPath === item.path;
+              const isActiveParent = item.children.some(child => location.pathname.startsWith(child.path));
+
+              return (
+                <div key={item.path} className="nav-group">
+                  <div
+                    className={`nav-item parent ${isActiveParent ? 'active-parent' : ''}`}
+                    onClick={() => toggleMenu(item.path)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon size={20} />
+                      <span>{item.label}</span>
+                    </div>
+                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </div>
+                  {isExpanded && (
+                    <div className="nav-children">
+                      {item.children.map(child => (
+                        <NavLink
+                          key={child.path}
+                          to={child.path}
+                          className={({ isActive }) => `nav-child-item ${isActive ? 'active' : ''}`}
+                        >
+                          <Circle size={8} fill="currentColor" />
+                          <span>{child.label}</span>
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
             return (
-              <div key={item.path} className="nav-group">
-                <div
-                  className={`nav-item parent ${isActiveParent ? 'active-parent' : ''}`}
-                  onClick={() => toggleMenu(item.path)}
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon size={20} />
-                    <span>{item.label}</span>
-                  </div>
-                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </div>
-                {isExpanded && (
-                  <div className="nav-children">
-                    {item.children.map(child => (
-                      <NavLink
-                        key={child.path}
-                        to={child.path}
-                        className={({ isActive }) => `nav-child-item ${isActive ? 'active' : ''}`}
-                      >
-                        <Circle size={8} fill="currentColor" />
-                        <span>{child.label}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              >
+                <item.icon size={20} />
+                <span>{item.label}</span>
+              </NavLink>
             );
-          }
+          })}
+        </nav>
 
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <item.icon size={20} />
-              <span>{item.label}</span>
-            </NavLink>
-          );
-        })}
-      </nav>
+        <div className="sidebar-footer">
+          <button className="logout-btn">
+            <LogOut size={20} />
+            <span>Logout</span>
+          </button>
+        </div>
 
-      <div className="sidebar-footer">
-        <button className="logout-btn">
-          <LogOut size={20} />
-          <span>Logout</span>
-        </button>
-      </div>
-
-      <style>{`
+        <style>{`
         .sidebar {
           width: 260px;
           background-color: white;
@@ -156,36 +168,61 @@ const Sidebar = () => {
           left: 0;
           top: 0;
           z-index: 50;
+          transition: transform 0.3s ease-in-out;
+        }
+
+        .mobile-overlay {
+          display: none;
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.5);
+          z-index: 40;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+          .sidebar {
+            transform: translateX(-100%);
+          }
+          
+          .sidebar.open {
+            transform: translateX(0);
+          }
+
+          .mobile-overlay {
+            display: block;
+            pointer-events: none;
+          }
+
+          .mobile-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+          }
         }
 
         .sidebar-header {
-          padding: 1.5rem;
+          padding: 1rem 1.5rem; /* Reduced padding as requested */
+          height: 64px; /* Consistent height */
           display: flex;
-          align-items: center;
-          gap: 0.75rem;
+          align-items: center; /* Vertically centered */
+          justify-content: flex-start;
           border-bottom: 1px solid #f3f4f6;
         }
         
-        .logo-icon {
-            background: linear-gradient(135deg, #0f4c54 0%, #0a383e 100%);
-            color: white;
-            font-weight: bold;
-            padding: 0.25rem 0.5rem;
-            border-radius: 6px;
-        }
-
-        .logo-text {
-          font-weight: 700;
-          font-size: 1.25rem;
-          color: #1f2937;
+        .sidebar-logo {
+            height: 40px; /* User specified 40px */
+            width: auto;
+            display: block;
+            object-fit: contain;
         }
 
         .sidebar-nav {
           flex: 1;
-          padding: 1.5rem 1rem;
+          padding: 1.5rem 0; /* Reduced horizontal padding, handled by items */
           display: flex;
           flex-direction: column;
-          gap: 0.5rem;
+          gap: 0.25rem; /* Reduced gap */
           overflow-y: auto;
         }
 
@@ -194,31 +231,34 @@ const Sidebar = () => {
           align-items: center;
           justify-content: flex-start;
           gap: 0.75rem;
-          padding: 0.75rem 1rem;
-          border-radius: 8px;
+          padding: 0.75rem 1.5rem; /* Increased specific padding */
+          border-left: 4px solid transparent; /* Prepare for active border */
           text-decoration: none;
           color: #6b7280;
           font-weight: 500;
           transition: all 0.2s;
           cursor: pointer;
+          margin: 0;
         }
         
+        /* ... existing nested div ... */
         .nav-item > div {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            flex: 1;
-        }
+             display: flex;
+             align-items: center;
+             gap: 0.75rem;
+             flex: 1;
+         }
 
         .nav-item:hover {
-          background-color: #f3f4f6;
+          background-color: #f9fafb; /* Lighter hover */
           color: #0f4c54;
         }
 
         .nav-item.active, .nav-item.active-parent {
-          background-color: rgba(13, 95, 104, 0.08); /* Subtle teal with opacity */
+          background-color: rgba(13, 95, 104, 0.08);
           color: #0d5f68;
           font-weight: 600;
+          border-left-color: #0d5f68; /* Teal accent border */
         }
         
         .nav-children {
@@ -283,7 +323,8 @@ const Sidebar = () => {
           background-color: #fef2f2;
         }
       `}</style>
-    </div>
+      </div>
+    </>
   );
 };
 

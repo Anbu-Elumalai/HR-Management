@@ -32,7 +32,7 @@ const AttendanceChart = () => {
                         margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
                         barSize={10}
                     >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                         <XAxis
                             dataKey="name"
                             axisLine={false}
@@ -67,11 +67,16 @@ const AttendanceChart = () => {
                 .chart-card {
                     background: white;
                     padding: 1.5rem;
-                    border-radius: 12px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+                    border-radius: 16px;
+                    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
                     height: 100%;
                     display: flex;
                     flex-direction: column;
+                    transition: all 0.3s ease;
+                }
+                .chart-card:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 12px 32px rgba(0,0,0,0.08);
                 }
                 .header-row {
                     display: flex;
@@ -85,14 +90,18 @@ const AttendanceChart = () => {
                     color: #1f2937;
                 }
                 .period-select {
-                    background: #f3f4f6;
-                    border: none;
-                    padding: 0.25rem 0.75rem;
-                    border-radius: 6px;
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    padding: 0.35rem 0.75rem;
+                    border-radius: 8px;
                     font-size: 0.85rem;
                     color: #4b5563;
                     cursor: pointer;
                     outline: none;
+                    transition: all 0.2s;
+                }
+                .period-select:hover {
+                    border-color: #d1d5db;
                 }
                 .chart-container {
                     flex: 1;
@@ -101,19 +110,22 @@ const AttendanceChart = () => {
                 .custom-legend {
                     display: flex;
                     justify-content: center;
-                    gap: 1.5rem;
-                    margin-top: 1rem;
+                    gap: 2rem;
+                    margin-top: 1.5rem;
                     font-size: 0.85rem;
                     color: #4b5563;
+                    border-top: 1px solid #f3f4f6;
+                    padding-top: 1rem;
                 }
                 .item {
                     display: flex;
                     align-items: center;
                     gap: 0.5rem;
+                    font-weight: 500;
                 }
                 .dot {
-                    width: 10px;
-                    height: 10px;
+                    width: 8px;
+                    height: 8px;
                     border-radius: 2px;
                 }
                 .bg-blue { background-color: #3b82f6; }

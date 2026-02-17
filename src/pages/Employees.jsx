@@ -25,32 +25,6 @@ const Employees = () => {
                 </button>
             </div>
 
-            {/* Filters Section */}
-            <div className="filters-card">
-                <div className="search-wrapper">
-                    <Search size={20} className="search-icon" />
-                    <input type="text" placeholder="Search by name or ID..." className="search-input" />
-                </div>
-
-                <div className="filters-group">
-                    <div className="filter-input-wrapper">
-                        <select className="filter-select">
-                            <option value="">Status: All</option>
-                            <option value="Active">Active</option>
-                            <option value="Inactive">Inactive</option>
-                        </select>
-                    </div>
-                    <div className="filter-input-wrapper">
-                        <Calendar size={18} className="input-icon" />
-                        <input type="date" className="filter-date" placeholder="From" />
-                    </div>
-                    <div className="filter-input-wrapper">
-                        <Calendar size={18} className="input-icon" />
-                        <input type="date" className="filter-date" placeholder="To" />
-                    </div>
-                </div>
-            </div>
-
             {/* Table Section */}
             <div className="table-card">
                 <div className="table-wrapper">
@@ -65,6 +39,37 @@ const Employees = () => {
                                 <th>Type</th>
                                 <th>Date of Joining</th>
                                 <th>Actions</th>
+                            </tr>
+                            {/* Inline Filter Row */}
+                            <tr className="filter-row">
+                                <th>
+                                    <input type="text" className="inline-filter" placeholder="Filter Name" />
+                                </th>
+                                <th>
+                                    <input type="text" className="inline-filter" placeholder="Filter ID" />
+                                </th>
+                                <th>
+                                    <input type="text" className="inline-filter" placeholder="Filter Dept" />
+                                </th>
+                                <th>
+                                    <input type="text" className="inline-filter" placeholder="Filter Role" />
+                                </th>
+                                <th>
+                                    <select className="inline-filter">
+                                        <option value="">All Status</option>
+                                        <option value="Active">Active</option>
+                                        <option value="Inactive">Inactive</option>
+                                        <option value="On Leave">On Leave</option>
+                                    </select>
+                                </th>
+                                <th>
+                                    <input type="text" className="inline-filter" placeholder="Filter Type" />
+                                </th>
+                                <th>
+                                    <input type="date" className="inline-filter" />
+                                </th>
+                                <th className="text-center">
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -100,7 +105,7 @@ const Employees = () => {
                 </div>
 
                 <div className="pagination">
-                    <span className="text-sm text-gray-500">Showing 1 to 5 of 5 entries</span>
+                    <span className="pagination-info">Showing 1 to 5 of 5 entries</span>
                     <div className="pagination-controls">
                         <button className="page-btn disabled">Previous</button>
                         <button className="page-btn active">1</button>
@@ -112,156 +117,141 @@ const Employees = () => {
             <style>{`
                 .employees-page {
                     padding: 1.5rem;
+                    padding-top: 1rem;
                     display: flex;
                     flex-direction: column;
-                    gap: 1.5rem;
-                    height: calc(100vh - 64px); /* Full height minus topbar */
-                    overflow: hidden; /* Prevent outer scroll */
+                    gap: 1rem;
+                    height: calc(100vh - 60px);
+                    overflow: hidden;
                 }
 
                 .page-header {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    margin-bottom: 0.5rem;
                 }
 
                 .page-title {
                     font-size: 1.5rem;
                     font-weight: 700;
-                    color: white; /* Matching dark theme dashboard */
+                    color: white;
+                    letter-spacing: -0.02em;
                 }
 
                 .btn-primary {
-                    background: #0f4c54; /* Dark Teal */
+                    background: #0d5f68;
                     color: white;
                     border: none;
                     padding: 0.6rem 1.2rem;
                     border-radius: 8px;
-                    font-weight: 500;
+                    font-weight: 600;
                     display: flex;
                     align-items: center;
                     gap: 0.5rem;
                     cursor: pointer;
-                    transition: background 0.2s;
+                    transition: all 0.2s;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
                 }
                 .btn-primary:hover {
-                    background: #0a383e;
+                    background: #0b4e56;
+                    transform: translateY(-1px);
+                    box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.15);
                 }
 
-                .filters-card {
-                    background: white;
-                    padding: 1.25rem;
-                    border-radius: 12px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 1rem;
-                    align-items: center;
-                    justify-content: space-between;
-                }
-
-                .search-wrapper {
-                    position: relative;
-                    flex: 1;
-                    min-width: 250px;
-                }
-                .search-icon {
-                    position: absolute;
-                    left: 12px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    color: #9ca3af;
-                }
-                .search-input {
-                    width: 100%;
-                    padding: 0.6rem 1rem 0.6rem 2.5rem;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 8px;
-                    font-size: 0.9rem;
-                    outline: none;
-                    transition: border-color 0.2s;
-                }
-                .search-input:focus {
-                    border-color: #0f4c54;
-                }
-
-                .filters-group {
-                    display: flex;
-                    gap: 1rem;
-                    flex-wrap: wrap;
-                }
-                .filter-input-wrapper {
-                    position: relative;
-                    display: flex;
-                    align-items: center;
-                }
-                .input-icon {
-                    position: absolute;
-                    left: 10px;
-                    color: #9ca3af;
-                    pointer-events: none;
-                }
-                .filter-select, .filter-date {
-                    padding: 0.6rem 1rem 0.6rem 2.2rem; /* Space for icon if any, date has native icon though */
-                    border: 1px solid #e5e7eb;
-                    border-radius: 8px;
-                    font-size: 0.9rem;
-                    outline: none;
-                    color: #4b5563;
-                    background: white;
-                }
-                .filter-select {
-                    padding-left: 1rem;
-                    min-width: 150px;
-                    cursor: pointer;
-                }
-                /* Adjust padding for date inputs to accommodate icon */
-                .filter-date {
-                    padding-left: 2.2rem; 
-                }
-
+                /* Table Section */
                 .table-card {
                     background: white;
-                    border-radius: 12px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+                    border-radius: 16px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
                     overflow: hidden;
                     display: flex;
                     flex-direction: column;
-                    flex: 1; /* Take remaining vertical space */
-                    min-height: 0; /* Allow shrinking */
+                    flex: 1;
+                    min-height: 0;
                 }
                 .table-wrapper {
-                    overflow-x: auto;
+                    overflow-x: auto; /* Allow header scroll if needed */
                     overflow-y: auto;
-                    flex: 1; /* Scrollable area */
+                    flex: 1;
+                    width: 100%;
                 }
                 .employee-table {
                     width: 100%;
-                    border-collapse: separate; /* Changed from collapse for sticky to work better with borders */
-                    border-spacing: 0;
+                    border-collapse: collapse;
                     text-align: left;
+                    white-space: nowrap; /* Keep rows nice, allow scroll if needed */
                 }
-                .employee-table th {
+                
+                .employee-table thead {
                     position: sticky;
                     top: 0;
-                    z-index: 10;
-                    padding: 1rem 0.75rem;
-                    background-color: #f9fafb;
-                    color: #4b5563;
-                    font-weight: 600;
-                    font-size: 0.85rem;
-                    border-bottom: 1px solid #e5e7eb;
-                    white-space: nowrap;
-                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                    z-index: 20;
+                    background-color: #f8f9fb;
                 }
-                .employee-table td {
-                    padding: 1rem 0.75rem;
-                    border-bottom: 1px solid #f3f4f6;
-                    color: #1f2937;
-                    font-size: 0.9rem;
+
+                .employee-table th {
+                    padding: 0.75rem 1.25rem; /* Compact padding */
+                    color: #374151;
+                    font-weight: 700;
+                    font-size: 0.8rem;
+                    border-bottom: 1px solid #e5e7eb;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
                     vertical-align: middle;
                 }
-                .employee-table tr:hover {
+
+                /* Filter Row Styling */
+                .filter-row th {
+                    padding: 0.5rem 1.25rem 1rem 1.25rem; /* Less top padding to sit close to label */
+                    background-color: #f8f9fb;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .inline-filter {
+                    width: 100%;
+                    padding: 0.4rem 0.6rem;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    font-size: 0.85rem;
+                    outline: none;
+                    background: white;
+                    color: #4b5563;
+                    transition: border-color 0.2s;
+                }
+                .inline-filter:focus {
+                    border-color: #0d5f68;
+                    box-shadow: 0 0 0 2px rgba(13, 95, 104, 0.1);
+                }
+                .inline-filter::placeholder {
+                    color: #9ca3af;
+                    font-weight: 400;
+                }
+                
+                .clear-filters-mini {
+                    background: none;
+                    border: none;
+                    color: #ef4444;
+                    cursor: pointer;
+                    padding: 4px;
+                    border-radius: 4px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto; /* Center the button */
+                }
+                .clear-filters-mini:hover {
+                    background-color: #fef2f2;
+                }
+
+                .employee-table td {
+                    padding: 0.85rem 1.25rem; /* Compact padding */
+                    border-bottom: 1px solid #f3f4f6;
+                    color: #1f2937;
+                    font-size: 0.95rem;
+                    vertical-align: middle;
+                }
+                .employee-table tr:hover td {
                     background-color: #f9fafb;
                 }
 
@@ -279,44 +269,38 @@ const Employees = () => {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    font-weight: 600;
+                    font-weight: 700;
                     font-size: 0.9rem;
                 }
                 .emp-name {
-                    font-weight: 500;
+                    font-weight: 600;
+                    color: #111827;
                 }
-                .text-secondary {
-                    color: #6b7280;
-                }
+                .text-secondary { color: #6b7280; }
+                .text-center { text-align: center; }
 
                 .status-badge {
                     padding: 0.25rem 0.75rem;
-                    border-radius: 9999px;
-                    font-size: 0.8rem;
+                    border-radius: 20px;
+                    font-size: 0.75rem;
                     font-weight: 600;
-                    display: inline-block;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-width: 70px;
                 }
-                .status-badge.active {
-                    background-color: #d1fae5;
-                    color: #059669;
-                }
-                .status-badge.inactive {
-                    background-color: #fee2e2;
-                    color: #dc2626;
-                }
-                .status-badge.on-leave {
-                    background-color: #fef3c7;
-                    color: #d97706;
-                }
+                .status-badge.active { background-color: #ecfdf5; color: #059669; }
+                .status-badge.inactive { background-color: #fef2f2; color: #dc2626; }
+                .status-badge.on-leave { background-color: #fffbeb; color: #d97706; }
 
                 .actions-wrapper {
                     display: flex;
                     gap: 0.5rem;
                 }
                 .action-btn {
-                    width: 32px;
-                    height: 32px;
-                    border-radius: 50%; /* Circle shape */
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 6px;
                     border: none;
                     display: flex;
                     align-items: center;
@@ -325,49 +309,79 @@ const Employees = () => {
                     transition: all 0.2s;
                     background: transparent;
                 }
-                
-                /* Specific styles for each button type */
-                .action-btn.view { color: #3b82f6; background-color: #eff6ff; }
-                .action-btn.view:hover { background-color: #dbeafe; }
+                .action-btn:hover { background-color: #f3f4f6; }
+                .action-btn.view { color: #3b82f6; }
+                .action-btn.edit { color: #10b981; }
+                .action-btn.delete { color: #ef4444; }
 
-                .action-btn.edit { color: #10b981; background-color: #d1fae5; } /* Green for edit */
-                .action-btn.edit:hover { background-color: #a7f3d0; }
-
-                .action-btn.delete { color: #ef4444; background-color: #fee2e2; }
-                .action-btn.delete:hover { background-color: #fecaca; }
-
+                /* Pagination */
                 .pagination {
-                    padding: 1rem 1.5rem;
+                    padding: 0.75rem 1.5rem;
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
-                    border-top: 1px solid #e5e7eb;
+                    border-top: 1px solid #f3f4f6;
+                    background: white;
+                }
+                .pagination-info {
+                    font-size: 0.85rem;
+                    color: #6b7280;
+                    font-weight: 500;
                 }
                 .pagination-controls {
                     display: flex;
                     gap: 0.5rem;
+                    align-items: center;
                 }
                 .page-btn {
-                    padding: 0.4rem 0.8rem;
+                    min-width: 32px;
+                    height: 32px;
+                    padding: 0 0.4rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                     border: 1px solid #e5e7eb;
                     background: white;
                     border-radius: 6px;
                     font-size: 0.85rem;
                     cursor: pointer;
                     color: #4b5563;
+                    transition: all 0.2s;
+                }
+                .page-btn:hover:not(.disabled) {
+                    background-color: #f9fafb;
+                    border-color: #d1d5db;
                 }
                 .page-btn.active {
-                    background-color: #0f4c54;
+                    background-color: #0d5f68;
                     color: white;
-                    border-color: #0f4c54;
+                    border-color: #0d5f68;
+                    font-weight: 500;
+                    box-shadow: 0 2px 4px rgba(13, 95, 104, 0.2);
                 }
                 .page-btn.disabled {
                     opacity: 0.5;
                     cursor: not-allowed;
+                    background-color: #f9fafb;
+                    color: #9ca3af;
                 }
+                
+                .table-wrapper::-webkit-scrollbar {
+                    width: 6px;
+                    height: 6px;
+                }
+                .table-wrapper::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .table-wrapper::-webkit-scrollbar-thumb {
+                    background: #d1d5db;
+                    border-radius: 3px;
+                }
+                .table-wrapper::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
             `}</style>
         </div>
     );
 };
 
 export default Employees;
+

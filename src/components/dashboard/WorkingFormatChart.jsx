@@ -52,28 +52,34 @@ const WorkingFormatChart = () => {
                 .chart-card {
                     background: white;
                     padding: 1.5rem;
-                    border-radius: 12px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+                    border-radius: 16px; /* Consistent radius */
+                    box-shadow: 0 8px 24px rgba(0,0,0,0.06); /* Softer shadow */
                     height: 100%;
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
+                    transition: all 0.3s ease;
+                }
+                .chart-card:hover { 
+                    transform: translateY(-2px);
+                    box-shadow: 0 12px 32px rgba(0,0,0,0.08);
                 }
                 .chart-title {
                     font-size: 1rem;
-                    font-weight: 700;
-                    margin-bottom: 0.5rem;
+                    font-weight: 600; /* Medium weight */
+                    margin-bottom: 1.5rem; /* Consistent spacing */
                     color: #1f2937;
                 }
                 .content-wrapper {
                     display: flex;
                     align-items: center;
-                    justify-content: space-between;
+                    justify-content: center; /* Center content */
+                    gap: 2rem;
                     flex: 1;
                 }
                 .chart-section {
                     width: 50%;
-                    height: 180px;
+                    height: 200px; /* Slightly taller */
                     position: relative;
                 }
                 .center-text {
@@ -93,7 +99,7 @@ const WorkingFormatChart = () => {
                     display: flex;
                     flex-direction: column;
                     gap: 0.75rem;
-                    padding-left: 1rem;
+                    padding-left: 0; /* Remove left padding if aligned differently */
                 }
                 .legend-item {
                     display: flex;
@@ -107,8 +113,8 @@ const WorkingFormatChart = () => {
                     flex-shrink: 0;
                 }
                 .label {
-                    font-weight: 600;
-                    color: #374151;
+                    font-weight: 500; /* Softer weight */
+                    color: #4b5563;
                 }
             `}</style>
         </div>

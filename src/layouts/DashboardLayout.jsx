@@ -4,12 +4,16 @@ import Sidebar from '../components/Sidebar';
 
 const DashboardLayout = () => {
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
 
   return (
     <div className="dashboard-layout">
-      <Sidebar />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <main className="main-content">
         <header className="topbar">
+          <button className="menu-btn" onClick={() => setIsSidebarOpen(true)}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></svg>
+          </button>
           <div className="user-profile" onClick={() => navigate('/app/profile')} style={{ cursor: 'pointer' }}>
             <div className="avatar">A</div>
             <span className="font-medium">Admin User</span>
@@ -33,21 +37,49 @@ const DashboardLayout = () => {
           display: flex;
           flex-direction: column;
           min-height: 100vh;
+          transition: margin-left 0.3s ease;
         }
 
         .topbar {
-          height: 64px;
-          background: #0f4c54; /* Solid color matching gradient start */
+          height: 60px; /* Reduced height */
+          background: #0f4c54;
           border-bottom: 1px solid rgba(255, 255, 255, 0.1);
           display: flex;
           align-items: center;
-          justify-content: flex-end; /* Align user profile to the right */
+          justify-content: flex-end;
           padding: 0 2rem;
           position: sticky;
           top: 0;
-          z-index: 10;
+          z-index: 40;
           color: white;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .menu-btn {
+          display: none;
+          background: none;
+          border: none;
+          color: white;
+          cursor: pointer;
+          margin-right: auto;
+          padding: 0.5rem;
+          border-radius: 4px;
+        }
+        
+        .menu-btn:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        @media (max-width: 768px) {
+          .main-content {
+            margin-left: 0;
+          }
+          .menu-btn {
+            display: block;
+          }
+          .topbar {
+            padding: 0 1rem;
+          }
         }
 
         .breadcrumbs {
@@ -64,14 +96,15 @@ const DashboardLayout = () => {
         .user-profile {
           display: flex;
           align-items: center;
-          gap: 0.75rem;
+          gap: 1rem; /* More spacing */
           transition: all 0.2s;
-          padding: 0.5rem;
+          padding: 0.5rem 0.75rem;
           border-radius: 8px;
+          cursor: pointer;
         }
 
         .user-profile:hover {
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.15); /* Improved hover */
         }
 
         .avatar {

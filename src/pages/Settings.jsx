@@ -1510,6 +1510,18 @@ const SettingsPage = () => {
                     flex-direction: column;
                     gap: 1rem;
                 }
+                @media (max-width: 768px) {
+                    .drop-values-container {
+                        flex-direction: column;
+                    }
+                    .settings-sidebar {
+                        width: 100%;
+                        border-right: none;
+                        border-bottom: 1px solid #e2e8f0;
+                        padding-bottom: 1rem;
+                        margin-bottom: 1rem;
+                    }
+                }
                 .sidebar-header-flex {
                     display: flex;
                     justify-content: space-between;
