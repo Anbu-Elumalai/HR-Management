@@ -319,8 +319,8 @@ const Roles = () => {
     };
 
     const renderRolesList = () => (
-        <div className="roles-page-stabilized">
-            <div className="page-header-premium">
+        <div className="roles-page">
+            <div className="page-header-roles">
                 <div className="page-title-section-alt">
                     <h1 className="page-title-alt">
                         <Shield size={28} />
@@ -328,34 +328,23 @@ const Roles = () => {
                     </h1>
                 </div>
                 <div className="page-header-actions">
-                    <button className="icon-btn-refresh-white" title="Refresh" onClick={() => {
-                        setSearchRoles('');
-                        setSearchAdmin('');
-                        setSearchMobile('');
-                        setSearchStatus('');
-                        setSearchQuery('');
-                        fetchRoles(0);
-                    }}>
-                        <RotateCcw size={18} />
-                    </button>
-                    <button className="btn-primary-white" onClick={handleCreateNewRole}>
+                    <button className="btn-primary-roles" onClick={handleCreateNewRole}>
                         <Plus size={18} /> Create New Role
                     </button>
                 </div>
             </div>
 
-            <div className="table-container-premium">
-
+            <div className="table-container-stabilized">
                 <div className="table-wrapper-alt">
                     <table className="employee-table-alt">
                         <thead>
                             <tr className="header-titles-row">
-                                <th style={{ width: '80px' }}>Sl No.</th>
+                                <th style={{ width: '100px' }}>Sl No.</th>
                                 <th>Role Name</th>
-                                <th style={{ width: '130px' }}>Admin Only</th>
-                                <th style={{ width: '150px' }}>Mobile Access</th>
-                                <th style={{ width: '120px' }}>Status</th>
-                                <th className="text-right" style={{ width: '140px' }}>Actions</th>
+                                <th style={{ width: '180px' }}>Admin Only</th>
+                                <th style={{ width: '200px' }}>Mobile Access</th>
+                                <th style={{ width: '150px' }}>Status</th>
+                                <th className="text-center" style={{ width: '160px' }}>Actions</th>
                             </tr>
                             <tr className="header-filters-row">
                                 <td></td>
@@ -397,7 +386,22 @@ const Roles = () => {
                                         <option value="Inactive">Inactive</option>
                                     </select>
                                 </td>
-                                <td></td>
+                                <td className="text-center">
+                                    <button
+                                        className="btn-reset-filters-roles"
+                                        title="Reset Filters"
+                                        onClick={() => {
+                                            setSearchRoles('');
+                                            setSearchAdmin('');
+                                            setSearchMobile('');
+                                            setSearchStatus('');
+                                            setSearchQuery('');
+                                            fetchRoles(0);
+                                        }}
+                                    >
+                                        <RotateCcw size={16} />
+                                    </button>
+                                </td>
                             </tr>
                         </thead>
                         <tbody className={loadingRoles && roles.length > 0 ? 'table-loading-fade' : ''}>
@@ -421,11 +425,11 @@ const Roles = () => {
                                             {role.isActive ? 'Active' : 'Inactive'}
                                         </span>
                                     </td>
-                                    <td className="text-right">
-                                        <div className="actions-flex-alt">
-                                            <button className="action-icon-btn-premium view" title="View" onClick={() => handleViewRole(role)}><Eye size={18} /></button>
-                                            <button className="action-icon-btn-premium edit" title="Edit" onClick={() => handleEditRole(role)}><Edit size={18} /></button>
-                                            <button className="action-icon-btn-premium delete" title="Delete" onClick={() => handleDeleteRole(role)}><Trash2 size={18} /></button>
+                                    <td className="text-center">
+                                        <div className="actions-flex-roles">
+                                            <button className="action-btn-roles view" title="View" onClick={() => handleViewRole(role)}><Eye size={18} /></button>
+                                            <button className="action-btn-roles edit" title="Edit" onClick={() => handleEditRole(role)}><Edit size={18} /></button>
+                                            <button className="action-btn-roles delete" title="Delete" onClick={() => handleDeleteRole(role)}><Trash2 size={18} /></button>
                                         </div>
                                     </td>
                                 </tr>
@@ -434,20 +438,22 @@ const Roles = () => {
                     </table>
                 </div>
 
-                <div className="pagination-premium">
+                <div className="pagination-standard-roles">
                     <span className="pagination-info">Showing {roles.length} of {rolesTotal} entries</span>
-                    <div className="pagination-controls-premium">
+                    <div className="pagination-controls-roles">
                         <button
-                            className={`page-btn-premium ${rolesPage === 0 ? 'disabled' : ''}`}
+                            className={`page-btn-roles ${rolesPage === 0 ? 'disabled' : ''}`}
                             onClick={() => rolesPage > 0 && fetchRoles(rolesPage - 1)}
                             disabled={rolesPage === 0 || loadingRoles}
-                        ><ChevronLeft size={18} /></button>
-                        <button className="page-btn-premium active">{rolesPage + 1}</button>
+                        >Previous</button>
+                        {[...Array(rolesTotalPages)].map((_, idx) => (
+                            <button key={idx} className={`page-btn-roles ${rolesPage === idx ? 'active' : ''}`} onClick={() => fetchRoles(idx)}>{idx + 1}</button>
+                        ))}
                         <button
-                            className={`page-btn-premium ${rolesPage + 1 >= rolesTotalPages ? 'disabled' : ''}`}
+                            className={`page-btn-roles ${rolesPage + 1 >= rolesTotalPages ? 'disabled' : ''}`}
                             onClick={() => rolesPage + 1 < rolesTotalPages && fetchRoles(rolesPage + 1)}
                             disabled={rolesPage + 1 >= rolesTotalPages || loadingRoles}
-                        ><ChevronRight size={18} /></button>
+                        >Next</button>
                     </div>
                 </div>
             </div>
@@ -645,29 +651,31 @@ const Roles = () => {
 
             <style>{`
 
-                .roles-page-stabilized {
+                .roles-page {
                     height: calc(100vh - 64px);
                     background-color: #084a52;
-                    padding: 2rem;
-                    color: #1f2937;
-                    width: 100%;
-                    overflow: hidden;
+                    padding: 1.5rem;
+                    padding-top: 1rem;
                     display: flex;
                     flex-direction: column;
+                    gap: 1rem;
+                    overflow: hidden;
+                    width: 100%;
                 }
-                .page-header-premium {
-                    margin-bottom: 2rem;
+                .page-header-roles {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    margin-bottom: 0.5rem;
                 }
                 .page-title-alt {
-                    font-size: 1.6rem;
+                    font-size: 1.5rem;
                     font-weight: 700;
+                    color: #ffffff;
+                    letter-spacing: -0.02em;
                     display: flex;
                     align-items: center;
                     gap: 0.75rem;
-                    color: #ffffff;
                     margin: 0;
                 }
                 .page-header-actions {
@@ -675,9 +683,9 @@ const Roles = () => {
                     gap: 1rem;
                     align-items: center;
                 }
-                .btn-primary-white {
-                    background: white;
-                    color: #0d5f68;
+                .btn-primary-roles {
+                    background: #0d5f68;
+                    color: #ffffff;
                     border: none;
                     padding: 0.6rem 1.25rem;
                     border-radius: 8px;
@@ -688,54 +696,34 @@ const Roles = () => {
                     gap: 0.5rem;
                     cursor: pointer;
                     transition: all 0.2s;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
                 }
-                .btn-primary-white:hover {
-                    background: rgba(255, 255, 255, 0.9);
+                .btn-primary-roles:hover {
+                    background: #0b4e56;
                     transform: translateY(-1px);
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-                }
-                .icon-btn-refresh-white {
-                    background: rgba(255, 255, 255, 0.1);
-                    color: white;
-                    border: 1px solid rgba(255, 255, 255, 0.2);
-                    width: 38px;
-                    height: 38px;
-                    border-radius: 8px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                }
-                .icon-btn-refresh-white:hover {
-                    background: rgba(255, 255, 255, 0.2);
-                    border-color: rgba(255, 255, 255, 0.4);
+                    box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.15);
                 }
 
-                .table-container-premium {
+                .table-container-stabilized {
                     background: white;
-                    border-radius: 12px;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+                    border-radius: 16px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+                    overflow: hidden;
                     display: flex;
                     flex-direction: column;
                     flex: 1;
-                    min-height: 0;
-                    overflow: hidden;
+                    min-height: 400px; /* Prevent container collapse */
+                    position: relative;
                 }
 
                 .table-wrapper-alt {
                     flex: 1;
                     overflow: auto;
-                    scrollbar-width: thin;
-                    scrollbar-color: #cbd5e1 transparent;
+                    scrollbar-width: none; /* Hide for Firefox */
+                    -ms-overflow-style: none; /* Hide for IE/Edge */
                 }
                 .table-wrapper-alt::-webkit-scrollbar {
-                    width: 6px;
-                    height: 6px;
-                }
-                .table-wrapper-alt::-webkit-scrollbar-thumb {
-                    background: #cbd5e1;
-                    border-radius: 10px;
+                    display: none; /* Hide for Chrome/Safari/Edge */
                 }
                 .employee-table-alt {
                     width: 100%;
@@ -744,46 +732,60 @@ const Roles = () => {
                 }
                 .employee-table-alt th {
                     background: #f8fafc;
-                    padding: 1rem 1.5rem;
+                    padding: 0; /* Remove padding for explicit height */
+                    height: 44px; /* Explicit height for title row */
                     text-align: left;
-                    font-size: 0.7rem;
+                    font-size: 13px;
                     font-weight: 700;
-                    color: #475569;
+                    color: #374151;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
-                    border-bottom: 1px solid #f1f5f9;
+                    border-bottom: 1px solid #e5e7eb;
                     position: sticky;
                     top: 0;
-                    z-index: 20;
+                    z-index: 30;
+                    padding-left: 1.5rem;
+                    padding-right: 1.5rem;
+                    white-space: nowrap; /* Prevent wrapping */
                 }
                 .header-filters-row td {
-                    padding: 0.5rem 1.5rem;
-                    background: #fcfcfc;
-                    border-bottom: 2px solid #f1f5f9;
+                    height: 54px; /* Explicit height for search row */
+                    padding: 0 1.5rem;
+                    background: #f8fafc;
+                    border-bottom: 1px solid #e5e7eb;
                     position: sticky;
-                    top: 36px;
-                    z-index: 10;
+                    top: 44px; /* Matches height of the first row */
+                    z-index: 25;
                 }
                 .col-filter-alt {
                     width: 100%;
-                    padding: 0.35rem 0.6rem;
-                    border: 1.5px solid #e2e8f0;
-                    border-radius: 6px;
-                    font-size: 0.75rem;
+                    height: 38px;
+                    padding: 0.4rem 0.8rem;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    font-size: 0.85rem;
                     outline: none;
                     background: white;
-                    color: #475569;
+                    color: #4b5563;
                     transition: border-color 0.2s;
+                    box-sizing: border-box;
                 }
                 .col-filter-alt:focus {
                     border-color: #0d5f68;
+                    box-shadow: 0 0 0 2px rgba(13, 95, 104, 0.1);
                 }
                 .employee-table-alt td {
-                    padding: 1.25rem 1.5rem;
+                    padding: 0.85rem 1.5rem;
                     border-bottom: 1px solid #f1f5f9;
-                    font-size: 0.85rem;
-                    color: #334155;
+                    font-size: 14px;
+                    color: #1f2937;
                     vertical-align: middle;
+                    transition: background-color 0.15s ease;
+                    height: 60px; /* Stabilize row height */
+                    box-sizing: border-box;
+                }
+                .employee-table-alt tr:hover td {
+                    background-color: #f9fafb;
                 }
                 .candidate-info-cell {
                     display: flex;
@@ -791,113 +793,144 @@ const Roles = () => {
                     gap: 0.75rem;
                 }
                 .candidate-avatar {
-                    width: 32px;
-                    height: 32px;
-                    background: #f1f5f9;
-                    color: #0d5f68;
+                    width: 36px;
+                    height: 36px;
+                    background-color: #e0e7ff;
+                    color: #4f46e5;
+                    border-radius: 50%;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    border-radius: 8px;
                     font-weight: 700;
-                    font-size: 0.8rem;
-                    border: 1px solid #e2e8f0;
+                    font-size: 0.9rem;
+                    flex-shrink: 0;
                 }
                 .user-name-text {
                     font-weight: 600;
-                    color: #1a2e35;
+                    color: #111827;
+                    font-size: 14px;
                 }
                 .status-pill-premium {
                     padding: 0.25rem 0.75rem;
-                    border-radius: 9999px;
-                    font-size: 0.75rem;
-                    font-weight: 700;
-                    text-transform: uppercase;
-                    letter-spacing: 0.02em;
-                    display: inline-block;
+                    border-radius: 999px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-width: 80px;
+                    height: 24px;
                 }
                 .status-pill-premium.active {
-                    background: #d1fae5;
-                    color: #065f46;
+                    background-color: #dcfce7;
+                    color: #15803d;
                 }
                 .status-pill-premium.inactive {
-                    background: #fee2e2;
-                    color: #991b1b;
+                    background-color: #fee2e2;
+                    color: #dc2626;
                 }
-                .actions-flex-alt {
+                .actions-flex-roles {
                     display: flex;
-                    justify-content: flex-end;
-                    gap: 0.4rem;
+                    justify-content: center;
+                    gap: 0.6rem;
                 }
-                .action-icon-btn-premium {
+                .action-btn-roles {
+                    width: 34px;
+                    height: 34px;
+                    border-radius: 8px;
+                    border: none;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .action-btn-roles.view {
+                    background-color: #eff6ff;
+                    color: #3b82f6;
+                }
+                .action-btn-roles.edit {
+                    background-color: #ecfdf5;
+                    color: #10b981;
+                }
+                .action-btn-roles.delete {
+                    background-color: #fef2f2;
+                    color: #ef4444;
+                }
+                .action-btn-roles:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                }
+                .btn-reset-filters-roles {
                     width: 38px;
                     height: 38px;
                     border-radius: 8px;
+                    border: 1px solid #e5e7eb;
+                    background: #f9fafb;
+                    color: #6b7280;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    border: 1px solid #e2e8f0;
-                    background: white;
-                    color: #64748b;
                     cursor: pointer;
                     transition: all 0.2s;
+                    margin: 0 auto;
                 }
-                .action-icon-btn-premium:hover {
-                    background: #f8fafc;
-                    transform: translateY(-1px);
-                    border-color: #0d5f68;
-                    color: #0d5f68;
+                .btn-reset-filters-roles:hover {
+                    background: #f3f4f6;
+                    color: #111827;
+                    border-color: #d1d5db;
                 }
-                .action-icon-btn-premium.delete:hover {
-                    border-color: #ef4444;
-                    color: #ef4444;
-                }
+                .text-center { text-align: center; }
 
-                .pagination-premium {
-                    padding: 1rem 1.5rem;
+                .pagination-standard-roles {
+                    padding: 0.75rem 1.5rem;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    background: #f8fafc;
+                    background: white;
                     border-top: 1px solid #f1f5f9;
                 }
                 .pagination-info {
-                    font-size: 0.8rem;
-                    color: #64748b;
+                    font-size: 0.85rem;
+                    color: #6b7280;
                     font-weight: 500;
                 }
-                .pagination-controls-premium {
+                .pagination-controls-roles {
                     display: flex;
-                    gap: 0.4rem;
+                    gap: 0.5rem;
+                    align-items: center;
                 }
-                .page-btn-premium {
-                    width: 32px;
+                .page-btn-roles {
+                    min-width: 32px;
                     height: 32px;
+                    padding: 0 0.8rem;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    border-radius: 8px;
-                    border: 1px solid #e2e8f0;
+                    border-radius: 6px;
+                    border: 1px solid #e5e7eb;
                     background: white;
-                    color: #475569;
+                    color: #4b5563;
                     font-size: 0.85rem;
-                    font-weight: 600;
+                    font-weight: 500;
                     cursor: pointer;
                     transition: all 0.2s;
                 }
-                .page-btn-premium:hover:not(.disabled) {
-                    background: #f1f5f9;
-                    border-color: #cbd5e1;
+                .page-btn-roles:hover:not(.disabled) {
+                    background: #f9fafb;
+                    border-color: #d1d5db;
                 }
-                .page-btn-premium.active {
+                .page-btn-roles.active {
                     background: #0d5f68;
                     color: white;
                     border-color: #0d5f68;
+                    box-shadow: 0 2px 4px rgba(13, 95, 104, 0.2);
                 }
-                .page-btn-premium.disabled {
+                .page-btn-roles.disabled {
                     opacity: 0.5;
                     cursor: not-allowed;
-                    background: #f8fafc;
+                    background: #f9fafb;
+                    color: #9ca3af;
                 }
 
                 .text-right { text-align: right; }
@@ -905,21 +938,22 @@ const Roles = () => {
                 .table-loading-fade {
                     opacity: 0.5;
                     pointer-events: none;
+                    transition: opacity 0.2s ease-in-out;
                 }
 
                 /* Form Styles */
                 .role-form-card {
                     background: white;
-                    border-radius: 12px;
+                    border-radius: 16px;
                     box-shadow: 0 10px 25px rgba(0,0,0,0.08);
-                    border: 1px solid #e2e8f0;
+                    border: 1px solid #e5e7eb;
                     width: 100%;
                     max-width: 950px;
-                    margin: 2rem auto;
+                    margin: 1.5rem auto;
                     overflow: hidden;
                     display: flex;
                     flex-direction: column;
-                    max-height: calc(100vh - 140px);
+                    max-height: calc(100vh - 120px);
                     min-height: 450px;
                 }
                 .form-header-main {
@@ -950,36 +984,43 @@ const Roles = () => {
                 }
                 .input-group label {
                     display: block;
-                    font-size: 0.8rem;
+                    font-size: 13px;
                     font-weight: 600;
-                    margin-bottom: 0.4rem;
+                    margin-bottom: 0.5rem;
                     color: #374151;
                 }
                 .req { color: #dc2626; }
                 .input-group input {
                     width: 100%;
-                    padding: 0.5rem 0.75rem;
-                    border: 1px solid #d1d5db;
-                    border-radius: 6px;
+                    height: 40px;
+                    padding: 0.5rem 0.8rem;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
                     outline: none;
-                    font-size: 0.85rem;
+                    font-size: 14px;
+                    color: #1f2937;
+                    transition: border-color 0.2s;
+                }
+                .input-group input:focus {
+                    border-color: #0d5f68;
+                    box-shadow: 0 0 0 2px rgba(13, 95, 104, 0.1);
                 }
                 .check-group {
                     display: flex;
                     align-items: center;
-                    gap: 0.4rem;
+                    gap: 0.5rem;
                     cursor: pointer;
-                    margin-bottom: 0.65rem;
+                    margin-bottom: 0.5rem;
                 }
                 .check-group input {
-                    width: 16px;
-                    height: 16px;
+                    width: 18px;
+                    height: 18px;
                     cursor: pointer;
                     accent-color: #0d5f68;
                 }
                 .check-group label {
-                    font-size: 0.85rem;
-                    color: #475569;
+                    font-size: 14px;
+                    color: #4b5563;
                     cursor: pointer;
                     font-weight: 500;
                 }
@@ -1013,14 +1054,17 @@ const Roles = () => {
                     border-collapse: collapse;
                 }
                 .matrix-table th {
-                    background-color: #0d5f68;
-                    color: white;
+                    background-color: #f8fafc;
+                    color: #374151;
                     padding: 0.75rem;
-                    font-size: 0.85rem;
-                    font-weight: 600;
+                    font-size: 13px;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
                     position: sticky;
                     top: -1.5rem;
                     z-index: 10;
+                    border-bottom: 1px solid #e5e7eb;
                 }
                 .th-check {
                     display: flex;
@@ -1033,22 +1077,24 @@ const Roles = () => {
                     width: 40%;
                 }
                 .matrix-table td {
-                    padding: 0.75rem;
+                    padding: 0.85rem 1rem;
                     border-bottom: 1px solid #f1f5f9;
-                    font-size: 0.85rem;
-                    color: #475569;
+                    font-size: 14px;
+                    color: #1f2937;
+                    vertical-align: middle;
                 }
                 .module-name {
                     font-weight: 600;
-                    color: #1e293b;
+                    color: #111827;
                 }
                 .check-cell {
                     text-align: center;
                 }
                 .check-cell input {
-                    width: 1.1rem;
-                    height: 1.1rem;
+                    width: 18px;
+                    height: 18px;
                     cursor: pointer;
+                    accent-color: #0d5f68;
                 }
 
                 .form-footer {
@@ -1057,28 +1103,44 @@ const Roles = () => {
                     display: flex;
                     justify-content: flex-end;
                     gap: 1rem;
-                    background: #fcfcfc;
+                    background: #ffffff;
                 }
                 .btn-save {
                     background-color: #0d5f68;
-                    color: white;
+                    color: #ffffff;
                     border: none;
-                    padding: 0.6rem 1.5rem;
+                    padding: 0.6rem 1.75rem;
                     border-radius: 8px;
                     font-weight: 600;
+                    font-size: 14px;
                     cursor: pointer;
+                    transition: all 0.2s;
+                    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+                }
+                .btn-save:hover:not(:disabled) {
+                    background-color: #0b4e56;
+                    transform: translateY(-1px);
+                    box-shadow: 0 6px 8px -1px rgba(0,0,0,0.15);
                 }
                 .btn-cancel {
-                    background: white;
-                    border: 1px solid #e2e8f0;
-                    padding: 0.6rem 1.5rem;
+                    background: #ffffff;
+                    border: 1px solid #e5e7eb;
+                    padding: 0.6rem 1.75rem;
                     border-radius: 8px;
                     cursor: pointer;
-                    color: #64748b;
+                    color: #4b5563;
+                    font-weight: 600;
+                    font-size: 14px;
+                    transition: all 0.2s;
+                }
+                .btn-cancel:hover {
+                    background-color: #f9fafb;
+                    border-color: #d1d5db;
                 }
                 .btn-save:disabled {
-                    background-color: #4a7c82;
+                    background-color: #9ca3af;
                     cursor: not-allowed;
+                    box-shadow: none;
                 }
 
                 .custom-toast {
@@ -1113,24 +1175,29 @@ const Roles = () => {
                 }
 
                 /* Skeleton Loader */
+                .skeleton-row td {
+                    height: 60px; /* Match real row height */
+                    padding: 0.85rem 1.5rem;
+                    vertical-align: middle;
+                }
                 .skeleton-text {
-                    height: 12px;
-                    background: #e2e8f0;
+                    height: 14px;
+                    background: #f1f5f9;
                     border-radius: 4px;
                     animation: pulse 1.5s infinite ease-in-out;
                 }
                 .skeleton-avatar {
-                    width: 32px;
-                    height: 32px;
-                    background: #e2e8f0;
-                    border-radius: 8px;
+                    width: 36px;
+                    height: 36px;
+                    background: #f1f5f9;
+                    border-radius: 50%;
                     animation: pulse 1.5s infinite ease-in-out;
                 }
                 .skeleton-badge {
-                    width: 60px;
+                    width: 80px;
                     height: 24px;
-                    background: #e2e8f0;
-                    border-radius: 20px;
+                    background: #f1f5f9;
+                    border-radius: 999px;
                     animation: pulse 1.5s infinite ease-in-out;
                 }
                 .skeleton-icon {

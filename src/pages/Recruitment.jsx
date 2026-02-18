@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Briefcase, Users, Calendar, Award, Plus, Search, Filter, MoreVertical,
     CheckCircle, XCircle, Clock, FileText, MapPin, Mail, Phone, ExternalLink,
-    Eye, Edit, Trash2, RefreshCw, ChevronLeft, ChevronRight, Monitor, X, ChevronDown, Check, Upload
+    Eye, Edit, Trash2, RefreshCw, RotateCcw, ChevronLeft, ChevronRight, Monitor, X, ChevronDown, Check, Upload
 } from 'lucide-react';
 
 const Recruitment = () => {
@@ -374,89 +374,112 @@ const Recruitment = () => {
 
     const { grossVal, netVal, ctcVal, deductionsVal } = calculateSalary();
 
+    const renderHeaderActions = () => {
+        if (viewMode !== 'list' && viewMode !== 'vacancy-list' && viewMode !== 'candidate-list' && viewMode !== 'interview-list' && viewMode !== 'offer-list') {
+            // Check for list mode variants if they exist, or just check if viewMode is 'list'
+            if (viewMode !== 'list') return null;
+        }
+
+        let buttonText = "Add New Vacancy";
+        let onClickAction = () => { setViewMode('create'); setSelectedVacancy(null); };
+
+        if (activeTab === 'candidate') {
+            buttonText = "Add Candidate";
+            onClickAction = () => { setViewMode('add-candidate'); setSelectedCandidate(null); };
+        } else if (activeTab === 'interview') {
+            buttonText = "Schedule Interview";
+            onClickAction = () => { setViewMode('schedule-interview'); setSelectedInterview(null); };
+        } else if (activeTab === 'offer') {
+            buttonText = "Release Offer";
+            onClickAction = () => { setViewMode('create-offer'); setSelectedOffer(null); };
+        }
+
+        return (
+            <button className="btn-primary" onClick={onClickAction}>
+                <Plus size={20} />
+                <span>{buttonText}</span>
+            </button>
+        );
+    };
+
     const renderTabContent = () => {
         switch (activeTab) {
             case 'vacancy':
                 if (viewMode === 'create' || viewMode === 'edit') return renderVacancyForm();
                 if (viewMode === 'view') return renderVacancyDetail();
                 return (
-                    <div className="table-card">
-                        <div className="card-header-actions">
-                            <h3 className="card-title">Vacancy Request</h3>
-                            <div className="header-actions-right">
-                                <div className="search-box">
-                                    <input type="text" placeholder="Search..." />
-                                    <Search size={16} className="text-gray-400" />
-                                </div>
-                                <button className="icon-btn" title="Refresh">
-                                    <RefreshCw size={18} />
-                                </button>
-                                <button className="btn-primary" onClick={() => { setViewMode('create'); setSelectedVacancy(null); }}>
-                                    <Plus size={16} /> Add New Vacancy
-                                </button>
-                            </div>
-                        </div>
+                    <div className="table-container-stabilized">
                         <div className="table-wrapper">
                             <table>
                                 <thead>
-                                    <tr>
-                                        <th style={{ width: '50px' }}>S.No</th>
-                                        <th>Vacancy Code</th>
-                                        <th>Position</th>
+                                    <tr className="header-titles-row">
+                                        <th style={{ width: '80px' }} className="text-center">Sl No.</th>
+                                        <th style={{ width: '120px' }}>Vacancy Code</th>
+                                        <th style={{ minWidth: '200px' }}>Position</th>
                                         <th>Department</th>
-                                        <th>Project / Location</th>
-                                        <th className="text-center">Vacancies</th>
-                                        <th className="text-center">Filled</th>
-                                        <th className="text-center">Remaining</th>
-                                        <th className="text-center">Candidates</th>
-                                        <th>Hiring Type</th>
-                                        <th>Target Date</th>
-                                        <th>Status</th>
-                                        <th>Approval</th>
-                                        <th className="text-center">Action</th>
+                                        <th style={{ minWidth: '180px' }}>Project / Location</th>
+                                        <th style={{ width: '100px' }} className="text-center">Vacancies</th>
+                                        <th style={{ width: '100px' }} className="text-center">Filled</th>
+                                        <th style={{ width: '110px' }} className="text-center">Remaining</th>
+                                        <th style={{ width: '150px' }}>Hiring Type</th>
+                                        <th style={{ width: '140px' }}>Target Date</th>
+                                        <th style={{ width: '130px' }}>Status</th>
+                                        <th style={{ width: '140px' }}>Approval</th>
+                                        <th className="text-center" style={{ width: '150px' }}>Actions</th>
+                                    </tr>
+                                    <tr className="filter-row">
+                                        <th style={{ width: '80px' }} className="text-center"></th>
+                                        <th style={{ width: '120px' }}><input type="text" className="inline-filter" placeholder="Code" /></th>
+                                        <th style={{ minWidth: '200px' }}><input type="text" className="inline-filter" placeholder="Position" /></th>
+                                        <th><input type="text" className="inline-filter" placeholder="Department" /></th>
+                                        <th style={{ minWidth: '180px' }}><input type="text" className="inline-filter" placeholder="Project" /></th>
+                                        <th style={{ width: '100px' }}><input type="text" className="inline-filter text-center" placeholder="Count" /></th>
+                                        <th style={{ width: '80px' }} className="text-center"></th>
+                                        <th style={{ width: '100px' }} className="text-center"></th>
+                                        <th style={{ width: '150px' }}><input type="text" className="inline-filter" placeholder="Hiring" /></th>
+                                        <th style={{ width: '140px' }}><input type="text" className="inline-filter" placeholder="Target" /></th>
+                                        <th style={{ width: '130px' }}><input type="text" className="inline-filter" placeholder="Status" /></th>
+                                        <th style={{ width: '140px' }}><input type="text" className="inline-filter" placeholder="Approval" /></th>
+                                        <th className="text-center" style={{ width: '150px' }}>
+                                            <button className="btn-reset-filters-roles" title="Reset Filters"><RotateCcw size={16} /></button>
+                                        </th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    {vacancies.map((vacancy, index) => (
-                                        <tr key={vacancy.id}>
-                                            <td className="text-center text-gray-500">{index + 1}</td>
-                                            <td className="text-blue-600 font-medium">{vacancy.reqNo}</td>
-                                            <td className="font-medium text-gray-700">{vacancy.position}</td>
-                                            <td>{vacancy.department}</td>
-                                            <td>{vacancy.project}</td>
-                                            <td className="text-center font-medium">{vacancy.noOfVacancies}</td>
-                                            <td className="text-center text-green-600">{vacancy.filledPositions}</td>
-                                            <td className="text-center text-orange-600">{vacancy.remainingVacancies}</td>
-                                            <td className="text-center">{vacancy.candidateCount}</td>
-                                            <td className="text-xs">{vacancy.hiringType}</td>
-                                            <td className="text-xs">{vacancy.targetJoiningDate}</td>
-                                            <td>
-                                                <span className={`status-badge ${vacancy.status === 'Open' ? 'status-open' :
-                                                    vacancy.status === 'On Hold' ? 'status-on-hold' :
-                                                        vacancy.status === 'Closed' ? 'status-closed' :
-                                                            'status-closed'
-                                                    }`}>
-                                                    {vacancy.status}
+                                <tbody className={false ? 'table-loading-fade' : ''}>
+                                    {vacancies.map((v, index) => (
+                                        <tr key={v.id}>
+                                            <td className="text-center">{v.id}</td>
+                                            <td className="font-mono text-blue-600 font-medium">{v.reqNo}</td>
+                                            <td className="font-semibold text-gray-800">{v.position}</td>
+                                            <td>{v.department}</td>
+                                            <td>{v.project}</td>
+                                            <td className="text-center font-mono">{v.noOfVacancies}</td>
+                                            <td className="text-center font-mono">{v.filledPositions}</td>
+                                            <td className="text-center font-mono">{v.noOfVacancies - v.filledPositions}</td>
+                                            <td>{v.hiringType}</td>
+                                            <td className="font-mono text-xs">{v.targetJoiningDate}</td>
+                                            <td className="text-center">
+                                                <span className={`status-badge ${v.status === 'Open' ? 'status-open' :
+                                                    v.status === 'On Hold' ? 'status-on-hold' : 'status-closed'}`}>
+                                                    {v.status}
                                                 </span>
                                             </td>
-                                            <td>
-                                                <span className={`status-badge ${vacancy.approvalStatus === 'Approved' ? 'status-approved' :
-                                                    vacancy.approvalStatus === 'Rejected' ? 'status-rejected' :
-                                                        'status-pending'
-                                                    }`}>
-                                                    {vacancy.approvalStatus}
+                                            <td className="text-center">
+                                                <span className={`status-badge ${v.approvalStatus === 'Approved' ? 'status-approved' :
+                                                    v.approvalStatus === 'Pending' ? 'status-pending' : 'status-rejected'}`}>
+                                                    {v.approvalStatus}
                                                 </span>
                                             </td>
-                                            <td>
+                                            <td className="text-center">
                                                 <div className="actions-flex">
-                                                    <button className="action-btn text-blue-600 hover:bg-blue-50" title="View" onClick={() => { setSelectedVacancy(vacancy); setViewMode('view'); }}>
-                                                        <Eye size={16} />
+                                                    <button className="action-btn view" title="View" onClick={() => { setSelectedVacancy(v); setViewMode('view'); }}>
+                                                        <Eye size={18} />
                                                     </button>
-                                                    <button className="action-btn text-blue-600 hover:bg-blue-50" title="Edit" onClick={() => { setSelectedVacancy(vacancy); setViewMode('edit'); }}>
-                                                        <Edit size={16} />
+                                                    <button className="action-btn edit" title="Edit" onClick={() => { setSelectedVacancy(v); setViewMode('edit'); }}>
+                                                        <Edit size={18} />
                                                     </button>
-                                                    <button className="action-btn text-red-500 hover:bg-red-50" title="Delete">
-                                                        <Trash2 size={16} />
+                                                    <button className="action-btn delete" title="Delete">
+                                                        <Trash2 size={18} />
                                                     </button>
                                                 </div>
                                             </td>
@@ -465,29 +488,15 @@ const Recruitment = () => {
                                 </tbody>
                             </table>
                         </div>
-                        <div className="table-footer">
+                        <div className="pagination-premium">
                             <div className="footer-left">
-                                <div className="rows-per-page-container">
-                                    <span>Rows per page:</span>
-                                    <select className="footer-select">
-                                        <option>5</option>
-                                        <option>10</option>
-                                        <option>20</option>
-                                    </select>
-                                </div>
-                                <div className="footer-separator"></div>
-                                <span>Showing 1-2 of 2</span>
+                                <span className="pagination-info">Showing 1 to 2 of 2 entries</span>
                             </div>
 
-                            <div className="footer-right">
-                                <button className="pagination-btn" disabled>
-                                    <ChevronLeft size={16} />
-                                </button>
-                                <button className="pagination-btn active">1</button>
-                                <button className="pagination-btn">2</button>
-                                <button className="pagination-btn">
-                                    <ChevronRight size={16} />
-                                </button>
+                            <div className="pagination-controls-premium">
+                                <button className="page-btn-premium disabled">Previous</button>
+                                <button className="page-btn-premium active">1</button>
+                                <button className="page-btn-premium disabled">Next</button>
                             </div>
                         </div>
                     </div>
@@ -496,51 +505,38 @@ const Recruitment = () => {
                 if (viewMode === 'add-candidate' || viewMode === 'candidate-edit') return renderCandidateForm();
                 if (viewMode === 'candidate-view') return renderCandidateDetail();
                 return (
-                    <div className="table-card">
-                        <div className="card-header-actions">
-                            <h3 className="card-title">Candidate List</h3>
-                            <div className="header-actions-right">
-                                <div className="search-box">
-                                    <input type="text" placeholder="Search candidates..." />
-                                    <Search size={16} className="text-gray-400" />
-                                </div>
-                                <button className="icon-btn" title="Refresh">
-                                    <RefreshCw size={18} />
-                                </button>
-                                <button className="btn-primary" onClick={() => { setViewMode('add-candidate'); setSelectedCandidate(null); }}>
-                                    <Plus size={16} /> Add Candidate
-                                </button>
-                            </div>
-                        </div>
+                    <div className="table-container-stabilized">
                         <div className="table-wrapper">
                             <table>
                                 <thead>
-                                    <tr>
-                                        <th>CandidateId</th>
-                                        <th>Experience</th>
+                                    <tr className="header-titles-row">
+                                        <th style={{ width: '150px' }} className="text-center">Candidate ID</th>
+                                        <th style={{ width: '130px' }}>Experience</th>
                                         <th>Candidate Name</th>
                                         <th>Email</th>
                                         <th>Applied For</th>
-                                        <th>Status</th>
-                                        <th>Notice Period</th>
-                                        <th className="text-center">Actions</th>
+                                        <th style={{ width: '150px' }} className="text-center">Status</th>
+                                        <th style={{ width: '160px' }}>Notice Period</th>
+                                        <th className="text-center" style={{ width: '150px' }}>Actions</th>
                                     </tr>
-                                    <tr className="header-search-row">
-                                        <td><input type="text" className="header-search-input" placeholder="Search ID" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Exp" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Name" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Email" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Role" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Status" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Notice" /></td>
-                                        <td></td>
+                                    <tr className="filter-row">
+                                        <th style={{ width: '150px' }}><input type="text" className="inline-filter text-center" placeholder="Search ID" /></th>
+                                        <th style={{ width: '130px' }}><input type="text" className="inline-filter" placeholder="Experience" /></th>
+                                        <th><input type="text" className="inline-filter" placeholder="Candidate Name" /></th>
+                                        <th><input type="text" className="inline-filter" placeholder="Email" /></th>
+                                        <th><input type="text" className="inline-filter" placeholder="Role" /></th>
+                                        <th style={{ width: '150px' }}><input type="text" className="inline-filter" placeholder="Status" /></th>
+                                        <th style={{ width: '160px' }}><input type="text" className="inline-filter" placeholder="Notice" /></th>
+                                        <th className="text-center" style={{ width: '150px' }}>
+                                            <button className="btn-reset-filters-roles" title="Reset Filters"><RotateCcw size={16} /></button>
+                                        </th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className={false ? 'table-loading-fade' : ''}>
                                     {candidates.map(candidate => (
                                         <tr key={candidate.id}>
-                                            <td className="text-blue-600 font-medium">{candidate.candidateId}</td>
-                                            <td>{candidate.experience}</td>
+                                            <td className="text-center font-mono text-blue-600 font-medium">{candidate.candidateId}</td>
+                                            <td className="font-mono text-sm">{candidate.experience}</td>
                                             <td>
                                                 <div className="candidate-info-cell">
                                                     <div className="candidate-avatar">
@@ -551,7 +547,7 @@ const Recruitment = () => {
                                             </td>
                                             <td className="text-sm text-gray-600">{candidate.email}</td>
                                             <td className="text-sm">{candidate.role}</td>
-                                            <td>
+                                            <td className="text-center">
                                                 <span className={`status-badge ${candidate.status === 'New' ? 'status-new' :
                                                     candidate.status === 'Interview' ? 'status-interview' :
                                                         candidate.status === 'Rejected' ? 'status-rejected' :
@@ -560,17 +556,17 @@ const Recruitment = () => {
                                                     {candidate.status}
                                                 </span>
                                             </td>
-                                            <td className="text-sm font-medium text-gray-700">{candidate.noticePeriod}</td>
+                                            <td className="text-sm font-medium text-gray-700 font-mono">{candidate.noticePeriod}</td>
                                             <td className="text-center">
                                                 <div className="actions-flex">
-                                                    <button className="action-btn text-blue-600 hover:bg-blue-50" title="View" onClick={() => { setSelectedCandidate(candidate); setViewMode('candidate-view'); }}>
-                                                        <Eye size={16} />
+                                                    <button className="action-btn view" title="View" onClick={() => { setSelectedCandidate(candidate); setViewMode('candidate-view'); }}>
+                                                        <Eye size={18} />
                                                     </button>
-                                                    <button className="action-btn text-blue-600 hover:bg-blue-50" title="Edit" onClick={() => { setSelectedCandidate(candidate); setViewMode('candidate-edit'); }}>
-                                                        <Edit size={16} />
+                                                    <button className="action-btn edit" title="Edit" onClick={() => { setSelectedCandidate(candidate); setViewMode('candidate-edit'); }}>
+                                                        <Edit size={18} />
                                                     </button>
-                                                    <button className="action-btn text-red-500 hover:bg-red-50" title="Delete">
-                                                        <Trash2 size={16} />
+                                                    <button className="action-btn delete" title="Delete">
+                                                        <Trash2 size={18} />
                                                     </button>
                                                 </div>
                                             </td>
@@ -579,29 +575,15 @@ const Recruitment = () => {
                                 </tbody>
                             </table>
                         </div>
-                        <div className="table-footer">
+                        <div className="pagination-premium">
                             <div className="footer-left">
-                                <div className="rows-per-page-container">
-                                    <span>Rows per page:</span>
-                                    <select className="footer-select">
-                                        <option>5</option>
-                                        <option>10</option>
-                                        <option>20</option>
-                                    </select>
-                                </div>
-                                <div className="footer-separator"></div>
-                                <span>Showing 1-7 of 12</span>
+                                <span className="pagination-info">Showing 1 to 3 of 3 entries</span>
                             </div>
 
-                            <div className="footer-right">
-                                <button className="pagination-btn" disabled>
-                                    <ChevronLeft size={16} />
-                                </button>
-                                <button className="pagination-btn active">1</button>
-                                <button className="pagination-btn">2</button>
-                                <button className="pagination-btn">
-                                    <ChevronRight size={16} />
-                                </button>
+                            <div className="pagination-controls-premium">
+                                <button className="page-btn-premium disabled">Previous</button>
+                                <button className="page-btn-premium active">1</button>
+                                <button className="page-btn-premium disabled">Next</button>
                             </div>
                         </div>
                     </div>
@@ -610,119 +592,96 @@ const Recruitment = () => {
                 if (viewMode === 'schedule-interview' || viewMode === 'interview-edit') return renderInterviewForm();
                 if (viewMode === 'interview-view') return renderInterviewDetail();
                 return (
-                    <div className="table-card">
-                        <div className="card-header-actions">
-                            <h3 className="card-title">Interview Schedule</h3>
-                            <div className="header-actions-right">
-                                <div className="search-box">
-                                    <input type="text" placeholder="Search interviews..." />
-                                    <Search size={16} className="text-gray-400" />
-                                </div>
-                                <button className="icon-btn" title="Refresh">
-                                    <RefreshCw size={18} />
-                                </button>
-                                <button className="btn-primary" onClick={() => { setViewMode('schedule-interview'); setSelectedInterview(null); }}>
-                                    <Plus size={16} /> Schedule Interview
-                                </button>
-                            </div>
-                        </div>
+                    <div className="table-container-stabilized">
                         <div className="table-wrapper">
                             <table>
                                 <thead>
-                                    <tr>
+                                    <tr className="header-titles-row">
                                         <th>Candidate</th>
                                         <th>Role</th>
                                         <th>Interviewer</th>
-                                        <th>Date & Time</th>
-                                        <th>Level</th>
-                                        <th>Type</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
+                                        <th style={{ width: '150px' }}>Date & Time</th>
+                                        <th style={{ width: '100px' }} className="text-center">Level</th>
+                                        <th style={{ width: '130px' }} className="text-center">Type</th>
+                                        <th style={{ width: '150px' }} className="text-center">Status</th>
+                                        <th className="text-center" style={{ width: '150px' }}>Actions</th>
                                     </tr>
-                                    <tr className="header-search-row">
-                                        <td><input type="text" className="header-search-input" placeholder="Search Candidate" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Role" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Interviewer" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Date" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Level" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Type" /></td>
-                                        <td><input type="text" className="header-search-input" placeholder="Search Status" /></td>
-                                        <td></td>
+                                    <tr className="filter-row">
+                                        <th><input type="text" className="inline-filter" placeholder="Candidate" /></th>
+                                        <th><input type="text" className="inline-filter" placeholder="Role" /></th>
+                                        <th><input type="text" className="inline-filter" placeholder="Interviewer" /></th>
+                                        <th style={{ width: '150px' }}><input type="text" className="inline-filter" placeholder="Date" /></th>
+                                        <th style={{ width: '100px' }}><input type="text" className="inline-filter text-center" placeholder="Level" /></th>
+                                        <th style={{ width: '130px' }}><input type="text" className="inline-filter text-center" placeholder="Type" /></th>
+                                        <th style={{ width: '150px' }}><input type="text" className="inline-filter text-center" placeholder="Status" /></th>
+                                        <th className="text-center" style={{ width: '150px' }}>
+                                            <button className="btn-reset-filters-roles" title="Reset Filters"><RotateCcw size={16} /></button>
+                                        </th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    {interviews.map(interview => (
-                                        <tr key={interview.id}>
-                                            <td>
+                                <tbody className={false ? 'table-loading-fade' : ''}>                                {interviews.map(interview => (
+                                    <tr key={interview.id}>
+                                        <td>
+                                            <div className="candidate-info-cell">
+                                                <div className="candidate-avatar">
+                                                    {interview.candidate.charAt(0)}
+                                                </div>
                                                 <div className="font-semibold text-sm text-gray-800">{interview.candidate}</div>
-                                            </td>
-                                            <td>{interview.role}</td>
-                                            <td>
-                                                <div className="flex items-center gap-1 text-gray-600 text-sm font-medium">
-                                                    <Users size={14} /> {interview.interviewer}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="flex flex-col text-xs">
-                                                    <span className="font-medium text-gray-700">{interview.date}</span>
-                                                    <span className="text-gray-500">{interview.time}</span>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span className="font-semibold text-teal-700">{interview.level}</span>
-                                            </td>
-                                            <td>
-                                                <span className="flex items-center gap-1 text-xs px-2 py-1 bg-gray-50 border border-gray-100 rounded-md text-gray-600">
-                                                    {interview.type === 'Video' ? <Monitor size={12} /> : <MapPin size={12} />}
-                                                    {interview.type}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span className={`status-badge ${interview.status === 'Scheduled' ? 'status-new' : 'status-passed'}`}>
-                                                    {interview.status}
-                                                </span>
-                                            </td>
-                                            <td className="text-center">
-                                                <div className="actions-flex">
-                                                    <button className="action-btn text-blue-600 hover:bg-blue-50" title="View" onClick={() => { setSelectedInterview(interview); setViewMode('interview-view'); }}>
-                                                        <Eye size={16} />
-                                                    </button>
-                                                    <button className="action-btn text-blue-600 hover:bg-blue-50" title="Edit" onClick={() => { setSelectedInterview(interview); setViewMode('interview-edit'); }}>
-                                                        <Edit size={16} />
-                                                    </button>
-                                                    <button className="action-btn text-red-500 hover:bg-red-50" title="Delete">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                            </div>
+                                        </td>
+                                        <td>{interview.role}</td>
+                                        <td>
+                                            <div className="flex items-center gap-1 text-gray-600 text-sm font-medium">
+                                                <Users size={14} /> {interview.interviewer}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="flex flex-col text-xs font-mono">
+                                                <span className="font-medium text-gray-700">{interview.date}</span>
+                                                <span className="text-gray-500">{interview.time}</span>
+                                            </div>
+                                        </td>
+                                        <td className="text-center">
+                                            <span className="font-semibold text-teal-700">{interview.level}</span>
+                                        </td>
+                                        <td className="text-center">
+                                            <span className="flex items-center justify-center gap-1 text-xs px-2 py-1 bg-gray-50 border border-gray-100 rounded-md text-gray-600 mx-auto" style={{ width: 'fit-content' }}>
+                                                {interview.type === 'Video' ? <Monitor size={12} /> : <MapPin size={12} />}
+                                                {interview.type}
+                                            </span>
+                                        </td>
+                                        <td className="text-center">
+                                            <span className={`status-badge ${interview.status === 'Scheduled' ? 'status-new' : 'status-passed'}`}>
+                                                {interview.status}
+                                            </span>
+                                        </td>
+                                        <td className="text-center">
+                                            <div className="actions-flex">
+                                                <button className="action-btn view" title="View" onClick={() => { setSelectedInterview(interview); setViewMode('interview-view'); }}>
+                                                    <Eye size={18} />
+                                                </button>
+                                                <button className="action-btn edit" title="Edit" onClick={() => { setSelectedInterview(interview); setViewMode('interview-edit'); }}>
+                                                    <Edit size={18} />
+                                                </button>
+                                                <button className="action-btn delete" title="Delete">
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                                 </tbody>
                             </table>
                         </div>
-                        <div className="table-footer">
+                        <div className="pagination-premium">
                             <div className="footer-left">
-                                <div className="rows-per-page-container">
-                                    <span>Rows per page:</span>
-                                    <select className="footer-select">
-                                        <option>5</option>
-                                        <option>10</option>
-                                        <option>20</option>
-                                    </select>
-                                </div>
-                                <div className="footer-separator"></div>
-                                <span>Showing 1-7 of 12</span>
+                                <span className="pagination-info">Showing 1 to 2 of 2 entries</span>
                             </div>
 
-                            <div className="footer-right">
-                                <button className="pagination-btn" disabled>
-                                    <ChevronLeft size={16} />
-                                </button>
-                                <button className="pagination-btn active">1</button>
-                                <button className="pagination-btn">2</button>
-                                <button className="pagination-btn">
-                                    <ChevronRight size={16} />
-                                </button>
+                            <div className="pagination-controls-premium">
+                                <button className="page-btn-premium disabled">Previous</button>
+                                <button className="page-btn-premium active">1</button>
+                                <button className="page-btn-premium disabled">Next</button>
                             </div>
                         </div>
                     </div>
@@ -731,104 +690,96 @@ const Recruitment = () => {
                 if (viewMode === 'create-offer' || viewMode === 'offer-edit') return renderOfferForm();
                 if (viewMode === 'offer-view') return renderOfferDetail();
                 return (
-                    <div className="table-card">
-                        <div className="card-header-actions">
-                            <h3 className="card-title">Offer Letters</h3>
-                            <div className="header-actions-right">
-                                <div className="search-box">
-                                    <input type="text" placeholder="Search offers..." />
-                                    <Search size={16} className="text-gray-400" />
-                                </div>
-                                <button className="icon-btn" title="Refresh">
-                                    <RefreshCw size={18} />
-                                </button>
-                                <button className="btn-primary" onClick={() => { setViewMode('create-offer'); setSelectedOffer(null); }}>
-                                    <Plus size={16} /> Release Offer
-                                </button>
-                            </div>
-                        </div>
+                    <div className="table-container-stabilized">
                         <div className="table-wrapper">
                             <table>
                                 <thead>
-                                    <tr>
-                                        <th>Offer ID</th>
+                                    <tr className="header-titles-row">
+                                        <th style={{ width: '120px' }} className="text-center">Offer ID</th>
                                         <th>Candidate</th>
-                                        <th>Position</th>
+                                        <th>Role</th>
                                         <th>Department</th>
-                                        <th>Offered Salary</th>
-                                        <th>Joining Date</th>
-                                        <th>Expiry Date</th>
-                                        <th>Offer Status</th>
-                                        <th>Approval Status</th>
-                                        <th>Actions</th>
+                                        <th style={{ width: '150px' }} className="text-center">Salary (CTC)</th>
+                                        <th style={{ width: '130px' }}>Joining Date</th>
+                                        <th style={{ width: '130px' }}>Expiry Date</th>
+                                        <th style={{ width: '150px' }} className="text-center">Offer Status</th>
+                                        <th style={{ width: '150px' }} className="text-center">Approval Status</th>
+                                        <th className="text-center" style={{ width: '150px' }}>Actions</th>
+                                    </tr>
+                                    <tr className="filter-row">
+                                        <th style={{ width: '120px' }}><input type="text" className="inline-filter text-center" placeholder="ID" /></th>
+                                        <th><input type="text" className="inline-filter" placeholder="Candidate" /></th>
+                                        <th><input type="text" className="inline-filter" placeholder="Role" /></th>
+                                        <th><input type="text" className="inline-filter" placeholder="Dept" /></th>
+                                        <th style={{ width: '150px' }}><input type="text" className="inline-filter text-center" placeholder="Salary" /></th>
+                                        <th style={{ width: '130px' }}><input type="text" className="inline-filter" placeholder="Joining" /></th>
+                                        <th style={{ width: '130px' }}><input type="text" className="inline-filter" placeholder="Expiry" /></th>
+                                        <th style={{ width: '150px' }}><input type="text" className="inline-filter text-center" placeholder="Offer" /></th>
+                                        <th style={{ width: '150px' }}><input type="text" className="inline-filter text-center" placeholder="Approval" /></th>
+                                        <th className="text-center" style={{ width: '150px' }}>
+                                            <button className="btn-reset-filters-roles" title="Reset Filters"><RotateCcw size={16} /></button>
+                                        </th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    {offers.map(offer => (
-                                        <tr key={offer.id}>
-                                            <td className="text-blue-600 font-medium">{offer.offerId}</td>
-                                            <td className="font-semibold text-sm text-gray-800">{offer.candidate}</td>
-                                            <td>{offer.role}</td>
-                                            <td>{offer.department}</td>
-                                            <td className="font-mono text-sm font-medium text-gray-700">₹{offer.salary}</td>
-                                            <td>{offer.joiningDate}</td>
-                                            <td>{offer.expiryDate}</td>
-                                            <td>
-                                                <span className={`status-badge ${offer.status === 'Accepted' ? 'status-passed' :
-                                                    offer.status === 'Rejected' ? 'status-rejected' :
-                                                        offer.status === 'Expired' ? 'status-closed' :
-                                                            'status-new'
-                                                    }`}>
-                                                    {offer.status}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span className={`status-badge ${offer.approvalStatus === 'Approved' ? 'status-approved' :
-                                                    offer.approvalStatus === 'Rejected' ? 'status-rejected' :
-                                                        'status-pending'
-                                                    }`}>
-                                                    {offer.approvalStatus}
-                                                </span>
-                                            </td>
-                                            <td className="text-center">
-                                                <div className="actions-flex">
-                                                    <button className="action-btn text-blue-600 hover:bg-blue-50" title="View" onClick={() => { setSelectedOffer(offer); setViewMode('offer-view'); }}>
-                                                        <Eye size={16} />
-                                                    </button>
-                                                    <button className="action-btn text-blue-600 hover:bg-blue-50" title="Edit" onClick={() => { setSelectedOffer(offer); setViewMode('offer-edit'); }}>
-                                                        <Edit size={16} />
-                                                    </button>
-                                                    <button className="action-btn text-red-500 hover:bg-red-50" title="Delete">
-                                                        <Trash2 size={16} />
-                                                    </button>
+                                <tbody className={false ? 'table-loading-fade' : ''}>                                {offers.map(offer => (
+                                    <tr key={offer.id}>
+                                        <td className="text-center font-mono text-blue-600 font-medium">{offer.offerId}</td>
+                                        <td>
+                                            <div className="candidate-info-cell">
+                                                <div className="candidate-avatar">
+                                                    {offer.candidate.charAt(0)}
                                                 </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                <div className="font-semibold text-sm text-gray-800">{offer.candidate}</div>
+                                            </div>
+                                        </td>
+                                        <td className="text-sm">{offer.role}</td>
+                                        <td className="text-sm">{offer.department}</td>
+                                        <td className="text-center font-mono text-sm font-medium text-gray-700">₹{offer.salary}</td>
+                                        <td className="font-mono text-xs">{offer.joiningDate}</td>
+                                        <td className="font-mono text-xs">{offer.expiryDate}</td>
+                                        <td className="text-center">
+                                            <span className={`status-badge ${offer.status === 'Accepted' ? 'status-passed' :
+                                                offer.status === 'Rejected' ? 'status-rejected' :
+                                                    offer.status === 'Expired' ? 'status-closed' :
+                                                        'status-new'
+                                                }`}>
+                                                {offer.status}
+                                            </span>
+                                        </td>
+                                        <td className="text-center">
+                                            <span className={`status-badge ${offer.approvalStatus === 'Approved' ? 'status-approved' :
+                                                offer.approvalStatus === 'Rejected' ? 'status-rejected' :
+                                                    'status-pending'
+                                                }`}>
+                                                {offer.approvalStatus}
+                                            </span>
+                                        </td>
+                                        <td className="text-center">
+                                            <div className="actions-flex">
+                                                <button className="action-btn view" title="View" onClick={() => { setSelectedOffer(offer); setViewMode('offer-view'); }}>
+                                                    <Eye size={18} />
+                                                </button>
+                                                <button className="action-btn edit" title="Edit" onClick={() => { setSelectedOffer(offer); setViewMode('offer-edit'); }}>
+                                                    <Edit size={18} />
+                                                </button>
+                                                <button className="action-btn delete" title="Delete">
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                                 </tbody>
                             </table>
                         </div>
-                        <div className="table-footer">
+                        <div className="pagination-premium">
                             <div className="footer-left">
-                                <div className="rows-per-page-container">
-                                    <span>Rows per page:</span>
-                                    <select className="footer-select">
-                                        <option>5</option>
-                                        <option>10</option>
-                                        <option>20</option>
-                                    </select>
-                                </div>
-                                <div className="footer-separator"></div>
-                                <span>Showing 1-2 of 2</span>
+                                <span className="pagination-info">Showing 1 to 2 of 2 entries</span>
                             </div>
-                            <div className="footer-right">
-                                <button className="pagination-btn" disabled>
-                                    <ChevronLeft size={16} />
-                                </button>
-                                <button className="pagination-btn active">1</button>
-                                <button className="pagination-btn">
-                                    <ChevronRight size={16} />
-                                </button>
+                            <div className="pagination-controls-premium">
+                                <button className="page-btn-premium disabled">Previous</button>
+                                <button className="page-btn-premium active">1</button>
+                                <button className="page-btn-premium disabled">Next</button>
                             </div>
                         </div>
                     </div>
@@ -1415,274 +1366,295 @@ const Recruitment = () => {
     return (
         <div className="recruitment-page">
             <style>{`
+                /* Recruitment Page Layout */
                 .recruitment-page {
-                    padding: 0.5rem;
+                    padding: 1.5rem;
+                    padding-bottom: 0.5rem; /* Reduced bottom padding */
+                    padding-top: 1rem;
                     display: flex;
                     flex-direction: column;
-                    gap: 0.5rem;
-                    height: calc(100vh - 64px);
-                    background-color: transparent;
-                    overflow: hidden;
-                    margin-top: -10px;
+                    gap: 1rem;
+                    height: calc(100vh - 64px); /* Fixed height for flex container */
+                    background: #0d4d4d;
+                    overflow: hidden; /* Prevent body scroll */
                 }
                 .page-header {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     margin-bottom: 0.5rem;
+                    min-height: 48px;
                 }
                 .page-title {
                     font-size: 1.25rem;
-                    font-weight: 800;
+                    font-weight: 700;
                     color: white;
-                }
-                 .tabs-container {
+                    letter-spacing: -0.02em;
+                    margin: 0;
                     display: flex;
-                    gap: 1rem;
-                    border-bottom: 1px solid rgba(255,255,255,0.1);
-                    padding-bottom: 0.5rem;
-                    margin-bottom: 0.5rem;
+                    align-items: center;
                 }
-                .tab-btn {
-                    padding: 0.5rem 1rem;
+                .btn-primary {
+                    background: #0d5f68;
+                    color: white;
+                    border: none;
+                    padding: 0.5rem 1.2rem;
                     border-radius: 8px;
                     font-size: 0.85rem;
-                    font-weight: 600;
-                    color: rgba(255,255,255,0.7);
-                    cursor: pointer;
+                    font-weight: 700;
                     display: flex;
                     align-items: center;
                     gap: 0.5rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                    letter-spacing: -0.01em;
+                }
+                .btn-primary:hover {
+                    background: #0b4e56;
+                    transform: translateY(-1px);
+                    box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.15);
+                }
+                .tabs-container {
+                    display: flex;
+                    gap: 0.75rem;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                    padding-bottom: 0.5rem;
+                    margin-bottom: 0.5rem; /* Reduced spacing to remove gap */
+                }
+                .tab-btn {
+                    padding: 0.45rem 1rem;
+                    border-radius: 8px;
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    color: rgba(255, 255, 255, 0.7);
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.4rem;
                     transition: all 0.2s;
                     background: transparent;
                     border: none;
                 }
                 .tab-btn:hover {
                     color: white;
-                    background: rgba(255,255,255,0.1);
+                    background: rgba(255, 255, 255, 0.1);
                 }
                 .tab-btn.active {
                     background: white;
-                    color: #0f4c54;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    color: #0d4d4d;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
                 }
-                .btn-primary {
-                    padding: 0.4rem 0.8rem;
-                    background: linear-gradient(135deg, #0f4c54 0%, #0a383e 100%);
-                    color: white;
-                    border-radius: 6px;
-                    font-size: 0.8rem;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.4rem;
-                    border: none;
-                    cursor: pointer;
-                }
-                
-                /* Cards & Tables */
-                .vacancy-card {
+
+                /* Table Container Standardized */
+                .table-container-stabilized {
                     background: white;
-                    padding: 1rem;
-                    border-radius: 10px;
-                    border: 1px solid #e5e7eb;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-                    transition: transform 0.2s;
-                }
-                .vacancy-card:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                }
-                
-                .table-card {
-                    background: white;
-                    border-radius: 10px;
-                    border: 1px solid #e5e7eb;
-                    flex: 1;
+                    border-radius: 16px;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                    flex: 1; /* Fill available vertical space */
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
-                    box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.05);
+                    background-color: white;
+                    margin-bottom: 0.5rem; /* Slight margin at bottom */
                 }
                 .table-wrapper {
                     overflow: auto;
-                    flex: 1;
+                    width: 100%;
+                    background: white;
+                    padding-right: 2px;
+                    flex: 1; /* Push pagination to bottom */
                 }
-                table { width: 100%; border-collapse: collapse; }
-                th {
-                    background: #f3f4f6;
-                    padding: 0.6rem 0.8rem;
+                /* Custom Scrollbar */
+                .table-wrapper::-webkit-scrollbar {
+                    width: 6px;
+                    height: 6px;
+                }
+                .table-wrapper::-webkit-scrollbar-track {
+                    background: #f1f1f1;
+                    border-radius: 4px;
+                }
+                .table-wrapper::-webkit-scrollbar-thumb {
+                    background: #c1c1c1;
+                    border-radius: 4px;
+                }
+                .table-wrapper::-webkit-scrollbar-thumb:hover {
+                    background: #a8a8a8;
+                }
+
+                table { width: 100%; border-collapse: separate; border-spacing: 0; }
+                
+                /* Sticky Headers */
+                .header-titles-row th {
+                    background: #f8f9fb;
+                    padding: 0.75rem 1.25rem;
                     text-align: left;
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                    color: #4b5563;
+                    font-size: 0.8rem;
+                    font-weight: 700;
+                    color: #374151;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
                     position: sticky;
                     top: 0;
-                    z-index: 10;
+                    z-index: 30;
+                    border-bottom: 1px solid #e5e7eb;
+                    white-space: nowrap;
+                    height: 44px;
+                    vertical-align: middle;
                 }
+                .filter-row th {
+                    background: #f8f9fb;
+                    padding: 0.5rem 1.25rem 1rem 1.25rem;
+                    position: sticky;
+                    top: 44px;
+                    z-index: 25;
+                    border-bottom: 1px solid #e5e7eb;
+                    height: 54px;
+                    vertical-align: middle;
+                }
+                .inline-filter {
+                    width: 100%;
+                    height: 38px;
+                    padding: 0.4rem 0.8rem;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    font-size: 0.85rem;
+                    outline: none;
+                    background: white;
+                    color: #4b5563;
+                    transition: border-color 0.2s;
+                    box-sizing: border-box;
+                }
+                .inline-filter:focus {
+                    border-color: #0d5f68;
+                    box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.1);
+                }
+
+                .btn-reset-filters-roles {
+                    width: 38px;
+                    height: 38px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: white;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    color: #64748b;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .btn-reset-filters-roles:hover {
+                    background-color: #f8fafc;
+                    border-color: #d1d5db;
+                    color: #0d4d4d;
+                }
+
+
                 td {
-                    padding: 0.6rem 0.8rem;
+                    padding: 0.85rem 1.25rem;
                     border-bottom: 1px solid #f3f4f6;
-                    font-size: 0.8rem;
-                    color: #374151;
+                    color: #1f2937;
+                    font-size: 0.95rem;
                     vertical-align: middle;
                     white-space: nowrap;
                 }
-                .status-badge {
-                    padding: 0.15rem 0.5rem;
-                    border-radius: 4px;
-                    font-size: 0.7rem;
-                    font-weight: 600;
-                    display: inline-block;
-                }
-                .action-btn {
-                    padding: 0.2rem;
-                    border-radius: 4px;
-                    color: #6b7280;
-                    cursor: pointer;
-                }
-                .action-btn:hover { background: #f3f4f6; color: #111827; }
+                tr:hover td { background-color: #f9fafb; }
+
+                /* Action Buttons */
                 .actions-flex {
                     display: flex;
                     justify-content: center;
-                    gap: 0.75rem;
+                    gap: 0.5rem;
+                }
+                .action-btn {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 6px;
+                    border: none;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    background: transparent;
+                }
+                .action-btn:hover { background-color: #f3f4f6; }
+                .action-btn.view { color: #3b82f6; }
+                .action-btn.edit { color: #10b981; }
+                .action-btn.delete { color: #ef4444; }
+
+                /* Status Badges */
+                .status-badge {
+                    padding: 0.25rem 0.75rem;
+                    border-radius: 20px;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-width: 70px;
+                }
+                .status-open, .status-approved, .status-passed, .status-accepted { 
+                    background: #ecfdf5; color: #059669; border: 1px solid #d1fae5; 
+                }
+                .status-on-hold, .status-pending, .status-interview { 
+                    background: #fffbeb; color: #d97706; border: 1px solid #fef3c7; 
+                }
+                .status-rejected, .status-expired { 
+                    background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; 
+                }
+                .status-closed { 
+                    background: #f9fafb; color: #6b7280; border: 1px solid #e5e7eb; 
+                }
+                .status-new { 
+                    background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; 
                 }
 
                 /* Animations */
                 .tab-content {
                     animation: fadeIn 0.3s ease-in-out;
-                flex: 1;
-                overflow: hidden;
-                display: flex;
-                flex-direction: column;
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    min-height: 0;
                 }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .mx-auto { margin-left: auto; margin-right: auto; }
+                .font-mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+                .font-semibold { font-weight: 600; }
+                .text-teal-700 { color: #0f766e; }
+                .text-blue-600 { color: #2563eb; }
+                .text-gray-600 { color: #4b5563; }
+                .text-gray-800 { color: #1f2937; }
+                .text-gray-500 { color: #6b7280; }
+                .text-gray-700 { color: #374151; }
+                .text-sm { font-size: 0.875rem; }
+                .text-xs { font-size: 0.75rem; }
+                .flex { display: flex; }
+                .items-center { align-items: center; }
+                .justify-center { justify-content: center; }
+                .gap-1 { gap: 0.25rem; }
+
+
                 @keyframes fadeIn {
                     from {opacity: 0; transform: translateY(5px); }
                 to {opacity: 1; transform: translateY(0); }
                 }
 
                 @media (max-width: 768px) {
-                    .tabs - container {overflow - x: auto; }
-                .tab-btn {white - space: nowrap; }
+                    .tabs-container { overflow-x: auto; }
+                    .tab-btn { white-space: nowrap; }
                 }
-                /* Specific Vacancy Styles */
-                .card-header-actions {
-                    padding: 1rem;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border-bottom: 1px solid #e5e7eb;
-                }
-                .card-title {
-                    font - size: 1.1rem;
-                font-weight: 700;
-                color: #374151;
-                }
-                .header-actions-right {
-                    display: flex;
-                align-items: center;
-                gap: 0.75rem;
-                }
-                .search-box {
-                    position: relative;
-                display: flex;
-                align-items: center;
-                }
-                .search-box input {
-                    padding: 0.4rem 2rem 0.4rem 0.8rem;
-                border: 1px solid #e5e7eb;
-                border-radius: 6px;
-                font-size: 0.85rem;
-                background: #f9fafb;
-                width: 200px;
-                }
-                .search-box svg {
-                    position: absolute;
-                right: 0.5rem;
-                pointer-events: none;
-                }
-                .icon-btn {
-                    padding: 0.4rem;
-                border-radius: 6px;
-                border: 1px solid #e5e7eb;
-                background: white;
-                color: #6b7280;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: all 0.2s;
-                }
-                .icon-btn:hover {
-                    background: #f3f4f6;
-                color: #0f4c54;
-                }
-                .col-search {
-                    margin - top: 0.3rem;
-                width: 100%;
-                padding: 0.25rem 0.5rem;
-                border: 1px solid #e5e7eb;
-                border-radius: 4px;
-                font-size: 0.75rem;
-                font-weight: normal;
-                }
-                .btn-primary {
-                    display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                background-color: #0f4c54;
-                color: white;
-                padding: 0.5rem 1rem;
-                border-radius: 6px;
-                font-weight: 600;
-                font-size: 0.85rem;
-                transition: all 0.2s;
-                }
-                .btn-primary:hover {
-                    background - color: #0d3d44;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                .candidate-avatar {
-                    width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                background-color: #f1f5f9;
-                color: #475569;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: 700;
-                font-size: 0.75rem;
-                border: 1px solid #e2e8f0;
-                }
-                .candidate-info-cell {
-                    display: flex;
-                align-items: center;
-                gap: 0.75rem;
-                }
-                .status-badge {
-                    padding: 0.25rem 0.75rem;
-                border-radius: 9999px;
-                font-size: 0.75rem;
-                font-weight: 600;
-                }
-                .status-new { background-color: #eff6ff; color: #1d4ed8; }
-                .status-interview { background-color: #fefce8; color: #a16207; }
-                .status-rejected { background-color: #fef2f2; color: #b91c1c; }
-                .status-passed { background-color: #f0fdf4; color: #15803d; }
-                
-                /* Vacancy Statuses */
-                .status-open { background-color: #f0fdf4; color: #15803d; }
-                .status-on-hold { background-color: #fefce8; color: #a16207; }
-                .status-closed { background-color: #f3f4f6; color: #4b5563; }
-                .status-approved { background-color: #f0fdf4; color: #15803d; }
-                .status-pending { background-color: #eff6ff; color: #1d4ed8; }
 
                 /* Detail View Styles */
                 .detail-container { padding: 1.5rem; background: white; border-radius: 8px; animation: fadeIn 0.3s ease; }
-                .detail-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 2rem; border-bottom: 1px solid #f3f4f6; padding-bottom: 1rem; }
+                .detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid #f3f4f6; padding-bottom: 1rem; }
                 .detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
                 .detail-section { background: #f9fafb; padding: 1.2rem; border-radius: 8px; border: 1px solid #f3f4f6; }
                 .detail-section.full-width { grid-column: span 2; }
+
+
                 .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
                 .info-item label { display: block; font-size: 0.7rem; color: #6b7280; margin-bottom: 0.2rem; text-transform: uppercase; letter-spacing: 0.025em; }
                 .info-item div { font-size: 0.85rem; color: #111827; font-weight: 500; }
@@ -1985,58 +1957,91 @@ const Recruitment = () => {
                 color: #334155;
                 font-size: 0.85rem;
                 }
-                .pagination-btn {
-                    width: 32px;
-                height: 32px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border: 1px solid #e2e8f0;
-                border-radius: 6px;
-                background: white;
-                color: #64748b;
-                transition: all 0.2s;
-                font-weight: 500;
+                .pagination-btn:hover:not(:disabled) {
+                    background-color: #f9fafb;
+                    border-color: #d1d5db;
                 }
                 .pagination-btn.active {
-                    background: #0f4c54;
-                color: white;
-                border-color: #0f4c54;
-                }
-                .pagination-btn:hover:not(.active):not(:disabled) {
-                    background: #f8fafc;
-                border-color: #cbd5e1;
+                    background-color: #0d4d4d;
+                    color: white;
+                    border-color: #0d4d4d;
+                    box-shadow: 0 2px 4px rgba(13, 77, 77, 0.2);
                 }
                 .pagination-btn:disabled {
-                    opacity: 0.4;
-                cursor: not-allowed;
+                    opacity: 0.5;
+                    cursor: not-allowed;
                 }
-                .header-search-input {
-                    width: 100%;
-                    padding: 6px 10px;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 4px;
-                    font-size: 0.75rem;
-                    outline: none;
-                    transition: all 0.2s;
+
+                .pagination-premium {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1rem 1.5rem;
+                    border-top: 1px solid #f3f4f6;
                     background: white;
-                    font-weight: normal;
                 }
-                .header-search-input:focus {
-                    border-color: #0f4c54;
-                    box-shadow: 0 0 0 2px rgba(15, 76, 84, 0.1);
+                .pagination-info {
+                    font-size: 0.85rem;
+                    color: #6b7280;
+                    font-weight: 500;
                 }
-                .header-search-row td {
-                    padding: 8px 12px !important;
-                    background: #fdfdfd;
-                    border-bottom: 1px solid #f1f5f9;
+                .pagination-controls-premium {
+                    display: flex;
+                    gap: 0.5rem;
+                    align-items: center;
                 }
+                .page-btn-premium {
+                    min-width: 36px;
+                    height: 36px;
+                    padding: 0 1rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border: 1px solid #e2e8f0;
+                    background: white;
+                    border-radius: 8px;
+                    font-size: 0.85rem;
+                    cursor: pointer;
+                    color: #475569;
+                    transition: all 0.2s;
+                    font-weight: 600;
+                }
+                .page-btn-premium:hover:not(.disabled) {
+                    background-color: #f8fafc;
+                    border-color: #cbd5e1;
+                    color: #0d4d4d;
+                }
+                .page-btn-premium.active {
+                    background-color: #0d4d4d;
+                    color: white;
+                    border-color: #0d4d4d;
+                    box-shadow: 0 2px 4px rgba(13, 77, 77, 0.2);
+                }
+                .page-btn-premium.disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                    background-color: #f8fafc;
+                    color: #94a3b8;
+                }
+                .candidate-avatar {
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    background: #eef2ff;
+                    color: #4f46e5;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: 700;
+                    font-size: 0.9rem;
+                }
+
+
             `}</style>
 
             <div className="page-header">
-                <div>
-                    <h1 className="page-title">Recruitment</h1>
-                </div>
+                <h1 className="page-title">Recruitment Management</h1>
+                {renderHeaderActions()}
             </div>
 
             <div className="tabs-container">
@@ -2066,7 +2071,9 @@ const Recruitment = () => {
                 </button>
             </div>
 
-            {renderTabContent()}
+            <div className="tab-content">
+                {renderTabContent()}
+            </div>
         </div>
     );
 };

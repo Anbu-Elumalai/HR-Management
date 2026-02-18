@@ -126,7 +126,6 @@ const Sidebar = ({ isOpen, onClose }) => {
                           to={child.path}
                           className={({ isActive }) => `nav-child-item ${isActive ? 'active' : ''}`}
                         >
-                          <Circle size={8} fill="currentColor" />
                           <span>{child.label}</span>
                         </NavLink>
                       ))}
@@ -224,6 +223,11 @@ const Sidebar = ({ isOpen, onClose }) => {
           flex-direction: column;
           gap: 0.25rem; /* Reduced gap */
           overflow-y: auto;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+        .sidebar-nav::-webkit-scrollbar {
+          display: none;
         }
 
         .nav-item {
@@ -289,13 +293,8 @@ const Sidebar = ({ isOpen, onClose }) => {
         }
         
         .nav-child-item.active {
-            color: #ef4444; /* As per screenshot red dot */
+            color: #0d5f68;
             font-weight: 600;
-        }
-        
-        .nav-child-item.active svg {
-            fill: #ef4444;
-            color: #ef4444;
         }
 
         .sidebar-footer {
