@@ -14,7 +14,8 @@ import {
   Circle,
   Settings,
   Users2,
-  Lock
+  Lock,
+  Folder
 } from 'lucide-react';
 import MarsLogo from '../assets/Marslogo.png';
 
@@ -34,6 +35,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         { path: '/app/hr/payroll', label: 'Payroll' },
       ]
     },
+    { path: '/app/projects', label: 'Projects', icon: Folder },
     {
       path: '/app/recruitment',
       label: 'Recruitment',

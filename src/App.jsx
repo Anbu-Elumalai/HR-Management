@@ -6,7 +6,14 @@ import DashboardHome from './pages/DashboardHome';
 import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
 import Payroll from './pages/Payroll';
-import Recruitment from './pages/Recruitment';
+import Projects from './pages/Projects';
+
+// Recruitment Sub-modules
+import Vacancy from './pages/recruitment/Vacancy';
+import Candidate from './pages/recruitment/Candidate';
+import Interview from './pages/recruitment/Interview';
+import Offer from './pages/recruitment/Offer';
+
 import Roles from './pages/Roles';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
@@ -26,9 +33,15 @@ function App() {
           <Route path="hr/employees" element={<Employees />} />
           <Route path="hr/attendance" element={<Attendance />} />
           <Route path="hr/payroll" element={<Payroll />} />
+          <Route path="projects" element={<Projects />} />
 
           {/* Recruitment */}
-          <Route path="recruitment/:tab?" element={<Recruitment />} />
+          {/* Recruitment with Sub-modules */}
+          <Route path="recruitment" element={<Navigate to="vacancy" replace />} />
+          <Route path="recruitment/vacancy" element={<Vacancy />} />
+          <Route path="recruitment/candidate" element={<Candidate />} />
+          <Route path="recruitment/interview" element={<Interview />} />
+          <Route path="recruitment/offer" element={<Offer />} />
 
           {/* Reports */}
           <Route path="reports" element={<Reports />} />

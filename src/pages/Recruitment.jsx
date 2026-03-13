@@ -169,17 +169,17 @@ const Recruitment = () => {
                                     <input type="date" defaultValue="2026-01-12" />
                                 </div>
                                 <div className="form-group">
-                                    <label>Preferred Education Qualification</label>
+                                    <label>Reason for Requisition</label>
+                                    <input type="text" placeholder="e.g. New Position / Replacement" />
+                                </div>
+                                <div className="form-group">
+                                    <label>Preferred Qualification</label>
                                     <select defaultValue="Degree Holder">
                                         <option>Degree Holder</option>
                                         <option>Diploma</option>
                                         <option>Post Graduate</option>
                                         <option>Doctorate</option>
                                     </select>
-                                </div>
-                                <div className="form-group">
-                                    <label>Reason for Requisition</label>
-                                    <input type="text" placeholder="e.g. New Position / Replacement" />
                                 </div>
 
                                 <div className="form-group">

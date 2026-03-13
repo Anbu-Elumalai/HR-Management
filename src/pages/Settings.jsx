@@ -345,10 +345,13 @@ const SettingsPage = () => {
         setLoadingValues(true);
         try {
             const isDepartment = selectedCategory?.name?.toLowerCase() === 'department' || selectedCategory?.name?.toLowerCase() === 'departments';
+            const isEmploymentType = selectedCategory?.name?.toLowerCase() === 'employment type' || selectedCategory?.name?.toLowerCase() === 'employment types';
 
             let response;
             if (isDepartment) {
                 response = await api.get('/departments/');
+            } else if (isEmploymentType) {
+                response = await api.get('/employment-types/');
             } else {
                 response = await api.get(`/master-data/categories/${categoryId}/values`);
             }
@@ -377,6 +380,13 @@ const SettingsPage = () => {
             fetchCategories();
         }
     }, [activeTab]);
+
+    // Fetch values whenever selected category changes
+    React.useEffect(() => {
+        if (selectedCategory) {
+            fetchCategoryValues(selectedCategory._id || selectedCategory.id);
+        }
+    }, [selectedCategory?._id, selectedCategory?.id]);
 
     // Add new category
     const handleAddCategory = async () => {
@@ -416,11 +426,16 @@ const SettingsPage = () => {
         setLoadingValues(true);
         try {
             const isDepartment = selectedCategory?.name?.toLowerCase() === 'department' || selectedCategory?.name?.toLowerCase() === 'departments';
+            const isEmploymentType = selectedCategory?.name?.toLowerCase() === 'employment type' || selectedCategory?.name?.toLowerCase() === 'employment types';
             const categoryId = selectedCategory._id || selectedCategory.id;
 
             let response;
             if (isDepartment) {
                 response = await api.post('/departments/', {
+                    name: newValue.trim()
+                });
+            } else if (isEmploymentType) {
+                response = await api.post('/employment-types/', {
                     name: newValue.trim()
                 });
             } else {
@@ -450,12 +465,15 @@ const SettingsPage = () => {
         setLoadingValues(true);
         try {
             const isDepartment = selectedCategory?.name?.toLowerCase() === 'department' || selectedCategory?.name?.toLowerCase() === 'departments';
+            const isEmploymentType = selectedCategory?.name?.toLowerCase() === 'employment type' || selectedCategory?.name?.toLowerCase() === 'employment types';
             const categoryId = selectedCategory._id || selectedCategory.id;
             const valueId = typeof valueToDelete === 'object' ? (valueToDelete._id || valueToDelete.id) : valueToDelete;
 
             let response;
             if (isDepartment) {
                 response = await api.delete(`/departments/${valueId}`);
+            } else if (isEmploymentType) {
+                response = await api.delete(`/employment-types/${valueId}`);
             } else {
                 response = await api.delete(`/master-data/categories/${categoryId}/values/${valueId}`);
             }
@@ -955,7 +973,7 @@ const SettingsPage = () => {
                     <>
                         <div className="card-header-flex">
                             <h2 className="card-title">{selectedCategory.name} List</h2>
-                            <button className="btn-primary-alt" onClick={() => setShowAddValueModal(true)} disabled={loadingValues}>
+                            <button className="btn-primary-alt" onClick={() => { setNewValue(''); setShowAddValueModal(true); }} disabled={loadingValues}>
                                 <Plus size={16} />
                                 <span>Add Value</span>
                             </button>
