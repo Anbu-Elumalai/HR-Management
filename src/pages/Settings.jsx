@@ -351,7 +351,7 @@ const SettingsPage = () => {
             } else if (isEmploymentType) {
                 response = await api.get('/employment-types/');
             } else if (isPosition) {
-                response = await api.get('http://localhost:5002/api/positions/');
+                response = await api.get('/positions/');
             } else if (isReasonReq) {
                 response = await api.get('/reason-requisition');
             } else {
@@ -440,7 +440,7 @@ const SettingsPage = () => {
                 } else if (isEmploymentType) {
                     response = await api.patch(`/employment-types/${editingValueId}`, { name: newValue.trim() });
                 } else if (isPosition) {
-                    response = await api.patch(`http://localhost:5002/api/positions/${editingValueId}`, { name: newValue.trim() });
+                    response = await api.patch(`/positions/${editingValueId}`, { name: newValue.trim() });
                 } else if (isReasonReq) {
                     response = await api.patch(`/reason-requisition/${editingValueId}`, { name: newValue.trim() });
                 } else {
@@ -456,7 +456,7 @@ const SettingsPage = () => {
                         name: newValue.trim()
                     });
                 } else if (isPosition) {
-                    response = await api.post('http://localhost:5002/api/positions/', {
+                    response = await api.post('/positions/', {
                         name: newValue.trim()
                     });
                 } else if (isReasonReq) {
@@ -514,7 +514,7 @@ const SettingsPage = () => {
             } else if (isEmploymentType) {
                 response = await api.delete(`/employment-types/${valueId}`);
             } else if (isPosition) {
-                response = await api.delete(`http://localhost:5002/api/positions/${valueId}`);
+                response = await api.delete(`/positions/${valueId}`);
             } else if (isReasonReq) {
                 response = await api.delete(`/reason-requisition/${valueId}`);
             } else {

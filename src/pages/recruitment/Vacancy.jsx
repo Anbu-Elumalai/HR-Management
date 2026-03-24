@@ -26,6 +26,18 @@ const Vacancy = () => {
     const [submitting, setSubmitting] = useState(false);
     const [vacancies, setVacancies] = useState([]);
 
+    const [filterCode, setFilterCode] = useState('');
+    const [filterPosition, setFilterPosition] = useState('');
+    const [filterDepartment, setFilterDepartment] = useState('');
+    const [filterProject, setFilterProject] = useState('');
+    const [filterVacancies, setFilterVacancies] = useState('');
+    const [filterFilled, setFilterFilled] = useState('');
+    const [filterRemaining, setFilterRemaining] = useState('');
+    const [filterHiringType, setFilterHiringType] = useState('');
+    const [filterTargetDate, setFilterTargetDate] = useState('');
+    const [filterStatus, setFilterStatus] = useState('');
+    const [filterApproval, setFilterApproval] = useState('');
+
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [vacancyToDelete, setVacancyToDelete] = useState(null);
 
@@ -142,7 +154,12 @@ const Vacancy = () => {
                         approvalStatus: 'Pending'
                     });
                 } else if (viewMode === 'edit' && selectedVacancy) {
-                    setFormData({ ...selectedVacancy });
+                    const editData = { ...selectedVacancy };
+                    const safeDate = (val) => val && typeof val === 'string' ? val.split('T')[0].substring(0, 10) : '';
+                    editData.requisitionDate = safeDate(editData.requisitionDate);
+                    editData.requiredDate = safeDate(editData.requiredDate);
+                    editData.scheduleDate = safeDate(editData.scheduleDate);
+                    setFormData(editData);
                 }
             };
             initForm();
@@ -349,7 +366,7 @@ const Vacancy = () => {
                                     <input
                                         type="text"
                                         placeholder="Auto-generated"
-                                        value={formData.id || ''}
+                                        value={formData.requestNumber || formData.id || ''}
                                         readOnly
                                         className="bg-gray-50"
                                     />
@@ -616,15 +633,32 @@ const Vacancy = () => {
         }
     };
 
+    const handleEditClick = async (vacancy) => {
+        const vacId = vacancy._id || vacancy.id;
+        setLoading(true);
+        try {
+            const response = await api.get(`/vacancies/${vacId}`);
+            setSelectedVacancy(response.data?.data || response.data);
+            setViewMode('edit');
+        } catch (error) {
+            console.error("Error fetching vacancy for edit:", error);
+            setSelectedVacancy(vacancy);
+            setViewMode('edit');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const renderVacancyDetail = () => {
         if (!selectedVacancy) return null;
         const v = selectedVacancy;
         
         // Resolve names for IDs
-        const deptName = departments.find(d => d.id === v.departmentId || d.value === v.departmentId)?.label || v.departmentId || 'N/A';
-        const posName = positions.find(p => p.id === v.positionId || p.value === v.positionId)?.label || v.positionId || 'N/A';
-        const empTypeName = employmentTypes.find(et => et.id === v.employeeTypeId || et.value === v.employeeTypeId)?.label || v.employeeTypeId || 'N/A';
+        const deptName = v.department?.name || departments.find(d => d.id === v.departmentId || d.value === v.departmentId)?.label || v.departmentId || 'N/A';
+        const posName = v.position?.name || positions.find(p => p.id === v.positionId || p.value === v.positionId)?.label || v.positionId || 'N/A';
+        const empTypeName = v.employeeType?.name || employmentTypes.find(et => et.id === v.employeeTypeId || et.value === v.employeeTypeId)?.label || v.employeeTypeId || 'N/A';
         const reportingName = v.reportingManager || employees.find(e => e.id === v.reportingToId || e.value === v.reportingToId)?.label || v.reportingToId || 'N/A';
+        const reasonName = v.reason?.name || v.reasonForRequisition || '-';
 
         return (
             <div className="modal-overlay" onClick={() => setViewMode('list')}>
@@ -638,8 +672,8 @@ const Vacancy = () => {
                         <div className="form-card">
                             <div className="form-card-title">Basic Information</div>
                             <div className="modal-info-grid">
-                                <div className="info-item"><label>Request Number</label><div>{v.id || 'N/A'}</div></div>
-                                <div className="info-item"><label>Date of Requisition</label><div>{v.requisitionDate || 'N/A'}</div></div>
+                                <div className="info-item"><label>Request Number</label><div>{v.requestNumber || v.id || 'N/A'}</div></div>
+                                <div className="info-item"><label>Date of Requisition</label><div>{v.requisitionDate ? String(v.requisitionDate).split('T')[0].substring(0,10) : 'N/A'}</div></div>
                                 <div className="info-item"><label>Department</label><div>{deptName}</div></div>
                                 <div className="info-item"><label>Position</label><div>{posName}</div></div>
 
@@ -654,9 +688,9 @@ const Vacancy = () => {
                             <div className="form-card-title">Vacancy Requirements</div>
                             <div className="modal-info-grid">
                                 <div className="info-item"><label>Number of Vacancy</label><div>{v.numberOfVacancy || 1}</div></div>
-                                <div className="info-item"><label>Required Date</label><div>{v.requiredDate || '-'}</div></div>
+                                <div className="info-item"><label>Required Date</label><div>{v.requiredDate ? String(v.requiredDate).split('T')[0].substring(0,10) : '-'}</div></div>
                                 <div className="info-item"><label>Preferred Qualification</label><div>{v.qualification || '-'}</div></div>
-                                <div className="info-item"><label>Reason for Req.</label><div>{v.reasonForRequisition || '-'}</div></div>
+                                <div className="info-item"><label>Reason for Req.</label><div>{reasonName}</div></div>
 
                                 <div className="info-item"><label>Salary Range (From)</label><div>{v.salaryRangeFrom ? `₹${v.salaryRangeFrom}` : '-'}</div></div>
                                 <div className="info-item"><label>Salary Range (To)</label><div>{v.salaryRangeTo ? `₹${v.salaryRangeTo}` : '-'}</div></div>
@@ -713,14 +747,138 @@ const Vacancy = () => {
 
     if (loading) {
         return (
-            <div className="employees-page" style={{ justifyContent: 'center', alignItems: 'center', color: 'white' }}>
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
-                    <p>Loading vacancy data...</p>
+            <div className="employees-page" style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                minHeight: '80vh',
+                background: 'transparent'
+            }}>
+                <style>
+                    {`
+                    .spinner-container {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 1.5rem;
+                    }
+                    .premium-spinner {
+                        position: relative;
+                        width: 64px;
+                        height: 64px;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                    }
+                    .premium-spinner::before,
+                    .premium-spinner::after {
+                        content: '';
+                        position: absolute;
+                        border-radius: 50%;
+                    }
+                    .premium-spinner::before {
+                        width: 100%;
+                        height: 100%;
+                        border: 3px solid transparent;
+                        border-top-color: #2dd4bf;
+                        border-bottom-color: #0d9488;
+                        animation: spin 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+                        box-shadow: 0 0 15px rgba(45, 212, 191, 0.2);
+                    }
+                    .premium-spinner::after {
+                        width: 70%;
+                        height: 70%;
+                        border: 3px solid transparent;
+                        border-left-color: #0d9488;
+                        border-right-color: #2dd4bf;
+                        animation: spin-reverse 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+                    }
+                    .premium-core {
+                        width: 30%;
+                        height: 30%;
+                        background: radial-gradient(circle, #2dd4bf 0%, #0d9488 100%);
+                        border-radius: 50%;
+                        box-shadow: 0 0 20px #2dd4bf;
+                        animation: pulse-core 2s ease-in-out infinite;
+                    }
+                    .premium-text {
+                        color: #f8fafc;
+                        font-size: 1.05rem;
+                        font-weight: 600;
+                        letter-spacing: 0.1em;
+                        text-transform: uppercase;
+                        opacity: 0;
+                        animation: fade-up 0.5s ease-out 0.2s forwards, soft-pulse 2s ease-in-out infinite alternate 0.7s;
+                        text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                    }
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    @keyframes spin-reverse {
+                        0% { transform: rotate(360deg); }
+                        100% { transform: rotate(0deg); }
+                    }
+                    @keyframes pulse-core {
+                        0%, 100% { transform: scale(0.8); opacity: 0.8; }
+                        50% { transform: scale(1.2); opacity: 1; }
+                    }
+                    @keyframes fade-up {
+                        from { transform: translateY(10px); opacity: 0; }
+                        to { transform: translateY(0); opacity: 0.9; }
+                    }
+                    @keyframes soft-pulse {
+                        from { opacity: 0.7; }
+                        to { opacity: 1; }
+                    }
+                    `}
+                </style>
+                <div className="spinner-container">
+                    <div className="premium-spinner">
+                        <div className="premium-core"></div>
+                    </div>
+                    <p className="premium-text">Loading Vacancy Data</p>
                 </div>
             </div>
         );
     }
+
+    const handleResetFilters = () => {
+        setFilterCode('');
+        setFilterPosition('');
+        setFilterDepartment('');
+        setFilterProject('');
+        setFilterVacancies('');
+        setFilterFilled('');
+        setFilterRemaining('');
+        setFilterHiringType('');
+        setFilterTargetDate('');
+        setFilterStatus('');
+        setFilterApproval('');
+    };
+
+    const filteredVacancies = (vacancies || []).filter(v => {
+        const deptName = departments.find(d => d.id === v.departmentId || d.value === v.departmentId)?.label || v.departmentId || 'N/A';
+        const posName = positions.find(p => p.id === v.positionId || p.value === v.positionId)?.label || v.positionId || 'N/A';
+        const remaining = (v.numberOfVacancy || 0) - (v.filledPositions || 0);
+        
+        if (filterCode && !String(v.requestNumber || v.id || '').toLowerCase().includes(filterCode.toLowerCase())) return false;
+        if (filterPosition && !posName.toLowerCase().includes(filterPosition.toLowerCase())) return false;
+        if (filterDepartment && !deptName.toLowerCase().includes(filterDepartment.toLowerCase())) return false;
+        if (filterProject && !String(v.project || 'General').toLowerCase().includes(filterProject.toLowerCase())) return false;
+        if (filterVacancies && !String(v.numberOfVacancy || 0).includes(filterVacancies)) return false;
+        if (filterFilled && !String(v.filledPositions || 0).includes(filterFilled)) return false;
+        if (filterRemaining && !String(remaining).includes(filterRemaining)) return false;
+        if (filterHiringType && !String(v.employeeType?.name || 'N/A').toLowerCase().includes(filterHiringType.toLowerCase())) return false;
+        
+        const dateStr = (v.requiredDate || v.requisitionDate) ? new Date(v.requiredDate || v.requisitionDate).toISOString().split('T')[0] : '';
+        if (filterTargetDate && !dateStr.startsWith(filterTargetDate)) return false;
+        
+        if (filterStatus && !String(v.status || 'Draft').toLowerCase().includes(filterStatus.toLowerCase())) return false;
+        if (filterApproval && !String(v.approvalStatus || 'Pending').toLowerCase().includes(filterApproval.toLowerCase())) return false;
+        
+        return true;
+    });
 
     return (
         <div className="employees-page">
@@ -756,37 +914,37 @@ const Vacancy = () => {
                             </tr>
                             {/* Inline Filter Row */}
                             <tr className="filter-row">
-                                <th><input type="text" className="inline-filter" placeholder="Code" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Position" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Department" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Project" /></th>
-                                <th><input type="text" className="inline-filter text-center" placeholder="Vac" /></th>
-                                <th><input type="text" className="inline-filter text-center" placeholder="Fill" /></th>
-                                <th><input type="text" className="inline-filter text-center" placeholder="Rem" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Type" /></th>
-                                <th><input type="date" className="inline-filter" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Status" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Approval" /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Code" value={filterCode} onChange={e => setFilterCode(e.target.value)} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Position" value={filterPosition} onChange={e => setFilterPosition(e.target.value)} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Department" value={filterDepartment} onChange={e => setFilterDepartment(e.target.value)} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Project" value={filterProject} onChange={e => setFilterProject(e.target.value)} /></th>
+                                <th><input type="text" className="inline-filter text-center" placeholder="Vac" value={filterVacancies} onChange={e => setFilterVacancies(e.target.value)} /></th>
+                                <th><input type="text" className="inline-filter text-center" placeholder="Fill" value={filterFilled} onChange={e => setFilterFilled(e.target.value)} /></th>
+                                <th><input type="text" className="inline-filter text-center" placeholder="Rem" value={filterRemaining} onChange={e => setFilterRemaining(e.target.value)} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Type" value={filterHiringType} onChange={e => setFilterHiringType(e.target.value)} /></th>
+                                <th><input type="date" className="inline-filter" value={filterTargetDate} onChange={e => setFilterTargetDate(e.target.value)} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Status" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Approval" value={filterApproval} onChange={e => setFilterApproval(e.target.value)} /></th>
                                 <th className="text-center">
-                                    <button className="btn-reset-filters-roles" title="Reset Filters"><RotateCcw size={16} /></button>
+                                    <button className="btn-reset-filters-roles" title="Reset Filters" onClick={handleResetFilters}><RotateCcw size={16} /></button>
                                 </th>
                             </tr>
                         </thead>
                         <tbody>
-                            {(vacancies || []).map((v) => {
+                            {filteredVacancies.map((v) => {
                                 const deptName = departments.find(d => d.id === v.departmentId || d.value === v.departmentId)?.label || v.departmentId || 'N/A';
                                 const posName = positions.find(p => p.id === v.positionId || p.value === v.positionId)?.label || v.positionId || 'N/A';
                                 return (
                                     <tr key={v._id || v.id}>
-                                        <td className="font-mono text-blue-600 font-medium text-xs" title={v.id}>{v.id || 'N/A'}</td>
+                                        <td className="font-mono text-blue-600 font-medium text-xs" title={v.requestNumber || v.id}>{v.requestNumber || v.id || 'N/A'}</td>
                                         <td className="font-semibold text-gray-800 text-sm overflow-hidden text-ellipsis">{posName}</td>
                                         <td className="text-sm overflow-hidden text-ellipsis">{deptName}</td>
                                         <td className="text-sm overflow-hidden text-ellipsis">{v.project || 'General'}</td>
                                         <td className="text-center font-mono">{v.numberOfVacancy || 0}</td>
                                         <td className="text-center font-mono">{v.filledPositions || 0}</td>
                                         <td className="text-center font-mono">{(v.numberOfVacancy || 0) - (v.filledPositions || 0)}</td>
-                                        <td className="text-sm">{v.reasonForRequisition || 'N/A'}</td>
-                                        <td className="font-mono text-xs">{v.requiredDate || v.requisitionDate || 'N/A'}</td>
+                                        <td className="text-sm">{v.employeeType?.name || 'N/A'}</td>
+                                        <td className="font-mono text-xs">{(v.requiredDate || v.requisitionDate) ? new Date(v.requiredDate || v.requisitionDate).toISOString().split('T')[0] : 'N/A'}</td>
                                         <td className="text-center">
                                             <span className={`status-badge ${v.status === 'Open' ? 'status-open' :
                                                 v.status === 'On Hold' ? 'status-on-hold' : 'status-closed'}`}>
@@ -802,7 +960,7 @@ const Vacancy = () => {
                                         <td>
                                             <div className="actions-wrapper" style={{ justifyContent: 'center' }}>
                                                 <button className="action-btn view" title="View" onClick={() => handleViewClick(v)}><Eye size={18} /></button>
-                                                <button className="action-btn edit" title="Edit" onClick={() => { setSelectedVacancy(v); setViewMode('edit'); }}><Edit size={18} /></button>
+                                                <button className="action-btn edit" title="Edit" onClick={() => handleEditClick(v)}><Edit size={18} /></button>
                                                 <button 
                                                     className="action-btn delete" 
                                                     title="Delete" 
