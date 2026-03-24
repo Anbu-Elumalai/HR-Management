@@ -14,7 +14,7 @@ const WorkingFormatChart = () => {
 
             <div className="content-wrapper">
                 <div className="chart-section">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={1} minWidth={1}>
                         <PieChart>
                             <Pie
                                 data={data}

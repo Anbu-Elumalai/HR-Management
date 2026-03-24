@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Plus, Search, Eye, Edit, Trash2, X, RotateCcw
 } from 'lucide-react';
@@ -7,6 +7,9 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import { departmentService } from '../../services/departmentService';
 import { positionService } from '../../services/positionService';
 import { employeeService } from '../../services/employeeService';
+import { projectService } from '../../services/projectService';
+import api from '../../api/api';
+import toast from 'react-hot-toast';
 
 const Vacancy = () => {
     const [viewMode, setViewMode] = useState('list'); // 'list', 'create', 'edit', 'view'
@@ -16,50 +19,164 @@ const Vacancy = () => {
     const [departments, setDepartments] = useState([]);
     const [positions, setPositions] = useState([]);
     const [employees, setEmployees] = useState([]);
+    const [reasons, setReasons] = useState([]);
+    const [projects, setProjects] = useState([]);
+    const [employmentTypes, setEmploymentTypes] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [vacancies, setVacancies] = useState([]);
+
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [vacancyToDelete, setVacancyToDelete] = useState(null);
 
     // Form State
     const [formData, setFormData] = useState({});
+    const [formErrors, setFormErrors] = useState({});
 
-    // Fetch Master Data
-    React.useEffect(() => {
-        const fetchMasterData = async () => {
-            try {
-                const [deps, pos, emps] = await Promise.all([
-                    departmentService.getAllDepartments(),
-                    positionService.getAllPositions(),
-                    employeeService.getAllEmployees()
-                ]);
-                setDepartments(deps.map(d => ({ label: d.name, value: d.name })));
-                setPositions(pos.map(p => ({ label: p.name, value: p.name })));
-                setEmployees(emps.map(e => ({ label: e.name, value: e.id, ...e }))); // Keep full object for auto-fill
-            } catch (error) {
-                console.error("Error fetching master data:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchMasterData();
+    // Integrated load function for master data
+    const loadMasterData = useCallback(async (isInitial = true) => {
+        if (isInitial) setLoading(true);
+        try {
+            console.log("Vacancy.jsx: Initializing master data fetch...");
+            const [depsRes, posRes, empsRes, reasRes, projsRes, etypesRes, vacsRes] = await Promise.all([
+                departmentService.getAllDepartments().catch(e => { console.error("Dept error:", e); return []; }),
+                positionService.getAllPositions().catch(e => { console.error("Pos error:", e); return []; }),
+                employeeService.getAllEmployees().catch(e => { console.error("Emp error:", e); return []; }),
+                api.get('/reason-requisition').catch(e => ({ data: [] })),
+                projectService.getAllProjects(0, 100).catch(e => ({ data: [] })),
+                api.get('/employment-types/').catch(e => ({ data: [] })),
+                api.get('/vacancies').catch(e => ({ data: [] }))
+            ]);
+
+            const getArray = (res) => {
+                if (Array.isArray(res)) return res;
+                if (res?.data && Array.isArray(res.data)) return res.data;
+                if (res?.data?.data && Array.isArray(res.data.data)) return res.data.data;
+                if (res?.result && Array.isArray(res.result)) return res.result;
+                return [];
+            };
+
+            const deps = getArray(depsRes);
+            const pos = getArray(posRes);
+            const emps = getArray(empsRes);
+            const reas = getArray(reasRes);
+            const projs = getArray(projsRes);
+            const etypes = getArray(etypesRes);
+
+            // Detailed mapping with fallbacks to ensure dropdowns are NOT empty
+            setDepartments(deps.map(d => ({ 
+                label: d.name || d.departmentName || d.label || String(d),
+                value: d.id || d._id || d.value || String(d)
+            })));
+
+            setPositions(pos.map(p => ({ 
+                label: p.name || p.positionName || p.label || String(p),
+                value: p.id || p._id || p.value || String(p)
+            })));
+
+            setEmployees(emps.map(e => ({ 
+                label: e.name || e.employeeName || e.label || String(e),
+                value: e.id || e._id || e.value || String(e)
+            })));
+
+            setReasons(reas.map(r => ({
+                label: r.name || r.label || String(r),
+                value: r.id || r._id || r.value || String(r)
+            })));
+
+            setEmploymentTypes(etypes.map(et => ({
+                label: et.name || et.value || et.label || String(et),
+                value: et.id || et._id || et.value || String(et)
+            })));
+
+            setProjects(projs.map(p => ({
+                label: `${p.projectCode || p.code} - ${p.projectName || p.name}`,
+                value: p.projectCode || p.code,
+                name: p.projectName || p.name
+            })));
+
+            setVacancies(getArray(vacsRes));
+            console.log("Vacancy.jsx: Master data fully loaded and mapped.");
+        } catch (error) {
+            console.error("Vacancy.jsx: Critical fetch failure:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, [departments.length, positions.length]); // Added dependency to check for empty data
+
+    // Unified Effect for Data Loading
+    useEffect(() => {
+        // Initial Mount Fetch
+        loadMasterData();
     }, []);
 
-    // Initialize Form Data when opening modal
-    React.useEffect(() => {
-        if (viewMode === 'create') {
-            setFormData({
-                reqNo: 'REQ-2026-001', // Should ideally be auto-generated from backend
-                dateOfReq: new Date().toISOString().split('T')[0],
-                employmentType: 'Permanent',
-                gender: 'Male',
-                noOfVacancies: 1,
-                qualification: 'Degree Holder'
-            });
-        } else if (viewMode === 'edit' && selectedVacancy) {
-            setFormData({ ...selectedVacancy });
+    // Form Initialization Logic - Simplified and direct
+    useEffect(() => {
+        if ((viewMode === 'create' || viewMode === 'edit')) {
+            // If master data hasn't loaded (e.g. initial fetch failed), retry once
+            if (departments.length === 0) {
+                loadMasterData(false); // Silent fetch if somehow empty
+            }
+
+            const initForm = async () => {
+                setFormErrors({});
+                if (viewMode === 'create') {
+                    let nextCode = 'REQ-2026-001';
+                    try {
+                        const codeRes = await api.get('/vacancies/code/generate');
+                        if (codeRes.data && codeRes.data.data) nextCode = codeRes.data.data;
+                    } catch (e) {
+                        console.error("Code generation error:", e);
+                    }
+
+                    setFormData({
+                        id: nextCode,
+                        requisitionDate: new Date().toISOString().split('T')[0],
+                        employeeTypeId: employmentTypes.length > 0 ? employmentTypes[0].value : '',
+                        gender: 'Male',
+                        numberOfVacancy: 1,
+                        requiredDate: new Date().toISOString().split('T')[0],
+                        qualification: 'Freshers allowed',
+                        preferredEducation: '',
+                        status: 'Draft',
+                        approvalStatus: 'Pending'
+                    });
+                } else if (viewMode === 'edit' && selectedVacancy) {
+                    setFormData({ ...selectedVacancy });
+                }
+            };
+            initForm();
         }
-    }, [viewMode, selectedVacancy]);
+    }, [viewMode, selectedVacancy, departments.length]);
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+        // Clear error when field is edited
+        if (formErrors[field]) {
+            setFormErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[field];
+                return newErrors;
+            });
+        }
+    };
+
+    const handleProjectChange = (projectCode) => {
+        const selectedProj = projects.find(p => p.value === projectCode);
+        if (selectedProj) {
+            setFormData(prev => ({
+                ...prev,
+                projectCode: selectedProj.value,
+                project: selectedProj.name
+            }));
+            // Clear errors for both fields
+            setFormErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors.projectCode;
+                delete newErrors.project;
+                return newErrors;
+            });
+        }
     };
 
     const handleReportingManagerChange = (employeeId) => {
@@ -67,55 +184,154 @@ const Vacancy = () => {
         if (selectedEmployee) {
             setFormData(prev => ({
                 ...prev,
-                reportingManager: selectedEmployee.label,
-                reportingCode: selectedEmployee.id
+                reportingToId: selectedEmployee.value,
+                reportingManager: selectedEmployee.label // For display
             }));
+            // Clear errors
+            setFormErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors.reportingToId;
+                return newErrors;
+            });
         }
     };
 
-    // Mock Data
-    const [vacancies] = useState([
-        {
-            id: 1,
-            reqNo: 'VC001',
-            position: 'Senior React Developer',
-            department: 'Engineering',
-            project: 'E-commerce Platform',
-            noOfVacancies: 3,
-            filledPositions: 1,
-            remainingVacancies: 2,
-            hiringType: 'New Position',
-            targetJoiningDate: '2024-04-01',
-            status: 'Open',
-            approvalStatus: 'Approved',
-            jd: 'Build pixel-perfect UIs with React...',
-            employmentType: 'Full-Time',
-            reportingManager: 'Sarah Director',
-            salaryRange: '₹15L - ₹25L'
-        },
-        {
-            id: 2,
-            reqNo: 'VC002',
-            position: 'UI/UX Designer',
-            department: 'Design',
-            project: 'Mobile App Refactor',
-            noOfVacancies: 1,
-            filledPositions: 0,
-            remainingVacancies: 1,
-            hiringType: 'Replacement',
-            targetJoiningDate: '2024-03-15',
-            status: 'On Hold',
-            approvalStatus: 'Pending',
-            jd: 'Create stunning user experiences...',
-            employmentType: 'Full-Time',
-            reportingManager: 'Bob Lead',
-            salaryRange: '₹10L - ₹18L'
+    const validateForm = () => {
+        const errors = {};
+        const requiredFields = [
+            'requisitionDate', 'departmentId', 'positionId', 'employeeTypeId', 
+            'numberOfVacancy', 'requiredDate', 'qualification', 
+            'reasonForRequisition', 'preferredEducation', 'salaryRangeFrom', 'salaryRangeTo'
+        ];
+        requiredFields.forEach(field => {
+            if (!formData[field] && formData[field] !== 0) {
+                errors[field] = 'This field is required';
+            }
+        });
+
+        if (formData.numberOfVacancy <= 0) {
+            errors.numberOfVacancy = 'Must be greater than 0';
         }
-    ]);
+
+        if (Number(formData.salaryRangeFrom) > Number(formData.salaryRangeTo)) {
+            errors.salaryRangeTo = 'To salary cannot be less than From salary';
+        }
+
+        if (formData.status === 'Scheduled' && !formData.scheduleDate) {
+            errors.scheduleDate = 'Schedule date is required for Scheduled status';
+        }
+
+        setFormErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
+    const handleFormSubmit = async () => {
+        if (validateForm()) {
+            setSubmitting(true);
+            try {
+                const payload = {
+                    requisitionDate: formData.requisitionDate,
+                    departmentId: formData.departmentId,
+                    positionId: formData.positionId,
+                    reportingToId: formData.reportingToId,
+                    employeeTypeId: formData.employeeTypeId,
+                    gender: formData.gender,
+                    numberOfVacancy: formData.numberOfVacancy,
+                    requiredDate: formData.requiredDate,
+                    preferredEducation: formData.preferredEducation,
+                    qualification: formData.qualification,
+                    reasonForRequisition: formData.reasonForRequisition,
+                    salaryRangeFrom: Number(formData.salaryRangeFrom) || 0,
+                    salaryRangeTo: Number(formData.salaryRangeTo) || 0,
+                    jobDescription: formData.jobDescription,
+                    status: formData.status || 'Draft',
+                    approvalStatus: formData.approvalStatus || 'Pending',
+                    scheduleDate: formData.status === 'Scheduled' ? formData.scheduleDate : null
+                };
+
+                let response;
+                if (viewMode === 'edit') {
+                    response = await api.put(`/vacancies/${formData._id || formData.id}`, payload);
+                } else {
+                    response = await api.post('/vacancies', payload);
+                }
+
+                if (response.status === 200 || response.status === 201) {
+                    toast.success(`Vacancy ${viewMode === 'edit' ? 'updated' : 'created'} successfully!`);
+                    
+                    // Trigger a background refresh (WITHOUT full loading screen)
+                    loadMasterData(false); 
+                    
+                    setViewMode('list');
+                    setSelectedVacancy(null);
+                } else {
+                    toast.error("Process failed. Please check backend.");
+                }
+            } catch (error) {
+                console.error("Error submitting vacancy:", error);
+                const msg = error.response?.data?.message || "Error occurred while saving vacancy.";
+                toast.error(msg);
+            } finally {
+                setSubmitting(false);
+            }
+        } else {
+            const firstError = Object.values(formErrors)[0] || "Please fill all required fields.";
+            toast.error(firstError);
+        }
+    };
+
+    const handleDeleteClick = (v) => {
+        setVacancyToDelete(v);
+        setShowDeleteModal(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!vacancyToDelete) return;
+        setSubmitting(true);
+        try {
+            await api.delete(`/vacancies/${vacancyToDelete._id || vacancyToDelete.id}`);
+            toast.success("Vacancy deleted successfully!");
+            
+            // Background refresh
+            loadMasterData(false);
+            
+            setShowDeleteModal(false);
+            setVacancyToDelete(null);
+        } catch (error) {
+            console.error("Delete failed:", error);
+            const msg = error.response?.data?.message || "Failed to delete vacancy.";
+            toast.error(msg);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const renderDeleteModal = () => (
+        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                <div className="form-header" style={{ background: '#ef4444' }}>
+                    <h2 className="text-xl font-bold text-white">Confirm Delete</h2>
+                    <button className="icon-btn" onClick={() => setShowDeleteModal(false)}><X size={20} /></button>
+                </div>
+                <div className="form-body" style={{ padding: '2rem', textAlign: 'center' }}>
+                    <div className="delete-icon-wrapper" style={{ marginBottom: '1rem', color: '#ef4444' }}>
+                        <Trash2 size={48} style={{ margin: '0 auto' }} />
+                    </div>
+                    <p className="text-gray-600">Are you sure you want to delete this vacancy?</p>
+                    <p className="text-sm font-semibold mt-1">{vacancyToDelete?.id}</p>
+                </div>
+                <div className="form-footer" style={{ justifyContent: 'center', gap: '1rem' }}>
+                    <button className="btn-secondary" onClick={() => setShowDeleteModal(false)}>Cancel</button>
+                    <button className="btn-primary" style={{ background: '#ef4444' }} onClick={handleDeleteConfirm} disabled={submitting}>
+                        {submitting ? 'Deleting...' : 'Delete Now'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 
     const renderVacancyForm = () => {
         const isEdit = viewMode === 'edit';
-        const v = selectedVacancy || {};
         return (
             <div className="modal-overlay" onClick={() => setViewMode('list')}>
                 <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -133,7 +349,7 @@ const Vacancy = () => {
                                     <input
                                         type="text"
                                         placeholder="Auto-generated"
-                                        value={formData.reqNo || ''}
+                                        value={formData.id || ''}
                                         readOnly
                                         className="bg-gray-50"
                                     />
@@ -142,59 +358,66 @@ const Vacancy = () => {
                                     <label>Date of Requisition</label>
                                     <input
                                         type="date"
-                                        value={formData.dateOfReq || ''}
-                                        onChange={(e) => handleInputChange('dateOfReq', e.target.value)}
+                                        value={formData.requisitionDate || ''}
+                                        onChange={(e) => handleInputChange('requisitionDate', e.target.value)}
+                                        className={formErrors.requisitionDate ? 'input-error' : ''}
                                     />
+                                    {formErrors.requisitionDate && <span className="error-text">{formErrors.requisitionDate}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Department</label>
                                     <SearchableSelect
                                         options={departments}
-                                        value={formData.department}
-                                        onChange={(val) => handleInputChange('department', val)}
+                                        value={formData.departmentId}
+                                        onChange={(val) => handleInputChange('departmentId', val)}
                                         placeholder="Select Department"
+                                        error={formErrors.departmentId}
                                     />
+                                    {formErrors.departmentId && <span className="error-text">{formErrors.departmentId}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Position</label>
                                     <SearchableSelect
                                         options={positions}
-                                        value={formData.position}
-                                        onChange={(val) => handleInputChange('position', val)}
+                                        value={formData.positionId}
+                                        onChange={(val) => handleInputChange('positionId', val)}
                                         placeholder="Select Position"
+                                        error={formErrors.positionId}
                                     />
+                                    {formErrors.positionId && <span className="error-text">{formErrors.positionId}</span>}
                                 </div>
 
                                 <div className="form-group">
                                     <label>Reporting to Name</label>
                                     <SearchableSelect
                                         options={employees.map(e => ({ label: e.label, value: e.value }))}
-                                        value={formData.reportingCode} // Use ID as value
+                                        value={formData.reportingToId}
                                         onChange={handleReportingManagerChange}
                                         placeholder="Select Manager"
+                                        error={formErrors.reportingToId}
                                     />
+                                    {formErrors.reportingToId && <span className="error-text">{formErrors.reportingToId}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Reporting Code</label>
                                     <input
                                         type="text"
                                         placeholder="Auto-filled"
-                                        value={formData.reportingCode || ''}
+                                        value={formData.reportingToId || ''}
                                         readOnly
                                         className="bg-gray-50"
                                     />
                                 </div>
                                 <div className="form-group">
                                     <label>Employee Type</label>
-                                    <select
-                                        value={formData.employmentType || 'Permanent'}
-                                        onChange={(e) => handleInputChange('employmentType', e.target.value)}
-                                    >
-                                        <option>Permanent</option>
-                                        <option>Contract</option>
-                                        <option>Temporary</option>
-                                        <option>Intern</option>
-                                    </select>
+                                    <SearchableSelect
+                                        options={employmentTypes}
+                                        value={formData.employeeTypeId}
+                                        onChange={(val) => handleInputChange('employeeTypeId', val)}
+                                        placeholder="Select Type"
+                                        error={formErrors.employeeTypeId}
+                                    />
+                                    {formErrors.employeeTypeId && <span className="error-text">{formErrors.employeeTypeId}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Gender</label>
@@ -211,67 +434,153 @@ const Vacancy = () => {
                         </div>
 
                         <div className="form-card">
-                            <div className="form-card-title">Vacancy & Requirements</div>
+                            <div className="form-card-title">Vacancy Requirements</div>
                             <div className="modal-info-grid">
                                 <div className="form-group">
                                     <label>Number of Vacancy</label>
-                                    <input type="number" defaultValue={v.noOfVacancies || 1} min="1" />
+                                    <input 
+                                        type="number" 
+                                        value={formData.numberOfVacancy || 1} 
+                                        onChange={(e) => handleInputChange('numberOfVacancy', parseInt(e.target.value))}
+                                        min="1" 
+                                        className={formErrors.numberOfVacancy ? 'input-error' : ''}
+                                    />
+                                    {formErrors.numberOfVacancy && <span className="error-text">{formErrors.numberOfVacancy}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Required Date</label>
-                                    <input type="date" defaultValue="2026-01-12" />
+                                    <input 
+                                        type="date" 
+                                        value={formData.requiredDate || ''}
+                                        onChange={(e) => handleInputChange('requiredDate', e.target.value)}
+                                        className={formErrors.requiredDate ? 'input-error' : ''}
+                                    />
+                                    {formErrors.requiredDate && <span className="error-text">{formErrors.requiredDate}</span>}
                                 </div>
                                 <div className="form-group">
-                                    <label>Preferred Qualification</label>
-                                    <select defaultValue="Degree Holder">
-                                        <option>Degree Holder</option>
-                                        <option>Diploma</option>
-                                        <option>Post Graduate</option>
-                                        <option>Doctorate</option>
-                                    </select>
+                                    <label>Preferred Education</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. MBA HR, BE"
+                                        value={formData.preferredEducation || ''}
+                                        onChange={(e) => handleInputChange('preferredEducation', e.target.value)}
+                                        className={formErrors.preferredEducation ? 'input-error' : ''}
+                                    />
+                                    {formErrors.preferredEducation && <span className="error-text">{formErrors.preferredEducation}</span>}
+                                </div>
+                                <div className="form-group">
+                                    <label>Qualification / Experience</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. 5+ Years, Freshers"
+                                        value={formData.qualification || ''}
+                                        onChange={(e) => handleInputChange('qualification', e.target.value)}
+                                        className={formErrors.qualification ? 'input-error' : ''}
+                                    />
+                                    {formErrors.qualification && <span className="error-text">{formErrors.qualification}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Reason for Requisition</label>
-                                    <input type="text" placeholder="e.g. New Position / Replacement" />
+                                    <SearchableSelect
+                                        options={reasons}
+                                        value={formData.reasonForRequisition}
+                                        onChange={(val) => handleInputChange('reasonForRequisition', val)}
+                                        placeholder="Select Reason"
+                                        error={formErrors.reasonForRequisition}
+                                    />
+                                    {formErrors.reasonForRequisition && <span className="error-text">{formErrors.reasonForRequisition}</span>}
                                 </div>
 
                                 <div className="form-group">
                                     <label>Salary Range (From)</label>
-                                    <input type="number" placeholder="Min Amount" />
+                                    <input 
+                                        type="number" 
+                                        placeholder="Min Amount" 
+                                        value={formData.salaryRangeFrom || ''}
+                                        onChange={(e) => handleInputChange('salaryRangeFrom', e.target.value)}
+                                        className={formErrors.salaryRangeFrom ? 'input-error' : ''}
+                                    />
+                                    {formErrors.salaryRangeFrom && <span className="error-text">{formErrors.salaryRangeFrom}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Salary Range (To)</label>
-                                    <input type="number" placeholder="Max Amount" />
+                                    <input 
+                                        type="number" 
+                                        placeholder="Max Amount" 
+                                        value={formData.salaryRangeTo || ''}
+                                        onChange={(e) => handleInputChange('salaryRangeTo', e.target.value)}
+                                        className={formErrors.salaryRangeTo ? 'input-error' : ''}
+                                    />
+                                    {formErrors.salaryRangeTo && <span className="error-text">{formErrors.salaryRangeTo}</span>}
                                 </div>
                                 <div className="form-group">
-                                    <label>File Upload</label>
-                                    <input type="file" />
+                                    <label>Status</label>
+                                    <select
+                                        value={formData.status || 'Draft'}
+                                        onChange={(e) => handleInputChange('status', e.target.value)}
+                                    >
+                                        <option value="Draft">Draft</option>
+                                        <option value="Open">Open</option>
+                                        <option value="Scheduled">Scheduled</option>
+                                        <option value="Closed">Closed</option>
+                                        <option value="On Hold">On Hold</option>
+                                    </select>
+                                </div>
+                                {formData.status === 'Scheduled' && (
+                                    <div className="form-group">
+                                        <label>Schedule Date</label>
+                                        <input 
+                                            type="date" 
+                                            value={formData.scheduleDate || ''}
+                                            onChange={(e) => handleInputChange('scheduleDate', e.target.value)}
+                                            className={formErrors.scheduleDate ? 'input-error' : ''}
+                                        />
+                                        {formErrors.scheduleDate && <span className="error-text">{formErrors.scheduleDate}</span>}
+                                    </div>
+                                )}
+                                <div className="form-group">
+                                    <label>Approval Status</label>
+                                    <select
+                                        value={formData.approvalStatus || 'Pending'}
+                                        onChange={(e) => handleInputChange('approvalStatus', e.target.value)}
+                                    >
+                                        <option value="Pending">Pending</option>
+                                        <option value="Approved">Approved</option>
+                                        <option value="Rejected">Rejected</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
 
                         <div className="form-card">
-                            <div className="form-card-title">Project Details & Description</div>
+                            <div className="form-card-title">Project & Job Description</div>
                             <div className="modal-info-grid">
                                 <div className="form-group">
                                     <label>Project Code</label>
-                                    <input type="text" placeholder="e.g. HO-001" />
+                                    <SearchableSelect
+                                        options={projects}
+                                        value={formData.projectCode}
+                                        onChange={handleProjectChange}
+                                        placeholder="Select Project Code"
+                                    />
                                 </div>
                                 <div className="form-group">
                                     <label>Project Name</label>
                                     <input
                                         type="text"
-                                        placeholder="Enter project name"
+                                        placeholder="Auto-filled"
                                         value={formData.project || ''}
-                                        onChange={(e) => handleInputChange('project', e.target.value)}
+                                        readOnly
+                                        className="bg-gray-50"
                                     />
                                 </div>
                                 <div className="form-group" style={{ gridColumn: 'span 4' }}>
                                     <label>Job Description</label>
                                     <textarea
                                         rows="4"
-                                        placeholder="Detailed job description and key responsibilities..."
-                                        defaultValue={v.jd}
+                                        placeholder="Detailed job description..."
+                                        value={formData.jobDescription || ''}
+                                        onChange={(e) => handleInputChange('jobDescription', e.target.value)}
                                         style={{ minHeight: '100px', resize: 'vertical' }}
                                     ></textarea>
                                 </div>
@@ -281,8 +590,8 @@ const Vacancy = () => {
 
                     <div className="form-footer">
                         <button className="btn-secondary" onClick={() => setViewMode('list')}>Cancel</button>
-                        <button className="btn-primary" onClick={() => setViewMode('list')}>
-                            {isEdit ? 'Save Changes' : 'Create Vacancy'}
+                        <button className="btn-primary" onClick={handleFormSubmit} disabled={submitting}>
+                            {submitting ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Vacancy')}
                         </button>
                     </div>
                 </div>
@@ -290,9 +599,33 @@ const Vacancy = () => {
         );
     };
 
+    const handleViewClick = async (vacancy) => {
+        const vacId = vacancy._id || vacancy.id;
+        setLoading(true);
+        try {
+            const response = await api.get(`/vacancies/${vacId}`);
+            setSelectedVacancy(response.data?.data || response.data);
+            setViewMode('view');
+        } catch (error) {
+            console.error("Error fetching vacancy details:", error);
+            // Fallback to existing data if needed
+            setSelectedVacancy(vacancy);
+            setViewMode('view');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const renderVacancyDetail = () => {
         if (!selectedVacancy) return null;
         const v = selectedVacancy;
+        
+        // Resolve names for IDs
+        const deptName = departments.find(d => d.id === v.departmentId || d.value === v.departmentId)?.label || v.departmentId || 'N/A';
+        const posName = positions.find(p => p.id === v.positionId || p.value === v.positionId)?.label || v.positionId || 'N/A';
+        const empTypeName = employmentTypes.find(et => et.id === v.employeeTypeId || et.value === v.employeeTypeId)?.label || v.employeeTypeId || 'N/A';
+        const reportingName = v.reportingManager || employees.find(e => e.id === v.reportingToId || e.value === v.reportingToId)?.label || v.reportingToId || 'N/A';
+
         return (
             <div className="modal-overlay" onClick={() => setViewMode('list')}>
                 <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -305,41 +638,41 @@ const Vacancy = () => {
                         <div className="form-card">
                             <div className="form-card-title">Basic Information</div>
                             <div className="modal-info-grid">
-                                <div className="info-item"><label>Request Number</label><div>{v.reqNo || 'REQ-2026-001'}</div></div>
-                                <div className="info-item"><label>Date of Requisition</label><div>{v.dateOfReq || '12-01-2026'}</div></div>
-                                <div className="info-item"><label>Department</label><div>{v.department || 'Management'}</div></div>
-                                <div className="info-item"><label>Position</label><div>{v.position}</div></div>
+                                <div className="info-item"><label>Request Number</label><div>{v.id || 'N/A'}</div></div>
+                                <div className="info-item"><label>Date of Requisition</label><div>{v.requisitionDate || 'N/A'}</div></div>
+                                <div className="info-item"><label>Department</label><div>{deptName}</div></div>
+                                <div className="info-item"><label>Position</label><div>{posName}</div></div>
 
-                                <div className="info-item"><label>Reporting to Name</label><div>{v.reportingManager || '-'}</div></div>
-                                <div className="info-item"><label>Reporting Code</label><div>{v.reportingCode || 'EMP807'}</div></div>
-                                <div className="info-item"><label>Employee Type</label><div>{v.employmentType || 'Permanent'}</div></div>
-                                <div className="info-item"><label>Gender</label><div>{v.gender || 'Male'}</div></div>
+                                <div className="info-item"><label>Reporting to</label><div>{reportingName}</div></div>
+                                <div className="info-item"><label>Reporting ID</label><div>{v.reportingToId || '-'}</div></div>
+                                <div className="info-item"><label>Employee Type</label><div>{empTypeName}</div></div>
+                                <div className="info-item"><label>Gender</label><div>{v.gender || '-'}</div></div>
                             </div>
                         </div>
 
-                        <div className="form-card">
+                        <div className="form-card" style={{ marginTop: '1.5rem' }}>
                             <div className="form-card-title">Vacancy Requirements</div>
                             <div className="modal-info-grid">
-                                <div className="info-item"><label>Number of Vacancy</label><div>{v.noOfVacancies || 1}</div></div>
-                                <div className="info-item"><label>Required Date</label><div>{v.requiredBy || '12-01-2026'}</div></div>
-                                <div className="info-item"><label>Preferred Education</label><div>{v.qualification || 'Degree Holder'}</div></div>
-                                <div className="info-item"><label>Reason for Req.</label><div>{v.hiringType || 'New Position'}</div></div>
+                                <div className="info-item"><label>Number of Vacancy</label><div>{v.numberOfVacancy || 1}</div></div>
+                                <div className="info-item"><label>Required Date</label><div>{v.requiredDate || '-'}</div></div>
+                                <div className="info-item"><label>Preferred Qualification</label><div>{v.qualification || '-'}</div></div>
+                                <div className="info-item"><label>Reason for Req.</label><div>{v.reasonForRequisition || '-'}</div></div>
 
-                                <div className="info-item"><label>Salary Range (From)</label><div>{v.salaryRange?.split('-')[0] || '₹10L'}</div></div>
-                                <div className="info-item"><label>Salary Range (To)</label><div>{v.salaryRange?.split('-')[1] || '₹20L'}</div></div>
-                                <div className="info-item"><label>Uploaded File</label><div className="text-blue-600 cursor-pointer">View File</div></div>
+                                <div className="info-item"><label>Salary Range (From)</label><div>{v.salaryRangeFrom ? `₹${v.salaryRangeFrom}` : '-'}</div></div>
+                                <div className="info-item"><label>Salary Range (To)</label><div>{v.salaryRangeTo ? `₹${v.salaryRangeTo}` : '-'}</div></div>
+                                <div className="info-item"><label>Preferred Education</label><div>{v.preferredEducation || '-'}</div></div>
                             </div>
                         </div>
 
-                        <div className="form-card">
-                            <div className="form-card-title">Project Details & Job Description</div>
+                        <div className="form-card" style={{ marginTop: '1.5rem' }}>
+                            <div className="form-card-title">Project & Job Description</div>
                             <div className="modal-info-grid">
-                                <div className="info-item"><label>Project Code</label><div>{v.projectCode || 'HO-001'}</div></div>
+                                <div className="info-item"><label>Project Code</label><div>{v.projectCode || '-'}</div></div>
                                 <div className="info-item"><label>Project Name</label><div>{v.project || '-'}</div></div>
                                 <div className="info-item" style={{ gridColumn: 'span 4' }}>
                                     <label>Job Description</label>
-                                    <div className="jd-content bg-gray-50 p-4 rounded-lg border border-gray-100 mt-2">
-                                        {v.jd || 'No job description provided.'}
+                                    <div className="jd-content bg-gray-50 p-4 rounded-lg border border-gray-100 mt-2" style={{ whiteSpace: 'pre-wrap', minHeight: '100px', fontSize: '0.9rem', color: '#334155' }}>
+                                        {v.jobDescription || "No job description provided."}
                                     </div>
                                 </div>
                             </div>
@@ -348,17 +681,52 @@ const Vacancy = () => {
 
                     <div className="form-footer">
                         <button className="btn-secondary" onClick={() => setViewMode('list')}>Close</button>
-                        <button className="btn-primary" onClick={() => setViewMode('edit')}>Edit Vacancy</button>
+                        <button className="btn-primary" onClick={() => { setSelectedVacancy(v); setViewMode('edit'); }}>Edit Vacancy</button>
                     </div>
                 </div>
+
+                <style>{`
+                    .modal-info-grid {
+                        display: grid;
+                        grid-template-columns: repeat(4, 1fr);
+                        gap: 1.5rem;
+                        padding: 0.5rem;
+                    }
+                    .info-item label {
+                        display: block;
+                        font-size: 0.75rem;
+                        color: #64748b;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                        margin-bottom: 0.25rem;
+                        font-weight: 600;
+                    }
+                    .info-item div {
+                        font-size: 0.95rem;
+                        color: #1e293b;
+                        font-weight: 500;
+                    }
+                `}</style>
             </div>
         );
     };
 
+    if (loading) {
+        return (
+            <div className="employees-page" style={{ justifyContent: 'center', alignItems: 'center', color: 'white' }}>
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    <p>Loading vacancy data...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="employees-page">
-            {viewMode === 'create' || viewMode === 'edit' ? renderVacancyForm() : null}
-            {viewMode === 'view' ? renderVacancyDetail() : null}
+            {showDeleteModal && renderDeleteModal()}
+            {(viewMode === 'create' || viewMode === 'edit') && renderVacancyForm()}
+            {viewMode === 'view' && renderVacancyDetail()}
             <div className="page-header">
                 <h1 className="page-title">Vacancy Management</h1>
                 <button className="btn-primary" onClick={() => { setSelectedVacancy(null); setViewMode('create'); }}>
@@ -405,38 +773,48 @@ const Vacancy = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {vacancies.map((v) => (
-                                <tr key={v.id}>
-                                    <td className="font-mono text-blue-600 font-medium text-xs" title={v.reqNo}>{v.reqNo}</td>
-                                    <td className="font-semibold text-gray-800 text-sm overflow-hidden text-ellipsis">{v.position}</td>
-                                    <td className="text-sm overflow-hidden text-ellipsis">{v.department}</td>
-                                    <td className="text-sm overflow-hidden text-ellipsis">{v.project}</td>
-                                    <td className="text-center font-mono">{v.noOfVacancies}</td>
-                                    <td className="text-center font-mono">{v.filledPositions}</td>
-                                    <td className="text-center font-mono">{v.noOfVacancies - v.filledPositions}</td>
-                                    <td className="text-sm">{v.hiringType}</td>
-                                    <td className="font-mono text-xs">{v.targetJoiningDate}</td>
-                                    <td className="text-center">
-                                        <span className={`status-badge ${v.status === 'Open' ? 'status-open' :
-                                            v.status === 'On Hold' ? 'status-on-hold' : 'status-closed'}`}>
-                                            {v.status}
-                                        </span>
-                                    </td>
-                                    <td className="text-center">
-                                        <span className={`status-badge ${v.approvalStatus === 'Approved' ? 'status-approved' :
-                                            v.approvalStatus === 'Pending' ? 'status-pending' : 'status-rejected'}`}>
-                                            {v.approvalStatus}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div className="actions-wrapper" style={{ justifyContent: 'center' }}>
-                                            <button className="action-btn view" title="View" onClick={() => { setSelectedVacancy(v); setViewMode('view'); }}><Eye size={18} /></button>
-                                            <button className="action-btn edit" title="Edit" onClick={() => { setSelectedVacancy(v); setViewMode('edit'); }}><Edit size={18} /></button>
-                                            <button className="action-btn delete" title="Delete"><Trash2 size={18} /></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            {(vacancies || []).map((v) => {
+                                const deptName = departments.find(d => d.id === v.departmentId || d.value === v.departmentId)?.label || v.departmentId || 'N/A';
+                                const posName = positions.find(p => p.id === v.positionId || p.value === v.positionId)?.label || v.positionId || 'N/A';
+                                return (
+                                    <tr key={v._id || v.id}>
+                                        <td className="font-mono text-blue-600 font-medium text-xs" title={v.id}>{v.id || 'N/A'}</td>
+                                        <td className="font-semibold text-gray-800 text-sm overflow-hidden text-ellipsis">{posName}</td>
+                                        <td className="text-sm overflow-hidden text-ellipsis">{deptName}</td>
+                                        <td className="text-sm overflow-hidden text-ellipsis">{v.project || 'General'}</td>
+                                        <td className="text-center font-mono">{v.numberOfVacancy || 0}</td>
+                                        <td className="text-center font-mono">{v.filledPositions || 0}</td>
+                                        <td className="text-center font-mono">{(v.numberOfVacancy || 0) - (v.filledPositions || 0)}</td>
+                                        <td className="text-sm">{v.reasonForRequisition || 'N/A'}</td>
+                                        <td className="font-mono text-xs">{v.requiredDate || v.requisitionDate || 'N/A'}</td>
+                                        <td className="text-center">
+                                            <span className={`status-badge ${v.status === 'Open' ? 'status-open' :
+                                                v.status === 'On Hold' ? 'status-on-hold' : 'status-closed'}`}>
+                                                {v.status || 'Draft'}
+                                            </span>
+                                        </td>
+                                        <td className="text-center">
+                                            <span className={`status-badge ${v.approvalStatus === 'Approved' ? 'status-approved' :
+                                                v.approvalStatus === 'Pending' ? 'status-pending' : 'status-rejected'}`}>
+                                                {v.approvalStatus || 'Pending'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div className="actions-wrapper" style={{ justifyContent: 'center' }}>
+                                                <button className="action-btn view" title="View" onClick={() => handleViewClick(v)}><Eye size={18} /></button>
+                                                <button className="action-btn edit" title="Edit" onClick={() => { setSelectedVacancy(v); setViewMode('edit'); }}><Edit size={18} /></button>
+                                                <button 
+                                                    className="action-btn delete" 
+                                                    title="Delete" 
+                                                    onClick={() => handleDeleteClick(v)}
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -707,6 +1085,19 @@ const Vacancy = () => {
                 .text-gray-800 { color: #1f2937; }
                 .text-xs { font-size: 0.75rem; }
 
+                .error-text {
+                    color: #ef4444;
+                    font-size: 0.75rem;
+                    margin-top: 0.25rem;
+                    font-weight: 500;
+                    display: block;
+                }
+                .input-error {
+                    border-color: #ef4444 !important;
+                }
+                .input-error:focus {
+                    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1) !important;
+                }
             `}</style>
         </div>
     );

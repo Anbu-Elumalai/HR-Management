@@ -1,7 +1,7 @@
 
 import api from '../api/api';
 
-const BASE_PATH = '/departments';
+const BASE_PATH = '/departments/';
 
 export const departmentService = {
     getAllDepartments: async () => {

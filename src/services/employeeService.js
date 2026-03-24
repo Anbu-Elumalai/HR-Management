@@ -1,7 +1,7 @@
 
 import api from '../api/api';
 
-const BASE_PATH = '/employees';
+const BASE_PATH = '/employees/';
 
 export const employeeService = {
     getAllEmployees: async () => {

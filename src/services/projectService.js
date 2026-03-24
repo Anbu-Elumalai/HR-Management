@@ -1,11 +1,24 @@
 import api from '../api/api';
 
-const BASE_PATH = '/projects';
+const BASE_PATH = 'http://localhost:5002/api/projects';
+
+const getHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+};
 
 export const projectService = {
-    getAllProjects: async () => {
+    getAllProjects: async (page = 0, limit = 5, filters = {}) => {
         try {
-            const response = await api.get(BASE_PATH);
+            const params = new URLSearchParams({ limit, page });
+            if (filters.name) params.append('name', filters.name);
+            if (filters.manager) params.append('manager', filters.manager);
+            if (filters.location) params.append('location', filters.location);
+            if (filters.status) params.append('status', filters.status);
+            if (filters.startDate) params.append('startDate', filters.startDate);
+            if (filters.endDate) params.append('endDate', filters.endDate);
+
+            const response = await api.get(`${BASE_PATH}/?${params.toString()}`, getHeaders());
             return response.data;
         } catch (error) {
             console.error("Error fetching projects:", error);
@@ -15,7 +28,7 @@ export const projectService = {
 
     createProject: async (projectData) => {
         try {
-            const response = await api.post(BASE_PATH, projectData);
+            const response = await api.post(`${BASE_PATH}/`, projectData, getHeaders());
             return response.data;
         } catch (error) {
             console.error("Error creating project:", error);
@@ -25,7 +38,7 @@ export const projectService = {
 
     updateProject: async (id, projectData) => {
         try {
-            const response = await api.put(`${BASE_PATH}/${id}`, projectData);
+            const response = await api.put(`${BASE_PATH}/${id}`, projectData, getHeaders());
             return response.data;
         } catch (error) {
             console.error(`Error updating project ${id}:`, error);
@@ -35,7 +48,7 @@ export const projectService = {
 
     deleteProject: async (id) => {
         try {
-            const response = await api.delete(`${BASE_PATH}/${id}`);
+            const response = await api.delete(`${BASE_PATH}/${id}`, getHeaders());
             return response.data;
         } catch (error) {
             console.error(`Error deleting project ${id}:`, error);
@@ -45,7 +58,7 @@ export const projectService = {
 
     getProjectById: async (id) => {
         try {
-            const response = await api.get(`${BASE_PATH}/${id}`);
+            const response = await api.get(`${BASE_PATH}/${id}`, getHeaders());
             return response.data;
         } catch (error) {
             console.error(`Error fetching project ${id}:`, error);

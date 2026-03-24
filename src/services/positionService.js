@@ -1,7 +1,7 @@
 
 import api from '../api/api';
 
-const BASE_PATH = '/positions';
+const BASE_PATH = '/positions/';
 
 export const positionService = {
     getAllPositions: async () => {

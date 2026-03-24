@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { projectService } from '../services/projectService';
 import { employeeService } from '../services/employeeService';
 import SearchableSelect from '../components/common/SearchableSelect';
@@ -24,9 +25,22 @@ const Projects = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [formErrors, setFormErrors] = useState({});
+    const [currentPage, setCurrentPage] = useState(0);
+    const [pagination, setPagination] = useState({ total: 0, from: 0, to: 0, totalPages: 0 });
+    const limit = 5;
+    
+    const [listFilters, setListFilters] = useState({
+        name: '',
+        manager: '',
+        location: '',
+        status: '',
+        startDate: '',
+        endDate: ''
+    });
 
     const [viewMode, setViewMode] = useState('list'); // 'list', 'create', 'edit', 'view'
     const [selectedProject, setSelectedProject] = useState(null);
+    const [projectToDelete, setProjectToDelete] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -38,9 +52,15 @@ const Projects = () => {
     });
 
     useEffect(() => {
-        fetchProjects();
         fetchEmployees();
     }, []);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchProjects(0, listFilters);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [listFilters]);
 
     const fetchEmployees = async () => {
         try {
@@ -51,15 +71,25 @@ const Projects = () => {
         }
     };
 
-    const fetchProjects = async () => {
+    const fetchProjects = async (page = currentPage, filters = listFilters) => {
         try {
             setLoading(true);
-            const data = await projectService.getAllProjects();
+            const res = await projectService.getAllProjects(page, limit, filters);
+            const data = res.data || res; // Handle both wrapped and unwrapped APIs
+
             if (Array.isArray(data)) {
                 setProjects(data);
+                setPagination({
+                    total: res.total || 0,
+                    from: res.from || 0,
+                    to: res.to || 0,
+                    totalPages: res.totalPages || 0
+                });
+                // Ensure state is perfectly matched with backend
+                setCurrentPage(page);
                 setError(null);
             } else {
-                console.error("API returned non-array data:", data);
+                console.error("API returned non-array data:", res);
                 setProjects([]);
                 setError('Unexpected data format received from server.');
             }
@@ -69,6 +99,12 @@ const Projects = () => {
             setProjects([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 0 && newPage < pagination.totalPages) {
+            fetchProjects(newPage);
         }
     };
 
@@ -95,7 +131,11 @@ const Projects = () => {
 
     const handleEdit = (project) => {
         setSelectedProject(project);
-        setFormData({ ...project });
+        setFormData({ 
+            ...project,
+            startDate: project.startDate ? project.startDate.split('T')[0] : '',
+            endDate: project.endDate ? project.endDate.split('T')[0] : ''
+        });
         setViewMode('edit');
     };
 
@@ -107,7 +147,6 @@ const Projects = () => {
     const validateForm = () => {
         const errors = {};
         if (!formData.name.trim()) errors.name = 'Project Name is required';
-        if (!formData.manager.trim()) errors.manager = 'Manager is required';
         if (!formData.location.trim()) errors.location = 'Location is required';
         if (!formData.startDate) errors.startDate = 'Start Date is required';
         if (!formData.endDate) errors.endDate = 'End Date is required';
@@ -119,15 +158,21 @@ const Projects = () => {
         return Object.keys(errors).length === 0;
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this project?')) {
-            try {
-                await projectService.deleteProject(id);
-                setProjects(projects.filter(p => p.id !== id));
-            } catch (err) {
-                alert('Failed to delete project.');
-                console.error(err);
-            }
+    const handleDeleteClick = (project) => {
+        setProjectToDelete(project);
+    };
+
+    const confirmDelete = async () => {
+        if (!projectToDelete) return;
+        try {
+            await projectService.deleteProject(projectToDelete.id);
+            setProjects(projects.filter(p => p.id !== projectToDelete.id));
+            toast.success('Project deleted successfully');
+            setProjectToDelete(null);
+        } catch (err) {
+            console.error('Failed to delete project:', err);
+            toast.error('Failed to delete project');
+            setProjectToDelete(null);
         }
     };
 
@@ -139,15 +184,17 @@ const Projects = () => {
         try {
             if (viewMode === 'create') {
                 await projectService.createProject(formData);
+                toast.success('Project created successfully');
             } else if (viewMode === 'edit') {
                 await projectService.updateProject(selectedProject.id, formData);
+                toast.success('Project updated successfully');
             }
             fetchProjects();
             setViewMode('list');
             resetForm();
         } catch (err) {
-            alert('Failed to save project.');
-            console.error(err);
+            console.error('Failed to save project:', err);
+            toast.error(err.response?.data?.message || 'Failed to save project. Ensure API is running.');
         }
     };
 
@@ -177,13 +224,28 @@ const Projects = () => {
                             </tr>
                             {/* Inline Filter Row */}
                             <tr className="filter-row">
-                                <th><input type="text" className="inline-filter" placeholder="Filter Name" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Filter Manager" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Filter Location" /></th>
-                                <th><input type="date" className="inline-filter" /></th>
-                                <th><input type="date" className="inline-filter" /></th>
                                 <th>
-                                    <select className="inline-filter">
+                                    <input type="text" className="inline-filter" placeholder="Filter Name" 
+                                        value={listFilters.name} onChange={e => setListFilters(f => ({...f, name: e.target.value}))} />
+                                </th>
+                                <th>
+                                    <input type="text" className="inline-filter" placeholder="Filter Manager" 
+                                        value={listFilters.manager} onChange={e => setListFilters(f => ({...f, manager: e.target.value}))} />
+                                </th>
+                                <th>
+                                    <input type="text" className="inline-filter" placeholder="Filter Location" 
+                                        value={listFilters.location} onChange={e => setListFilters(f => ({...f, location: e.target.value}))} />
+                                </th>
+                                <th>
+                                    <input type="date" className="inline-filter" 
+                                        value={listFilters.startDate} onChange={e => setListFilters(f => ({...f, startDate: e.target.value}))} />
+                                </th>
+                                <th>
+                                    <input type="date" className="inline-filter" 
+                                        value={listFilters.endDate} onChange={e => setListFilters(f => ({...f, endDate: e.target.value}))} />
+                                </th>
+                                <th>
+                                    <select className="inline-filter" value={listFilters.status} onChange={e => setListFilters(f => ({...f, status: e.target.value}))}>
                                         <option value="">All Status</option>
                                         <option value="Active">Active</option>
                                         <option value="Completed">Completed</option>
@@ -211,23 +273,22 @@ const Projects = () => {
                                 (projects || []).map((project) => (
                                     <tr key={project.id}>
                                         <td>
-                                            <div className="project-info">
-                                                <div className="project-icon"><Briefcase size={16} /></div>
-                                                <div>
-                                                    <div className="font-semibold">{project.name}</div>
-                                                    <div className="text-xs text-secondary">{project.id}</div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                <div className="project-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '8px', background: '#eef2ff', color: '#6366f1', flexShrink: 0 }}>
+                                                    <Briefcase size={16} />
                                                 </div>
+                                                <div style={{ fontWeight: 600, color: '#111827' }}>{project.name || '-'}</div>
                                             </div>
                                         </td>
-                                        <td>{project.manager}</td>
+                                        <td style={{ color: project.manager ? 'inherit' : '#9ca3af' }}>{project.manager || '-'}</td>
                                         <td>
-                                            <div className="flex items-center gap-2">
-                                                <MapPin size={14} className="text-secondary" />
-                                                {project.location}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#4b5563' }}>
+                                                <MapPin size={14} style={{ flexShrink: 0, color: '#9ca3af' }} />
+                                                <span style={{ whiteSpace: 'nowrap' }}>{project.location || '-'}</span>
                                             </div>
                                         </td>
-                                        <td className="font-mono text-xs">{project.startDate}</td>
-                                        <td className="font-mono text-xs">{project.endDate}</td>
+                                        <td className="font-mono text-xs">{project.startDate ? project.startDate.split('T')[0] : '-'}</td>
+                                        <td className="font-mono text-xs">{project.endDate ? project.endDate.split('T')[0] : '-'}</td>
                                         <td>
                                             <span className={`status-badge ${project.status?.toLowerCase().replace(' ', '-') || 'active'}`}>
                                                 {project.status || 'Active'}
@@ -237,7 +298,7 @@ const Projects = () => {
                                             <div className="actions-wrapper">
                                                 <button className="action-btn view" title="View" onClick={() => handleView(project)}><Eye size={18} /></button>
                                                 <button className="action-btn edit" title="Edit" onClick={() => handleEdit(project)}><Pencil size={18} /></button>
-                                                <button className="action-btn delete" title="Delete" onClick={() => handleDelete(project.id)}><Trash2 size={18} /></button>
+                                                <button className="action-btn delete" title="Delete" onClick={() => handleDeleteClick(project)}><Trash2 size={18} /></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -248,11 +309,35 @@ const Projects = () => {
                 </div>
 
                 <div className="pagination">
-                    <span className="pagination-info">Showing 1 to 5 of 5 entries</span>
+                    <span className="pagination-info">
+                        Showing {pagination.total === 0 ? 0 : pagination.from} to {Math.min(pagination.to, pagination.total)} of {pagination.total} entries
+                    </span>
                     <div className="pagination-controls">
-                        <button className="page-btn disabled">Previous</button>
-                        <button className="page-btn active">1</button>
-                        <button className="page-btn disabled">Next</button>
+                        <button 
+                            className={`page-btn ${currentPage <= 0 ? 'disabled' : ''}`}
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage <= 0}
+                        >
+                            Previous
+                        </button>
+                        
+                        {Array.from({ length: Math.max(1, pagination.totalPages) }).map((_, idx) => (
+                            <button 
+                                key={idx} 
+                                className={`page-btn ${currentPage === idx ? 'active' : ''}`}
+                                onClick={() => handlePageChange(idx)}
+                            >
+                                {idx + 1}
+                            </button>
+                        ))}
+
+                        <button 
+                            className={`page-btn ${currentPage >= (pagination.totalPages - 1) ? 'disabled' : ''}`}
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage >= (pagination.totalPages - 1) || pagination.totalPages === 0}
+                        >
+                            Next
+                        </button>
                     </div>
                 </div>
             </div>
@@ -283,7 +368,7 @@ const Projects = () => {
                                 {formErrors.name && <span className="error-text">{formErrors.name}</span>}
                             </div>
                             <div className="form-group" style={{ position: 'relative', zIndex: 10 }}>
-                                <label>Manager <span className="required">*</span></label>
+                                <label>Manager</label>
                                 <SearchableSelect
                                     options={employees.map(emp => ({ value: emp.name, label: emp.name }))}
                                     value={formData.manager}
@@ -369,57 +454,79 @@ const Projects = () => {
     );
 
     const renderDetail = () => (
-        <div className="detail-container">
-            <div className="detail-card">
-                <div className="detail-header">
-                    <div className="detail-title-section">
-                        <div className="detail-icon"><Briefcase size={24} /></div>
-                        <div>
-                            <h2 className="detail-title">{selectedProject.name}</h2>
-                            <span className="detail-subtitle">ID: {selectedProject.id}</span>
+        <div className="modal-overlay" onClick={() => setViewMode('list')}>
+            <div className="detail-card glass-panel" onClick={e => e.stopPropagation()}>
+                <div className="detail-header-premium">
+                    <div className="premium-title-wrapper">
+                        <div className="premium-icon-box">
+                            <Briefcase size={28} />
+                        </div>
+                        <div className="title-text-group">
+                            <h2 className="premium-title">{selectedProject.name || '-'}</h2>
+                            <div className="premium-code-badge">
+                                Code: {selectedProject.code || '-'}
+                            </div>
                         </div>
                     </div>
-                    <div className="detail-actions">
-                        <span className={`status-badge large ${selectedProject.status.toLowerCase().replace(' ', '-')}`}>
-                            {selectedProject.status}
-                        </span>
-                        <button className="close-btn" onClick={() => setViewMode('list')}><X size={24} /></button>
+                    <div className="detail-actions-top" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div className={`premium-status-badge ${selectedProject.status?.toLowerCase().replace(' ', '-') || 'active'}`}>
+                            {selectedProject.status || 'Active'}
+                        </div>
+                        <button className="premium-close-btn" onClick={() => setViewMode('list')}><X size={20} /></button>
                     </div>
                 </div>
 
-                <div className="detail-body">
-                    <div className="detail-section">
-                        <h3 className="section-title">General Information</h3>
-                        <div className="detail-grid">
-                            <div className="detail-item">
-                                <label>Manager</label>
-                                <p>{selectedProject.manager}</p>
+                <div className="detail-body-premium">
+                    <div className="premium-section">
+                        <div className="premium-section-header">
+                            <h3 className="section-title-premium">Project Overview</h3>
+                        </div>
+                        <div className="premium-grid">
+                            <div className="premium-info-box">
+                                <label>Project Manager</label>
+                                <div className="info-value">
+                                    <User size={16} className="info-icon" />
+                                    <span>{selectedProject.manager || '-'}</span>
+                                </div>
                             </div>
-                            <div className="detail-item">
+                            <div className="premium-info-box">
                                 <label>Location</label>
-                                <p>{selectedProject.location}</p>
+                                <div className="info-value">
+                                    <MapPin size={16} className="info-icon" />
+                                    <span>{selectedProject.location || '-'}</span>
+                                </div>
                             </div>
-                            <div className="detail-item">
+                            <div className="premium-info-box">
                                 <label>Start Date</label>
-                                <p>{selectedProject.startDate}</p>
+                                <div className="info-value">
+                                    <Calendar size={16} className="info-icon" />
+                                    <span className="font-mono">{selectedProject.startDate ? selectedProject.startDate.split('T')[0] : '-'}</span>
+                                </div>
                             </div>
-                            <div className="detail-item">
+                            <div className="premium-info-box">
                                 <label>End Date</label>
-                                <p>{selectedProject.endDate}</p>
+                                <div className="info-value">
+                                    <Calendar size={16} className="info-icon" />
+                                    <span className="font-mono">{selectedProject.endDate ? selectedProject.endDate.split('T')[0] : '-'}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="detail-section">
-                        <h3 className="section-title">Description</h3>
-                        <p className="detail-text">{selectedProject.description || 'No description provided.'}</p>
+                    <div className="premium-section" style={{ marginTop: '1.5rem' }}>
+                        <div className="premium-section-header">
+                            <h3 className="section-title-premium">Description</h3>
+                        </div>
+                        <div className="premium-description-box">
+                            <p>{selectedProject.description || '-'}</p>
+                        </div>
                     </div>
                 </div>
 
-                <div className="detail-footer">
-                    <button className="btn-secondary" onClick={() => setViewMode('list')}>Back to List</button>
-                    <button className="btn-primary" onClick={() => setViewMode('edit')}>
-                        <Pencil size={16} /> Edit Project
+                <div className="detail-footer-premium">
+                    <button className="btn-secondary-premium" onClick={() => setViewMode('list')}>Close</button>
+                    <button className="btn-primary-premium" onClick={() => setViewMode('edit')}>
+                        <Pencil size={16} /> Edit Details
                     </button>
                 </div>
             </div>
@@ -431,6 +538,22 @@ const Projects = () => {
             {viewMode === 'list' && renderList()}
             {(viewMode === 'create' || viewMode === 'edit') && renderForm()}
             {viewMode === 'view' && renderDetail()}
+            
+            {projectToDelete && (
+                <div className="modal-overlay" onClick={() => setProjectToDelete(null)}>
+                    <div className="delete-modal-card" onClick={e => e.stopPropagation()}>
+                        <div className="delete-modal-icon">
+                            <Trash2 size={32} />
+                        </div>
+                        <h3>Delete Project</h3>
+                        <p>Are you sure you want to delete <strong>{projectToDelete.name || 'this project'}</strong>? This action cannot be undone.</p>
+                        <div className="delete-modal-actions">
+                            <button className="btn-secondary" onClick={() => setProjectToDelete(null)}>Cancel</button>
+                            <button className="btn-danger" onClick={confirmDelete}>Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style>{`
                 .projects-page {
@@ -861,112 +984,205 @@ const Projects = () => {
                     to { opacity: 1; transform: translateY(0); }
                 }
 
-                /* Detail View Styles */
-                .detail-container {
-                    display: flex;
-                    justify-content: center;
-                    align-items: flex-start;
-                    height: 100%;
-                    overflow-y: auto;
-                }
-                .detail-card {
-                    background: white;
+                /* Detail View Premium Styles */
+                .glass-panel {
+                    background: #ffffff;
                     border-radius: 16px;
                     width: 100%;
-                    max-width: 800px;
-                    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+                    max-width: 520px;
+                    max-height: 90vh;
                     overflow: hidden;
-                    animation: fadeIn 0.3s ease-out;
+                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+                    animation: slideUp 0.3s ease-out;
+                    position: relative;
+                    display: flex;
+                    flex-direction: column;
                 }
-                .detail-header {
-                    padding: 2rem;
-                    background: #f8fafc;
+                .detail-body-premium::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .detail-body-premium::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .detail-body-premium::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 3px;
+                }
+                .detail-header-premium {
+                    padding: 1.5rem;
+                    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
                     border-bottom: 1px solid #e2e8f0;
                     display: flex;
                     justify-content: space-between;
-                    align-items: flex-start;
+                    align-items: center;
                 }
-                .detail-title-section {
+                .premium-title-wrapper {
                     display: flex;
                     gap: 1.5rem;
                     align-items: center;
                 }
-                .detail-icon {
-                    width: 64px;
-                    height: 64px;
-                    background: #0d5f68;
-                    color: white;
+                .premium-icon-box {
+                    width: 50px;
+                    height: 50px;
+                    background: #eef2ff;
+                    color: #4f46e5;
                     border-radius: 16px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    box-shadow: 0 4px 6px -1px rgba(13, 95, 104, 0.3);
+                    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.1);
                 }
-                .detail-title {
+                .title-text-group {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.25rem;
+                }
+                .premium-title {
                     font-size: 1.5rem;
                     font-weight: 700;
-                    color: #111827;
+                    color: #0f172a;
+                    margin: 0;
+                    line-height: 1.2;
+                }
+                .premium-code-badge {
+                    font-family: monospace;
+                    background: #e2e8f0;
+                    color: #475569;
+                    font-size: 0.85rem;
+                    padding: 0.2rem 0.6rem;
+                    border-radius: 6px;
+                    display: inline-block;
+                    width: max-content;
+                    font-weight: 600;
+                }
+                .detail-actions-top {
+                    display: flex;
+                    align-items: flex-start;
+                }
+                .premium-close-btn {
+                    background: white;
+                    border: 1px solid #e2e8f0;
+                    color: #64748b;
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .premium-close-btn:hover {
+                    background: #f1f5f9;
+                    color: #0f172a;
+                    transform: rotate(90deg);
+                }
+                .premium-status-badge {
+                    padding: 0.4rem 1rem;
+                    border-radius: 20px;
+                    font-weight: 600;
+                    font-size: 0.85rem;
+                    text-transform: capitalize;
+                }
+                .premium-status-badge.active { background: #dcfce7; color: #166534; }
+                .premium-status-badge.completed { background: #e0e7ff; color: #3730a3; }
+                .premium-status-badge.on-hold { background: #fef9c3; color: #854d0e; }
+                .premium-status-badge.cancelled { background: #fee2e2; color: #991b1b; }
+
+                .detail-body-premium {
+                    padding: 1.5rem;
+                    overflow-y: auto;
+                    flex: 1;
+                }
+                .premium-section-header {
+                    margin-bottom: 1rem;
+                    display: flex;
+                    align-items: center;
+                }
+                .section-title-premium {
+                    font-size: 1.1rem;
+                    font-weight: 700;
+                    color: #1e293b;
                     margin: 0;
                 }
-                .detail-subtitle {
-                    font-family: monospace;
-                    color: #6b7280;
-                    font-size: 0.9rem;
-                }
-                .detail-actions {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: flex-end;
-                    gap: 1rem;
-                }
-
-                .detail-body {
-                    padding: 2rem;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 2rem;
-                }
-                .section-title {
-                    font-size: 1rem;
-                    font-weight: 700;
-                    color: #374151;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                    margin-bottom: 1rem;
-                    border-bottom: 2px solid #f3f4f6;
-                    padding-bottom: 0.5rem;
-                    display: inline-block;
-                }
-                .detail-grid {
+                .premium-grid {
                     display: grid;
                     grid-template-columns: repeat(2, 1fr);
-                    gap: 1.5rem;
+                    gap: 1.25rem 1rem;
                 }
-                .detail-item label {
-                    display: block;
+                .premium-info-box {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                }
+                .premium-info-box label {
                     font-size: 0.8rem;
                     font-weight: 600;
-                    color: #9ca3af;
-                    margin-bottom: 0.25rem;
+                    color: #64748b;
                     text-transform: uppercase;
+                    letter-spacing: 0.05em;
                 }
-                .detail-item p {
+                .info-value {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
                     font-size: 1rem;
-                    color: #1f2937;
+                    color: #0f172a;
                     font-weight: 500;
                 }
-                .detail-text {
-                    line-height: 1.6;
-                    color: #4b5563;
+                .info-icon {
+                    color: #94a3b8;
+                    flex-shrink: 0;
+                }
+                .premium-description-box {
+                    background: #f8fafc;
+                    border: 1px solid #f1f5f9;
+                    padding: 1rem;
+                    border-radius: 8px;
+                    color: #334155;
+                    line-height: 1.5;
+                    font-size: 0.9rem;
+                    max-height: 150px;
+                    overflow-y: auto;
                 }
                 
-                .detail-footer {
-                    padding: 1.5rem 2rem;
+                .detail-footer-premium {
+                    padding: 1rem 1.5rem;
                     background: #f8fafc;
                     border-top: 1px solid #e2e8f0;
                     display: flex;
                     justify-content: flex-end;
-                    gap: 1rem;
+                    gap: 0.75rem;
+                }
+                .btn-secondary-premium {
+                    padding: 0.6rem 1.5rem;
+                    border-radius: 8px;
+                    border: 1px solid #cbd5e1;
+                    background: white;
+                    color: #475569;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .btn-secondary-premium:hover { background: #f1f5f9; }
+                .btn-primary-premium {
+                    padding: 0.6rem 1.5rem;
+                    border-radius: 8px;
+                    border: none;
+                    background: #0d5f68;
+                    color: white;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    transition: all 0.2s;
+                    box-shadow: 0 4px 6px -1px rgba(13, 95, 104, 0.2);
+                }
+                .btn-primary-premium:hover {
+                    background: #0b4e56;
+                    transform: translateY(-1px);
+                    box-shadow: 0 6px 8px -1px rgba(13, 95, 104, 0.3);
                 }
 
                 @keyframes slideUp {
@@ -982,6 +1198,60 @@ const Projects = () => {
                 .font-mono { font-family: monospace; }
                 .text-secondary { color: #6b7280; }
                 .font-semibold { font-weight: 600; }
+                
+                /* Delete Modal Styles */
+                .delete-modal-card {
+                    background: white;
+                    border-radius: 16px;
+                    padding: 2.5rem;
+                    width: 100%;
+                    max-width: 400px;
+                    text-align: center;
+                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+                    animation: slideUp 0.3s ease-out;
+                }
+                .delete-modal-icon {
+                    width: 64px;
+                    height: 64px;
+                    background: #fee2e2;
+                    color: #ef4444;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 1.5rem;
+                }
+                .delete-modal-card h3 {
+                    font-size: 1.25rem;
+                    font-weight: 700;
+                    color: #111827;
+                    margin-bottom: 0.75rem;
+                    margin-top: 0;
+                }
+                .delete-modal-card p {
+                    color: #4b5563;
+                    font-size: 0.95rem;
+                    margin-bottom: 2rem;
+                    line-height: 1.5;
+                }
+                .delete-modal-actions {
+                    display: flex;
+                    gap: 1rem;
+                    justify-content: center;
+                }
+                .btn-danger {
+                    background: #ef4444;
+                    color: white;
+                    border: none;
+                    padding: 0.6rem 2rem;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .btn-danger:hover {
+                    background: #dc2626;
+                }
             `}</style>
         </div>
     );

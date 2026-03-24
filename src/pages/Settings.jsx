@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     Settings, Users, List, Plus, Search,
@@ -319,24 +319,20 @@ const SettingsPage = () => {
     const [newCategoryName, setNewCategoryName] = useState('');
     const [loadingCategories, setLoadingCategories] = useState(false);
     const [loadingValues, setLoadingValues] = useState(false);
+    const [isEditingValue, setIsEditingValue] = useState(false);
+    const [editingValueId, setEditingValueId] = useState(null);
 
-    // Fetch categories from API
-    const fetchCategories = async () => {
-        setLoadingCategories(true);
-        try {
-            const response = await api.get('/master-data/categories');
-            if (response.data.status === 200 || response.data.statusCode === 200) {
-                const cats = response.data.data || [];
-                setCategories(cats);
-                if (cats.length > 0 && !selectedCategory) {
-                    setSelectedCategory(cats[0]);
-                }
-            }
-        } catch (error) {
-            console.error('Error fetching categories:', error);
-            showToast('Failed to load categories', 'error');
-        } finally {
-            setLoadingCategories(false);
+    // Statically defined categories
+    const fetchCategories = () => {
+        const staticCategories = [
+            { id: 'employment-type', name: 'Employment Type' },
+            { id: 'position', name: 'Position' },
+            { id: 'department', name: 'Department' },
+            { id: 'reason-requisition', name: 'Reason Requisition' }
+        ];
+        setCategories(staticCategories);
+        if (!selectedCategory) {
+            setSelectedCategory(staticCategories[1]); // Default to Position
         }
     };
 
@@ -346,12 +342,18 @@ const SettingsPage = () => {
         try {
             const isDepartment = selectedCategory?.name?.toLowerCase() === 'department' || selectedCategory?.name?.toLowerCase() === 'departments';
             const isEmploymentType = selectedCategory?.name?.toLowerCase() === 'employment type' || selectedCategory?.name?.toLowerCase() === 'employment types';
+            const isPosition = selectedCategory?.name?.toLowerCase() === 'position' || selectedCategory?.name?.toLowerCase() === 'positions';
+            const isReasonReq = selectedCategory?.name?.toLowerCase() === 'reason requisition' || selectedCategory?.id === 'reason-requisition';
 
             let response;
             if (isDepartment) {
                 response = await api.get('/departments/');
             } else if (isEmploymentType) {
                 response = await api.get('/employment-types/');
+            } else if (isPosition) {
+                response = await api.get('http://localhost:5002/api/positions/');
+            } else if (isReasonReq) {
+                response = await api.get('/reason-requisition');
             } else {
                 response = await api.get(`/master-data/categories/${categoryId}/values`);
             }
@@ -427,31 +429,57 @@ const SettingsPage = () => {
         try {
             const isDepartment = selectedCategory?.name?.toLowerCase() === 'department' || selectedCategory?.name?.toLowerCase() === 'departments';
             const isEmploymentType = selectedCategory?.name?.toLowerCase() === 'employment type' || selectedCategory?.name?.toLowerCase() === 'employment types';
+            const isPosition = selectedCategory?.name?.toLowerCase() === 'position' || selectedCategory?.name?.toLowerCase() === 'positions';
+            const isReasonReq = selectedCategory?.name?.toLowerCase() === 'reason requisition' || selectedCategory?.id === 'reason-requisition';
             const categoryId = selectedCategory._id || selectedCategory.id;
 
             let response;
-            if (isDepartment) {
-                response = await api.post('/departments/', {
-                    name: newValue.trim()
-                });
-            } else if (isEmploymentType) {
-                response = await api.post('/employment-types/', {
-                    name: newValue.trim()
-                });
+            if (isEditingValue && editingValueId) {
+                if (isDepartment) {
+                    response = await api.patch(`/departments/${editingValueId}`, { name: newValue.trim() });
+                } else if (isEmploymentType) {
+                    response = await api.patch(`/employment-types/${editingValueId}`, { name: newValue.trim() });
+                } else if (isPosition) {
+                    response = await api.patch(`http://localhost:5002/api/positions/${editingValueId}`, { name: newValue.trim() });
+                } else if (isReasonReq) {
+                    response = await api.patch(`/reason-requisition/${editingValueId}`, { name: newValue.trim() });
+                } else {
+                    response = await api.patch(`/master-data/categories/${categoryId}/values/${editingValueId}`, { value: newValue.trim() });
+                }
             } else {
-                response = await api.post(`/master-data/categories/${categoryId}/values`, {
-                    value: newValue.trim()
-                });
+                if (isDepartment) {
+                    response = await api.post('/departments/', {
+                        name: newValue.trim()
+                    });
+                } else if (isEmploymentType) {
+                    response = await api.post('/employment-types/', {
+                        name: newValue.trim()
+                    });
+                } else if (isPosition) {
+                    response = await api.post('http://localhost:5002/api/positions/', {
+                        name: newValue.trim()
+                    });
+                } else if (isReasonReq) {
+                    response = await api.post('/reason-requisition', {
+                        name: newValue.trim()
+                    });
+                } else {
+                    response = await api.post(`/master-data/categories/${categoryId}/values`, {
+                        value: newValue.trim()
+                    });
+                }
             }
 
             if (response.data.status === 200 || response.data.status === 201 || response.data.statusCode === 200 || response.data.statusCode === 201) {
-                showToast(response.data.message || `${selectedCategory.name} value added successfully`);
+                showToast(response.data.message || `${selectedCategory.name} value ${isEditingValue ? 'updated' : 'added'} successfully`);
                 setNewValue('');
                 setShowAddValueModal(false);
+                setIsEditingValue(false);
+                setEditingValueId(null);
                 // Refresh the values
                 fetchCategoryValues(categoryId);
             } else {
-                showToast(response.data.message || 'Failed to add value', 'error');
+                showToast(response.data.message || 'Failed to process request', 'error');
             }
         } catch (error) {
             console.error('Error adding value:', error);
@@ -461,11 +489,22 @@ const SettingsPage = () => {
         }
     };
 
+    const handleEditValue = (val) => {
+        const valueId = val._id || val.id || val;
+        const valueName = val.name || val.value || val;
+        setNewValue(valueName);
+        setEditingValueId(valueId);
+        setIsEditingValue(true);
+        setShowAddValueModal(true);
+    };
+
     const handleDeleteValue = async (valueToDelete) => {
         setLoadingValues(true);
         try {
             const isDepartment = selectedCategory?.name?.toLowerCase() === 'department' || selectedCategory?.name?.toLowerCase() === 'departments';
             const isEmploymentType = selectedCategory?.name?.toLowerCase() === 'employment type' || selectedCategory?.name?.toLowerCase() === 'employment types';
+            const isPosition = selectedCategory?.name?.toLowerCase() === 'position' || selectedCategory?.name?.toLowerCase() === 'positions';
+            const isReasonReq = selectedCategory?.name?.toLowerCase() === 'reason requisition' || selectedCategory?.id === 'reason-requisition';
             const categoryId = selectedCategory._id || selectedCategory.id;
             const valueId = typeof valueToDelete === 'object' ? (valueToDelete._id || valueToDelete.id) : valueToDelete;
 
@@ -474,6 +513,10 @@ const SettingsPage = () => {
                 response = await api.delete(`/departments/${valueId}`);
             } else if (isEmploymentType) {
                 response = await api.delete(`/employment-types/${valueId}`);
+            } else if (isPosition) {
+                response = await api.delete(`http://localhost:5002/api/positions/${valueId}`);
+            } else if (isReasonReq) {
+                response = await api.delete(`/reason-requisition/${valueId}`);
             } else {
                 response = await api.delete(`/master-data/categories/${categoryId}/values/${valueId}`);
             }
@@ -910,7 +953,7 @@ const SettingsPage = () => {
             <div className={`modal-overlay-premium ${showAddValueModal ? 'show' : ''}`}>
                 <div className="modal-content-premium" style={{ textAlign: 'left', maxWidth: '450px' }}>
                     <div className="modal-header-premium" style={{ marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b', textAlign: 'center' }}>Add {selectedCategory.name}</h3>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b', textAlign: 'center' }}>{isEditingValue ? 'Edit' : 'Add'} {selectedCategory.name}</h3>
                     </div>
                     <div className="modal-body-premium" style={{ marginBottom: '2rem' }}>
                         <div className="form-group-settings">
@@ -927,9 +970,9 @@ const SettingsPage = () => {
                         </div>
                     </div>
                     <div className="modal-footer-premium" style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                        <button className="btn-secondary-alt" onClick={() => setShowAddValueModal(false)} disabled={loadingValues} style={{ padding: '0.6rem 1.5rem', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>Cancel</button>
+                        <button className="btn-secondary-alt" onClick={() => { setShowAddValueModal(false); setIsEditingValue(false); setEditingValueId(null); }} disabled={loadingValues} style={{ padding: '0.6rem 1.5rem', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>Cancel</button>
                         <button className="btn-primary-alt" onClick={handleAddValue} disabled={loadingValues} style={{ padding: '0.6rem 1.5rem', borderRadius: '10px', border: 'none', background: '#0d5f68', color: 'white', fontWeight: 600, cursor: 'pointer' }}>
-                            {loadingValues ? 'Adding...' : 'Add Value'}
+                            {loadingValues ? 'Processing...' : (isEditingValue ? 'Update Value' : 'Add Value')}
                         </button>
                     </div>
                 </div>
@@ -942,9 +985,6 @@ const SettingsPage = () => {
             <div className="settings-sidebar">
                 <div className="sidebar-header-flex">
                     <h3 className="settings-sidebar-title">Categories</h3>
-                    <button className="icon-btn-add-sm" title="Add Category" onClick={() => setShowAddCategoryModal(true)}>
-                        <Plus size={14} />
-                    </button>
                 </div>
                 <div className="category-list">
                     {loadingCategories ? (
@@ -971,9 +1011,9 @@ const SettingsPage = () => {
             <div className="settings-main-content">
                 {selectedCategory ? (
                     <>
-                        <div className="card-header-flex">
-                            <h2 className="card-title">{selectedCategory.name} List</h2>
-                            <button className="btn-primary-alt" onClick={() => { setNewValue(''); setShowAddValueModal(true); }} disabled={loadingValues}>
+                        <div className="card-header-flex" style={{ padding: '1.25rem 1.5rem' }}>
+                            <h2 className="card-title" style={{ margin: 0, fontSize: '1.25rem' }}>{selectedCategory.name} List</h2>
+                            <button className="btn-primary-alt" onClick={() => { setNewValue(''); setIsEditingValue(false); setEditingValueId(null); setShowAddValueModal(true); }} disabled={loadingValues}>
                                 <Plus size={16} />
                                 <span>Add Value</span>
                             </button>
@@ -982,7 +1022,7 @@ const SettingsPage = () => {
                         <div className="values-list-container">
                             <div className="values-list-header">
                                 <div className="header-col">Value Name</div>
-                                <div className="header-col text-right">Actions</div>
+                                <div className="header-col actions">Actions</div>
                             </div>
                             <div className="values-list-body">
                                 {loadingValues ? (
@@ -1001,6 +1041,9 @@ const SettingsPage = () => {
                                             <div key={valueId || idx} className="value-list-item">
                                                 <span className="value-text">{valueName}</span>
                                                 <div className="value-actions">
+                                                    <button className="action-icon-btn edit" title="Edit" onClick={() => handleEditValue(val)} disabled={loadingValues}>
+                                                        <Edit size={14} />
+                                                    </button>
                                                     <button className="action-icon-btn delete" title="Delete" onClick={() => handleDeleteValue(val)} disabled={loadingValues}>
                                                         <Trash2 size={14} />
                                                     </button>
@@ -1587,9 +1630,10 @@ const SettingsPage = () => {
                 }
             .settings-main-content {
                 flex: 1;
-            padding: 1.25rem;
-            overflow-y: auto;
-                }
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
             .values-grid {
                 display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -1621,52 +1665,92 @@ const SettingsPage = () => {
 
             /* Refined Drop Values List Styles */
             .values-list-container {
-                margin - top: 1.5rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            overflow: hidden;
-            background: white;
-                }
+                margin: 1.25rem;
+                margin-top: 0;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                overflow: hidden;
+                background: white;
+                display: flex;
+                flex-direction: column;
+                flex: 1;
+                min-height: 0;
+            }
             .values-list-header {
-                display: grid;
-            grid-template-columns: 1fr 100px;
-            padding: 1rem 1.5rem;
-            background-color: #f8fafc;
-            border-bottom: 2px solid #f1f5f9;
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-                }
+                display: flex;
+                flex-shrink: 0;
+                justify-content: space-between;
+                padding: 1rem 1.5rem;
+                background-color: #f8fafc;
+                border-bottom: 2px solid #f1f5f9;
+                font-size: 0.75rem;
+                font-weight: 700;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                position: sticky;
+                top: 0;
+                z-index: 5;
+            }
             .values-list-body {
                 display: flex;
-            flex-direction: column;
-                }
+                flex-direction: column;
+                overflow-y: auto;
+                flex: 1;
+            }
             .value-list-item {
-                display: grid;
-            grid-template-columns: 1fr 100px;
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid #f1f5f9;
-            align-items: center;
-            transition: all 0.2s;
-                }
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 1rem 1.5rem;
+                border-bottom: 1px solid #f1f5f9;
+                transition: all 0.2s;
+            }
             .value-list-item:hover {
-                background - color: #f0fdfa;
-                }
+                background-color: #f8fafc;
+            }
             .value-list-item:last-child {
-                border - bottom: none;
-                }
+                border-bottom: none;
+            }
             .value-text {
-                font - size: 0.9rem;
-            font-weight: 600;
-            color: #1a2e35;
-                }
+                font-size: 0.95rem;
+                font-weight: 500;
+                color: #334155;
+            }
             .value-actions {
                 display: flex;
-            justify-content: flex-end;
-            gap: 0.5rem;
-                }
+                gap: 0.75rem;
+            }
+            .action-icon-btn {
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: 1px solid #e2e8f0;
+                background: white;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .action-icon-btn.edit {
+                color: #0d5f68;
+            }
+            .action-icon-btn.delete {
+                color: #ef4444;
+            }
+            .action-icon-btn:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }
+            .action-icon-btn.edit:hover {
+                background: #f0fdfa;
+                border-color: #0d5f68;
+            }
+            .action-icon-btn.delete:hover {
+                background: #fef2f2;
+                border-color: #ef4444;
+            }
 
             /* Settings Form Styles */
             .settings-form-container {

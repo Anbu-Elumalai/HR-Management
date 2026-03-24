@@ -26,7 +26,7 @@ const AttendanceChart = () => {
             </div>
 
             <div className="chart-container">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minHeight={1} minWidth={1}>
                     <BarChart
                         data={data}
                         margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
