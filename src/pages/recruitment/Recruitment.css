@@ -538,3 +538,129 @@ tr:hover td {
     font-weight: 700;
     font-size: 0.9rem;
 }
+/* Delete Confirmation Premium Styles */
+.delete-modal-content {
+    max-width: 440px !important;
+    height: auto !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.delete-header-premium {
+    background: white !important;
+    padding: 1.5rem 1.5rem 0.5rem 1.5rem !important;
+    display: flex;
+    justify-content: flex-end;
+    border: none !important;
+}
+
+.delete-header-premium .icon-btn {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.delete-header-premium .icon-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+    transform: rotate(90deg);
+}
+
+.delete-body-premium {
+    padding: 0 2.5rem 2rem 2.5rem !important;
+    text-align: center;
+    background: white !important;
+}
+
+.delete-icon-container {
+    width: 80px;
+    height: 80px;
+    background: #fef2f2;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem auto;
+    color: #ef4444;
+    transition: transform 0.3s ease;
+}
+
+.delete-modal-content:hover .delete-icon-container {
+    transform: scale(1.1);
+}
+
+.delete-title-premium {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.75rem;
+}
+
+.delete-message-premium {
+    font-size: 1rem;
+    color: #64748b;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+}
+
+.delete-item-badge {
+    display: inline-block;
+    padding: 0.4rem 1rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #334155;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.delete-footer-premium {
+    padding: 1.5rem 2.5rem 2.5rem 2.5rem !important;
+    background: white !important;
+    border: none !important;
+    display: flex !important;
+    justify-content: stretch !important;
+    gap: 1rem;
+}
+
+.btn-cancel-premium {
+    flex: 1;
+    padding: 0.8rem !important;
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    transition: all 0.2s !important;
+    background: #f1f5f9 !important;
+    color: #475569 !important;
+    border: 1px solid transparent !important;
+    cursor: pointer;
+}
+
+.btn-cancel-premium:hover {
+    background: #e2e8f0 !important;
+    color: #1e293b !important;
+}
+
+.btn-delete-premium {
+    flex: 1;
+    padding: 0.8rem !important;
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    transition: all 0.2s !important;
+    background: #ef4444 !important;
+    color: white !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25) !important;
+    cursor: pointer;
+}
+
+.btn-delete-premium:hover:not(:disabled) {
+    background: #dc2626 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 15px rgba(239, 68, 68, 0.35) !important;
+}
+
+.btn-delete-premium:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}

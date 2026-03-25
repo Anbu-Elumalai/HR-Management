@@ -328,7 +328,9 @@ const SettingsPage = () => {
             { id: 'employment-type', name: 'Employment Type' },
             { id: 'position', name: 'Position' },
             { id: 'department', name: 'Department' },
-            { id: 'reason-requisition', name: 'Reason Requisition' }
+            { id: 'reason-requisition', name: 'Reason Requisition' },
+            { id: 'location', name: 'Location' },
+            { id: 'skill', name: 'Skill' }
         ];
         setCategories(staticCategories);
         if (!selectedCategory) {
@@ -344,6 +346,8 @@ const SettingsPage = () => {
             const isEmploymentType = selectedCategory?.name?.toLowerCase() === 'employment type' || selectedCategory?.name?.toLowerCase() === 'employment types';
             const isPosition = selectedCategory?.name?.toLowerCase() === 'position' || selectedCategory?.name?.toLowerCase() === 'positions';
             const isReasonReq = selectedCategory?.name?.toLowerCase() === 'reason requisition' || selectedCategory?.id === 'reason-requisition';
+            const isLocation = selectedCategory?.id === 'location' || selectedCategory?.name?.toLowerCase() === 'location';
+            const isSkill = selectedCategory?.id === 'skill' || selectedCategory?.name?.toLowerCase() === 'skill';
 
             let response;
             if (isDepartment) {
@@ -354,14 +358,28 @@ const SettingsPage = () => {
                 response = await api.get('/positions/');
             } else if (isReasonReq) {
                 response = await api.get('/reason-requisition');
+            } else if (isLocation) {
+                response = await api.get('/locations');
+            } else if (isSkill) {
+                response = await api.get('/skills');
             } else {
                 response = await api.get(`/master-data/categories/${categoryId}/values`);
             }
 
             if (response.data.status === 200 || response.data.statusCode === 200) {
+                // Handle different response structures (simple array vs paginated object)
+                let values = [];
+                if (Array.isArray(response.data.data)) {
+                    values = response.data.data;
+                } else if (response.data.data && Array.isArray(response.data.data.data)) {
+                    values = response.data.data.data;
+                } else {
+                    values = Array.isArray(response.data) ? response.data : [];
+                }
+
                 const updatedCategories = categories.map(cat =>
                     cat._id === categoryId || cat.id === categoryId
-                        ? { ...cat, values: response.data.data || [] }
+                        ? { ...cat, values: values }
                         : cat
                 );
                 setCategories(updatedCategories);
@@ -431,6 +449,8 @@ const SettingsPage = () => {
             const isEmploymentType = selectedCategory?.name?.toLowerCase() === 'employment type' || selectedCategory?.name?.toLowerCase() === 'employment types';
             const isPosition = selectedCategory?.name?.toLowerCase() === 'position' || selectedCategory?.name?.toLowerCase() === 'positions';
             const isReasonReq = selectedCategory?.name?.toLowerCase() === 'reason requisition' || selectedCategory?.id === 'reason-requisition';
+            const isLocation = selectedCategory?.id === 'location' || selectedCategory?.name?.toLowerCase() === 'location';
+            const isSkill = selectedCategory?.id === 'skill' || selectedCategory?.name?.toLowerCase() === 'skill';
             const categoryId = selectedCategory._id || selectedCategory.id;
 
             let response;
@@ -443,6 +463,10 @@ const SettingsPage = () => {
                     response = await api.patch(`/positions/${editingValueId}`, { name: newValue.trim() });
                 } else if (isReasonReq) {
                     response = await api.patch(`/reason-requisition/${editingValueId}`, { name: newValue.trim() });
+                } else if (isLocation) {
+                    response = await api.patch(`/locations/${editingValueId}`, { name: newValue.trim() });
+                } else if (isSkill) {
+                    response = await api.patch(`/skills/${editingValueId}`, { name: newValue.trim() });
                 } else {
                     response = await api.patch(`/master-data/categories/${categoryId}/values/${editingValueId}`, { value: newValue.trim() });
                 }
@@ -461,6 +485,14 @@ const SettingsPage = () => {
                     });
                 } else if (isReasonReq) {
                     response = await api.post('/reason-requisition', {
+                        name: newValue.trim()
+                    });
+                } else if (isLocation) {
+                    response = await api.post('/locations', {
+                        name: newValue.trim()
+                    });
+                } else if (isSkill) {
+                    response = await api.post('/skills', {
                         name: newValue.trim()
                     });
                 } else {
@@ -505,6 +537,8 @@ const SettingsPage = () => {
             const isEmploymentType = selectedCategory?.name?.toLowerCase() === 'employment type' || selectedCategory?.name?.toLowerCase() === 'employment types';
             const isPosition = selectedCategory?.name?.toLowerCase() === 'position' || selectedCategory?.name?.toLowerCase() === 'positions';
             const isReasonReq = selectedCategory?.name?.toLowerCase() === 'reason requisition' || selectedCategory?.id === 'reason-requisition';
+            const isLocation = selectedCategory?.id === 'location' || selectedCategory?.name?.toLowerCase() === 'location';
+            const isSkill = selectedCategory?.id === 'skill' || selectedCategory?.name?.toLowerCase() === 'skill';
             const categoryId = selectedCategory._id || selectedCategory.id;
             const valueId = typeof valueToDelete === 'object' ? (valueToDelete._id || valueToDelete.id) : valueToDelete;
 
@@ -517,6 +551,10 @@ const SettingsPage = () => {
                 response = await api.delete(`/positions/${valueId}`);
             } else if (isReasonReq) {
                 response = await api.delete(`/reason-requisition/${valueId}`);
+            } else if (isLocation) {
+                response = await api.delete(`/locations/${valueId}`);
+            } else if (isSkill) {
+                response = await api.delete(`/skills/${valueId}`);
             } else {
                 response = await api.delete(`/master-data/categories/${categoryId}/values/${valueId}`);
             }

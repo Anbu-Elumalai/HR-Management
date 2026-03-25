@@ -10,6 +10,8 @@ import { employeeService } from '../../services/employeeService';
 import { projectService } from '../../services/projectService';
 import api from '../../api/api';
 import toast from 'react-hot-toast';
+import MultiSelect from '../../components/common/MultiSelect';
+import { MapPin, Briefcase } from 'lucide-react';
 
 const Vacancy = () => {
     const [viewMode, setViewMode] = useState('list'); // 'list', 'create', 'edit', 'view'
@@ -22,6 +24,8 @@ const Vacancy = () => {
     const [reasons, setReasons] = useState([]);
     const [projects, setProjects] = useState([]);
     const [employmentTypes, setEmploymentTypes] = useState([]);
+    const [allSkills, setAllSkills] = useState([]);
+    const [allLocations, setAllLocations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [vacancies, setVacancies] = useState([]);
@@ -41,8 +45,19 @@ const Vacancy = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [vacancyToDelete, setVacancyToDelete] = useState(null);
 
+    const [showApprovalModal, setShowApprovalModal] = useState(false);
+    const [vacancyForApproval, setVacancyForApproval] = useState(null);
+    const [newApprovalStatus, setNewApprovalStatus] = useState('Pending');
+
+    const [showStatusModal, setShowStatusModal] = useState(false);
+    const [vacancyForStatus, setVacancyForStatus] = useState(null);
+    const [newStatus, setNewStatus] = useState('Draft');
+
     // Form State
-    const [formData, setFormData] = useState({});
+    const [formData, setFormData] = useState({
+        skills: [],
+        location: ''
+    });
     const [formErrors, setFormErrors] = useState({});
 
     // Integrated load function for master data
@@ -50,14 +65,16 @@ const Vacancy = () => {
         if (isInitial) setLoading(true);
         try {
             console.log("Vacancy.jsx: Initializing master data fetch...");
-            const [depsRes, posRes, empsRes, reasRes, projsRes, etypesRes, vacsRes] = await Promise.all([
+            const [depsRes, posRes, empsRes, reasRes, projsRes, etypesRes, vacsRes, skillRes, locRes] = await Promise.all([
                 departmentService.getAllDepartments().catch(e => { console.error("Dept error:", e); return []; }),
                 positionService.getAllPositions().catch(e => { console.error("Pos error:", e); return []; }),
                 employeeService.getAllEmployees().catch(e => { console.error("Emp error:", e); return []; }),
                 api.get('/reason-requisition').catch(e => ({ data: [] })),
                 projectService.getAllProjects(0, 100).catch(e => ({ data: [] })),
                 api.get('/employment-types/').catch(e => ({ data: [] })),
-                api.get('/vacancies').catch(e => ({ data: [] }))
+                api.get('/vacancies').catch(e => ({ data: [] })),
+                api.get('/skills').catch(e => ({ data: { data: [] } })),
+                api.get('/locations').catch(e => ({ data: { data: [] } }))
             ]);
 
             const getArray = (res) => {
@@ -74,22 +91,27 @@ const Vacancy = () => {
             const reas = getArray(reasRes);
             const projs = getArray(projsRes);
             const etypes = getArray(etypesRes);
+            const skillsData = getArray(skillRes);
+            const locationsData = getArray(locRes);
 
             // Detailed mapping with fallbacks to ensure dropdowns are NOT empty
-            setDepartments(deps.map(d => ({ 
+            setDepartments(deps.map(d => ({
                 label: d.name || d.departmentName || d.label || String(d),
                 value: d.id || d._id || d.value || String(d)
             })));
 
-            setPositions(pos.map(p => ({ 
+            setPositions(pos.map(p => ({
                 label: p.name || p.positionName || p.label || String(p),
                 value: p.id || p._id || p.value || String(p)
             })));
 
-            setEmployees(emps.map(e => ({ 
+            setEmployees(emps.map(e => ({
                 label: e.name || e.employeeName || e.label || String(e),
                 value: e.id || e._id || e.value || String(e)
             })));
+
+            setAllSkills(Array.isArray(skillsData) ? skillsData.map(s => ({ value: s.name || s, label: s.name || s })) : []);
+            setAllLocations(Array.isArray(locationsData) ? locationsData.map(l => ({ value: l.name || l, label: l.name || l })) : []);
 
             setReasons(reas.map(r => ({
                 label: r.name || r.label || String(r),
@@ -151,7 +173,9 @@ const Vacancy = () => {
                         qualification: 'Freshers allowed',
                         preferredEducation: '',
                         status: 'Draft',
-                        approvalStatus: 'Pending'
+                        approvalStatus: 'Pending',
+                        skills: [],
+                        location: ''
                     });
                 } else if (viewMode === 'edit' && selectedVacancy) {
                     const editData = { ...selectedVacancy };
@@ -159,6 +183,14 @@ const Vacancy = () => {
                     editData.requisitionDate = safeDate(editData.requisitionDate);
                     editData.requiredDate = safeDate(editData.requiredDate);
                     editData.scheduleDate = safeDate(editData.scheduleDate);
+                    
+                    // Ensure skills is an array for MultiSelect
+                    if (typeof editData.skills === 'string') {
+                        editData.skills = editData.skills.split(',').map(s => s.trim()).filter(s => s);
+                    } else if (!Array.isArray(editData.skills)) {
+                        editData.skills = [];
+                    }
+                    
                     setFormData(editData);
                 }
             };
@@ -216,8 +248,8 @@ const Vacancy = () => {
     const validateForm = () => {
         const errors = {};
         const requiredFields = [
-            'requisitionDate', 'departmentId', 'positionId', 'employeeTypeId', 
-            'numberOfVacancy', 'requiredDate', 'qualification', 
+            'requisitionDate', 'departmentId', 'positionId', 'employeeTypeId',
+            'numberOfVacancy', 'requiredDate', 'qualification',
             'reasonForRequisition', 'preferredEducation', 'salaryRangeFrom', 'salaryRangeTo'
         ];
         requiredFields.forEach(field => {
@@ -225,6 +257,14 @@ const Vacancy = () => {
                 errors[field] = 'This field is required';
             }
         });
+        
+        if (Array.isArray(formData.skills) && formData.skills.length === 0) {
+            errors.skills = 'Please select at least one skill';
+        }
+        
+        if (!formData.location) {
+            errors.location = 'Please select job location';
+        }
 
         if (formData.numberOfVacancy <= 0) {
             errors.numberOfVacancy = 'Must be greater than 0';
@@ -263,7 +303,9 @@ const Vacancy = () => {
                     jobDescription: formData.jobDescription,
                     status: formData.status || 'Draft',
                     approvalStatus: formData.approvalStatus || 'Pending',
-                    scheduleDate: formData.status === 'Scheduled' ? formData.scheduleDate : null
+                    scheduleDate: formData.status === 'Scheduled' ? formData.scheduleDate : null,
+                    location: formData.location,
+                    skills: Array.isArray(formData.skills) ? formData.skills.join(', ') : formData.skills
                 };
 
                 let response;
@@ -275,10 +317,10 @@ const Vacancy = () => {
 
                 if (response.status === 200 || response.status === 201) {
                     toast.success(`Vacancy ${viewMode === 'edit' ? 'updated' : 'created'} successfully!`);
-                    
+
                     // Trigger a background refresh (WITHOUT full loading screen)
-                    loadMasterData(false); 
-                    
+                    loadMasterData(false);
+
                     setViewMode('list');
                     setSelectedVacancy(null);
                 } else {
@@ -308,10 +350,10 @@ const Vacancy = () => {
         try {
             await api.delete(`/vacancies/${vacancyToDelete._id || vacancyToDelete.id}`);
             toast.success("Vacancy deleted successfully!");
-            
+
             // Background refresh
             loadMasterData(false);
-            
+
             setShowDeleteModal(false);
             setVacancyToDelete(null);
         } catch (error) {
@@ -323,24 +365,251 @@ const Vacancy = () => {
         }
     };
 
+    const handleApprovalClick = (v) => {
+        setVacancyForApproval(v);
+        setNewApprovalStatus(v.approvalStatus || 'Pending');
+        setShowApprovalModal(true);
+    };
+
+    const handleApprovalConfirm = async () => {
+        if (!vacancyForApproval) return;
+        setSubmitting(true);
+        try {
+            const vacId = vacancyForApproval._id || vacancyForApproval.id;
+            await api.patch(`/vacancies/${vacId}/approval`, {
+                approvalStatus: newApprovalStatus
+            });
+            toast.success(`Approval status updated to ${newApprovalStatus}!`);
+
+            // Background refresh
+            loadMasterData(false);
+
+            setShowApprovalModal(false);
+            setVacancyForApproval(null);
+        } catch (error) {
+            console.error("Approval update failed:", error);
+            const msg = error.response?.data?.message || "Failed to update approval status.";
+            toast.error(msg);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleStatusClick = (v) => {
+        setVacancyForStatus(v);
+        setNewStatus(v.status || 'Draft');
+        setShowStatusModal(true);
+    };
+
+    const handleStatusConfirm = async () => {
+        if (!vacancyForStatus) return;
+        setSubmitting(true);
+        try {
+            const vacId = vacancyForStatus._id || vacancyForStatus.id;
+            await api.patch(`/vacancies/${vacId}/status`, {
+                status: newStatus
+            });
+            toast.success(`Vacancy status updated to ${newStatus}!`);
+
+            // Background refresh
+            loadMasterData(false);
+
+            setShowStatusModal(false);
+            setVacancyForStatus(null);
+        } catch (error) {
+            console.error("Status update failed:", error);
+            const msg = error.response?.data?.message || "Failed to update vacancy status.";
+            toast.error(msg);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const renderStatusModal = () => (
+        <div className="modal-overlay" onClick={() => setShowStatusModal(false)}>
+            <div className="modal-content delete-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                <div className="delete-header-premium">
+                    <button className="icon-btn" onClick={() => setShowStatusModal(false)}>
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div className="delete-body-premium" style={{ paddingTop: '0rem' }}>
+                    <h2 className="delete-title-premium" style={{ fontSize: '1.25rem' }}>Update Status</h2>
+                    <p className="delete-message-premium" style={{ fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                        Updating status for: <br/>
+                        <span className="delete-item-badge" style={{ marginTop: '0.5rem', background: '#f8fafc' }}>
+                           {vacancyForStatus?.requestNumber || vacancyForStatus?.id}
+                        </span>
+                    </p>
+
+                    <div className="form-group" style={{ textAlign: 'left', marginBottom: '0.5rem' }}>
+                        <label style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Select Vacancy Status</label>
+                        <select
+                            value={newStatus}
+                            onChange={(e) => setNewStatus(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                borderRadius: '10px',
+                                border: '1px solid #e2e8f0',
+                                marginTop: '0.4rem',
+                                fontSize: '0.9rem',
+                                fontWeight: '600',
+                                background: '#fcfcfd'
+                            }}
+                        >
+                            <option value="Draft">Draft</option>
+                            <option value="Open">Open</option>
+                            <option value="Scheduled">Scheduled</option>
+                            <option value="Closed">Closed</option>
+                            <option value="On Hold">On Hold</option>
+                            <option value="Publish">Publish</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="delete-footer-premium" style={{ borderTop: 'none', paddingBottom: '2.5rem' }}>
+                    <button
+                        className="btn-cancel-premium"
+                        onClick={() => setShowStatusModal(false)}
+                        disabled={submitting}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        className="btn-primary"
+                        onClick={handleStatusConfirm}
+                        disabled={submitting}
+                        style={{
+                            flex: 1,
+                            padding: '0.8rem',
+                            borderRadius: '12px',
+                            justifyContent: 'center',
+                            background: '#0d5f68',
+                            boxShadow: '0 4px 12px rgba(13, 95, 104, 0.2)',
+                            border: 'none',
+                            color: 'white',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        {submitting ? 'Updating...' : 'Save Change'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderApprovalModal = () => (
+        <div className="modal-overlay" onClick={() => setShowApprovalModal(false)}>
+            <div className="modal-content delete-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                <div className="delete-header-premium">
+                    <button className="icon-btn" onClick={() => setShowApprovalModal(false)}>
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div className="delete-body-premium" style={{ paddingTop: '0rem' }}>
+                    <h2 className="delete-title-premium" style={{ fontSize: '1.25rem' }}>Update Status</h2>
+                    <p className="delete-message-premium" style={{ fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                        Updating approval for: <br/>
+                        <span className="delete-item-badge" style={{ marginTop: '0.5rem', background: '#f8fafc' }}>
+                           {vacancyForApproval?.requestNumber || vacancyForApproval?.id}
+                        </span>
+                    </p>
+
+                    <div className="form-group" style={{ textAlign: 'left', marginBottom: '0.5rem' }}>
+                        <label style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Select Approval Status</label>
+                        <select
+                            value={newApprovalStatus}
+                            onChange={(e) => setNewApprovalStatus(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                borderRadius: '10px',
+                                border: '1px solid #e2e8f0',
+                                marginTop: '0.4rem',
+                                fontSize: '0.9rem',
+                                fontWeight: '600',
+                                background: '#fcfcfd'
+                            }}
+                        >
+                            <option value="Pending">Pending</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="delete-footer-premium" style={{ borderTop: 'none', paddingBottom: '2rem' }}>
+                    <button
+                        className="btn-cancel-premium"
+                        onClick={() => setShowApprovalModal(false)}
+                        disabled={submitting}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        className="btn-primary"
+                        onClick={handleApprovalConfirm}
+                        disabled={submitting}
+                        style={{
+                            flex: 1,
+                            padding: '0.8rem',
+                            borderRadius: '12px',
+                            justifyContent: 'center',
+                            background: '#0d5f68',
+                            boxShadow: '0 4px 12px rgba(13, 95, 104, 0.2)',
+                            border: 'none',
+                            color: 'white',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        {submitting ? 'Updating...' : 'Save Change'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+
     const renderDeleteModal = () => (
         <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-                <div className="form-header" style={{ background: '#ef4444' }}>
-                    <h2 className="text-xl font-bold text-white">Confirm Delete</h2>
-                    <button className="icon-btn" onClick={() => setShowDeleteModal(false)}><X size={20} /></button>
+            <div className="modal-content delete-modal-content" onClick={e => e.stopPropagation()}>
+                <div className="delete-header-premium">
+                    <button className="icon-btn" onClick={() => setShowDeleteModal(false)}>
+                        <X size={18} />
+                    </button>
                 </div>
-                <div className="form-body" style={{ padding: '2rem', textAlign: 'center' }}>
-                    <div className="delete-icon-wrapper" style={{ marginBottom: '1rem', color: '#ef4444' }}>
-                        <Trash2 size={48} style={{ margin: '0 auto' }} />
+                
+                <div className="delete-body-premium">
+                    <div className="delete-icon-container">
+                        <Trash2 size={36} />
                     </div>
-                    <p className="text-gray-600">Are you sure you want to delete this vacancy?</p>
-                    <p className="text-sm font-semibold mt-1">{vacancyToDelete?.id}</p>
+                    <h2 className="delete-title-premium">Confirm Delete</h2>
+                    <p className="delete-message-premium">
+                        Are you sure you want to permanently delete this vacancy? This action cannot be undone.
+                    </p>
+                    <div className="delete-item-badge">
+                        Code: {vacancyToDelete?.requestNumber || vacancyToDelete?.id || 'N/A'}
+                    </div>
                 </div>
-                <div className="form-footer" style={{ justifyContent: 'center', gap: '1rem' }}>
-                    <button className="btn-secondary" onClick={() => setShowDeleteModal(false)}>Cancel</button>
-                    <button className="btn-primary" style={{ background: '#ef4444' }} onClick={handleDeleteConfirm} disabled={submitting}>
-                        {submitting ? 'Deleting...' : 'Delete Now'}
+
+                <div className="delete-footer-premium">
+                    <button 
+                        className="btn-cancel-premium" 
+                        onClick={() => setShowDeleteModal(false)}
+                        disabled={submitting}
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        className="btn-delete-premium" 
+                        onClick={handleDeleteConfirm} 
+                        disabled={submitting}
+                    >
+                        {submitting ? 'Deleting...' : 'Yes, Delete'}
                     </button>
                 </div>
             </div>
@@ -455,19 +724,19 @@ const Vacancy = () => {
                             <div className="modal-info-grid">
                                 <div className="form-group">
                                     <label>Number of Vacancy</label>
-                                    <input 
-                                        type="number" 
-                                        value={formData.numberOfVacancy || 1} 
+                                    <input
+                                        type="number"
+                                        value={formData.numberOfVacancy || 1}
                                         onChange={(e) => handleInputChange('numberOfVacancy', parseInt(e.target.value))}
-                                        min="1" 
+                                        min="1"
                                         className={formErrors.numberOfVacancy ? 'input-error' : ''}
                                     />
                                     {formErrors.numberOfVacancy && <span className="error-text">{formErrors.numberOfVacancy}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Required Date</label>
-                                    <input 
-                                        type="date" 
+                                    <input
+                                        type="date"
                                         value={formData.requiredDate || ''}
                                         onChange={(e) => handleInputChange('requiredDate', e.target.value)}
                                         className={formErrors.requiredDate ? 'input-error' : ''}
@@ -476,8 +745,8 @@ const Vacancy = () => {
                                 </div>
                                 <div className="form-group">
                                     <label>Preferred Education</label>
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         placeholder="e.g. MBA HR, BE"
                                         value={formData.preferredEducation || ''}
                                         onChange={(e) => handleInputChange('preferredEducation', e.target.value)}
@@ -487,8 +756,8 @@ const Vacancy = () => {
                                 </div>
                                 <div className="form-group">
                                     <label>Qualification / Experience</label>
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         placeholder="e.g. 5+ Years, Freshers"
                                         value={formData.qualification || ''}
                                         onChange={(e) => handleInputChange('qualification', e.target.value)}
@@ -510,9 +779,9 @@ const Vacancy = () => {
 
                                 <div className="form-group">
                                     <label>Salary Range (From)</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="Min Amount" 
+                                    <input
+                                        type="number"
+                                        placeholder="Min Amount"
                                         value={formData.salaryRangeFrom || ''}
                                         onChange={(e) => handleInputChange('salaryRangeFrom', e.target.value)}
                                         className={formErrors.salaryRangeFrom ? 'input-error' : ''}
@@ -521,9 +790,9 @@ const Vacancy = () => {
                                 </div>
                                 <div className="form-group">
                                     <label>Salary Range (To)</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="Max Amount" 
+                                    <input
+                                        type="number"
+                                        placeholder="Max Amount"
                                         value={formData.salaryRangeTo || ''}
                                         onChange={(e) => handleInputChange('salaryRangeTo', e.target.value)}
                                         className={formErrors.salaryRangeTo ? 'input-error' : ''}
@@ -546,8 +815,8 @@ const Vacancy = () => {
                                 {formData.status === 'Scheduled' && (
                                     <div className="form-group">
                                         <label>Schedule Date</label>
-                                        <input 
-                                            type="date" 
+                                        <input
+                                            type="date"
                                             value={formData.scheduleDate || ''}
                                             onChange={(e) => handleInputChange('scheduleDate', e.target.value)}
                                             className={formErrors.scheduleDate ? 'input-error' : ''}
@@ -565,6 +834,32 @@ const Vacancy = () => {
                                         <option value="Approved">Approved</option>
                                         <option value="Rejected">Rejected</option>
                                     </select>
+                                </div>
+                                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                                    <label>Required Skills</label>
+                                    <MultiSelect
+                                        options={allSkills.length > 0 ? allSkills : [
+                                            { value: 'React', label: 'React' },
+                                            { value: 'Node.js', label: 'Node.js' },
+                                            { value: 'Javascript', label: 'Javascript' }
+                                        ]}
+                                        value={Array.isArray(formData.skills) ? formData.skills : []}
+                                        onChange={(val) => handleInputChange('skills', val)}
+                                        placeholder="Select Required Skills"
+                                    />
+                                </div>
+                                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                                    <label>Job Location</label>
+                                    <SearchableSelect
+                                        options={allLocations.length > 0 ? allLocations : [
+                                            { value: 'Chennai', label: 'Chennai' },
+                                            { value: 'Bangalore', label: 'Bangalore' },
+                                            { value: 'Remote', label: 'Remote' }
+                                        ]}
+                                        value={formData.location}
+                                        onChange={(val) => handleInputChange('location', val)}
+                                        placeholder="Select Job Location"
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -652,13 +947,15 @@ const Vacancy = () => {
     const renderVacancyDetail = () => {
         if (!selectedVacancy) return null;
         const v = selectedVacancy;
-        
+
         // Resolve names for IDs
         const deptName = v.department?.name || departments.find(d => d.id === v.departmentId || d.value === v.departmentId)?.label || v.departmentId || 'N/A';
         const posName = v.position?.name || positions.find(p => p.id === v.positionId || p.value === v.positionId)?.label || v.positionId || 'N/A';
         const empTypeName = v.employeeType?.name || employmentTypes.find(et => et.id === v.employeeTypeId || et.value === v.employeeTypeId)?.label || v.employeeTypeId || 'N/A';
         const reportingName = v.reportingManager || employees.find(e => e.id === v.reportingToId || e.value === v.reportingToId)?.label || v.reportingToId || 'N/A';
         const reasonName = v.reason?.name || v.reasonForRequisition || '-';
+        const skillList = Array.isArray(v.skills) ? v.skills.join(', ') : (typeof v.skills === 'string' ? v.skills : '-');
+        const locName = v.location || '-';
 
         return (
             <div className="modal-overlay" onClick={() => setViewMode('list')}>
@@ -673,7 +970,7 @@ const Vacancy = () => {
                             <div className="form-card-title">Basic Information</div>
                             <div className="modal-info-grid">
                                 <div className="info-item"><label>Request Number</label><div>{v.requestNumber || v.id || 'N/A'}</div></div>
-                                <div className="info-item"><label>Date of Requisition</label><div>{v.requisitionDate ? String(v.requisitionDate).split('T')[0].substring(0,10) : 'N/A'}</div></div>
+                                <div className="info-item"><label>Date of Requisition</label><div>{v.requisitionDate ? String(v.requisitionDate).split('T')[0].substring(0, 10) : 'N/A'}</div></div>
                                 <div className="info-item"><label>Department</label><div>{deptName}</div></div>
                                 <div className="info-item"><label>Position</label><div>{posName}</div></div>
 
@@ -688,13 +985,21 @@ const Vacancy = () => {
                             <div className="form-card-title">Vacancy Requirements</div>
                             <div className="modal-info-grid">
                                 <div className="info-item"><label>Number of Vacancy</label><div>{v.numberOfVacancy || 1}</div></div>
-                                <div className="info-item"><label>Required Date</label><div>{v.requiredDate ? String(v.requiredDate).split('T')[0].substring(0,10) : '-'}</div></div>
+                                <div className="info-item"><label>Required Date</label><div>{v.requiredDate ? String(v.requiredDate).split('T')[0].substring(0, 10) : '-'}</div></div>
                                 <div className="info-item"><label>Preferred Qualification</label><div>{v.qualification || '-'}</div></div>
                                 <div className="info-item"><label>Reason for Req.</label><div>{reasonName}</div></div>
 
                                 <div className="info-item"><label>Salary Range (From)</label><div>{v.salaryRangeFrom ? `₹${v.salaryRangeFrom}` : '-'}</div></div>
                                 <div className="info-item"><label>Salary Range (To)</label><div>{v.salaryRangeTo ? `₹${v.salaryRangeTo}` : '-'}</div></div>
                                 <div className="info-item"><label>Preferred Education</label><div>{v.preferredEducation || '-'}</div></div>
+                                <div className="info-item" style={{ gridColumn: 'span 2' }}>
+                                    <label>Required Skills</label>
+                                    <div style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>{skillList}</div>
+                                </div>
+                                <div className="info-item" style={{ gridColumn: 'span 2' }}>
+                                    <label>Job Location</label>
+                                    <div>{locName}</div>
+                                </div>
                             </div>
                         </div>
 
@@ -747,10 +1052,10 @@ const Vacancy = () => {
 
     if (loading) {
         return (
-            <div className="employees-page" style={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center', 
+            <div className="employees-page" style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
                 minHeight: '80vh',
                 background: 'transparent'
             }}>
@@ -861,28 +1166,30 @@ const Vacancy = () => {
         const deptName = departments.find(d => d.id === v.departmentId || d.value === v.departmentId)?.label || v.departmentId || 'N/A';
         const posName = positions.find(p => p.id === v.positionId || p.value === v.positionId)?.label || v.positionId || 'N/A';
         const remaining = (v.numberOfVacancy || 0) - (v.filledPositions || 0);
-        
+
         if (filterCode && !String(v.requestNumber || v.id || '').toLowerCase().includes(filterCode.toLowerCase())) return false;
         if (filterPosition && !posName.toLowerCase().includes(filterPosition.toLowerCase())) return false;
         if (filterDepartment && !deptName.toLowerCase().includes(filterDepartment.toLowerCase())) return false;
-        if (filterProject && !String(v.project || 'General').toLowerCase().includes(filterProject.toLowerCase())) return false;
+        if (filterProject && !String(v.project || '-').toLowerCase().includes(filterProject.toLowerCase())) return false;
         if (filterVacancies && !String(v.numberOfVacancy || 0).includes(filterVacancies)) return false;
         if (filterFilled && !String(v.filledPositions || 0).includes(filterFilled)) return false;
         if (filterRemaining && !String(remaining).includes(filterRemaining)) return false;
         if (filterHiringType && !String(v.employeeType?.name || 'N/A').toLowerCase().includes(filterHiringType.toLowerCase())) return false;
-        
+
         const dateStr = (v.requiredDate || v.requisitionDate) ? new Date(v.requiredDate || v.requisitionDate).toISOString().split('T')[0] : '';
         if (filterTargetDate && !dateStr.startsWith(filterTargetDate)) return false;
-        
+
         if (filterStatus && !String(v.status || 'Draft').toLowerCase().includes(filterStatus.toLowerCase())) return false;
         if (filterApproval && !String(v.approvalStatus || 'Pending').toLowerCase().includes(filterApproval.toLowerCase())) return false;
-        
+
         return true;
     });
 
     return (
         <div className="employees-page">
             {showDeleteModal && renderDeleteModal()}
+            {showApprovalModal && renderApprovalModal()}
+            {showStatusModal && renderStatusModal()}
             {(viewMode === 'create' || viewMode === 'edit') && renderVacancyForm()}
             {viewMode === 'view' && renderVacancyDetail()}
             <div className="page-header">
@@ -939,21 +1246,31 @@ const Vacancy = () => {
                                         <td className="font-mono text-blue-600 font-medium text-xs" title={v.requestNumber || v.id}>{v.requestNumber || v.id || 'N/A'}</td>
                                         <td className="font-semibold text-gray-800 text-sm overflow-hidden text-ellipsis">{posName}</td>
                                         <td className="text-sm overflow-hidden text-ellipsis">{deptName}</td>
-                                        <td className="text-sm overflow-hidden text-ellipsis">{v.project || 'General'}</td>
+                                        <td className="text-sm overflow-hidden text-ellipsis">{v.project || '-'}</td>
                                         <td className="text-center font-mono">{v.numberOfVacancy || 0}</td>
                                         <td className="text-center font-mono">{v.filledPositions || 0}</td>
                                         <td className="text-center font-mono">{(v.numberOfVacancy || 0) - (v.filledPositions || 0)}</td>
                                         <td className="text-sm">{v.employeeType?.name || 'N/A'}</td>
                                         <td className="font-mono text-xs">{(v.requiredDate || v.requisitionDate) ? new Date(v.requiredDate || v.requisitionDate).toISOString().split('T')[0] : 'N/A'}</td>
                                         <td className="text-center">
-                                            <span className={`status-badge ${v.status === 'Open' ? 'status-open' :
-                                                v.status === 'On Hold' ? 'status-on-hold' : 'status-closed'}`}>
+                                            <span 
+                                                className={`status-badge ${v.status === 'Open' ? 'status-open' :
+                                                    v.status === 'On Hold' ? 'status-on-hold' : 'status-closed'}`}
+                                                onClick={() => handleStatusClick(v)}
+                                                style={{ cursor: 'pointer' }}
+                                                title="Click to update vacancy status"
+                                            >
                                                 {v.status || 'Draft'}
                                             </span>
                                         </td>
                                         <td className="text-center">
-                                            <span className={`status-badge ${v.approvalStatus === 'Approved' ? 'status-approved' :
-                                                v.approvalStatus === 'Pending' ? 'status-pending' : 'status-rejected'}`}>
+                                            <span 
+                                                className={`status-badge ${v.approvalStatus === 'Approved' ? 'status-approved' :
+                                                    v.approvalStatus === 'Pending' ? 'status-pending' : 'status-rejected'}`}
+                                                onClick={() => handleApprovalClick(v)}
+                                                style={{ cursor: 'pointer' }}
+                                                title="Click to update approval status"
+                                            >
                                                 {v.approvalStatus || 'Pending'}
                                             </span>
                                         </td>
@@ -961,9 +1278,9 @@ const Vacancy = () => {
                                             <div className="actions-wrapper" style={{ justifyContent: 'center' }}>
                                                 <button className="action-btn view" title="View" onClick={() => handleViewClick(v)}><Eye size={18} /></button>
                                                 <button className="action-btn edit" title="Edit" onClick={() => handleEditClick(v)}><Edit size={18} /></button>
-                                                <button 
-                                                    className="action-btn delete" 
-                                                    title="Delete" 
+                                                <button
+                                                    className="action-btn delete"
+                                                    title="Delete"
                                                     onClick={() => handleDeleteClick(v)}
                                                 >
                                                     <Trash2 size={18} />
