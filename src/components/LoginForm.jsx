@@ -1,23 +1,46 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Phone } from 'lucide-react';
+import { Phone, ChevronDown } from 'lucide-react';
 import api from '../api/api';
 import MarsLogo from '../assets/MarsLogo.png';
 
 const LoginForm = () => {
+  // Country data with phone validation rules
+  const countries = [
+    { code: '+91', name: 'India', length: 10, flag: '🇮🇳' },
+    { code: '+1', name: 'United States', length: 10, flag: '🇺🇸' },
+    { code: '+44', name: 'United Kingdom', length: 10, flag: '🇬🇧' },
+    { code: '+61', name: 'Australia', length: 9, flag: '🇦🇺' },
+    { code: '+81', name: 'Japan', length: 10, flag: '🇯🇵' },
+    { code: '+86', name: 'China', length: 11, flag: '🇨🇳' },
+    { code: '+33', name: 'France', length: 9, flag: '🇫🇷' },
+    { code: '+49', name: 'Germany', length: 10, flag: '🇩🇪' },
+    { code: '+39', name: 'Italy', length: 10, flag: '🇮🇹' },
+    { code: '+34', name: 'Spain', length: 9, flag: '🇪🇸' },
+  ];
+
+  const [selectedCountry, setSelectedCountry] = useState(countries[0]); // Default to India
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState(['', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({ phone: '', pin: '' });
+  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const navigate = useNavigate();
 
   const handlePhoneChange = (e) => {
     const value = e.target.value.replace(/\D/g, ''); // Only digits
-    if (value.length <= 10) {
+    if (value.length <= selectedCountry.length) {
       setPhone(value);
       if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: '' });
     }
+  };
+
+  const handleCountrySelect = (country) => {
+    setSelectedCountry(country);
+    setShowCountryDropdown(false);
+    setPhone(''); // Clear phone when country changes
+    if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: '' });
   };
 
   const handlePinChange = (index, value) => {
@@ -46,8 +69,8 @@ const LoginForm = () => {
     if (phone.length === 0) {
       newFieldErrors.phone = 'Please enter your phone number';
       hasError = true;
-    } else if (phone.length !== 10) {
-      newFieldErrors.phone = 'Please enter a valid 10-digit phone number';
+    } else if (phone.length !== selectedCountry.length) {
+      newFieldErrors.phone = `Please enter a valid ${selectedCountry.length}-digit phone number`;
       hasError = true;
     }
 
@@ -66,6 +89,7 @@ const LoginForm = () => {
     try {
       const response = await api.post('/auth/login', {
         phoneNumber: phone,
+        countryCode: selectedCountry.code,
         pin: pinValue,
       });
 
@@ -106,14 +130,40 @@ const LoginForm = () => {
           <div className="input-group">
             <label className="input-label">Phone Number</label>
             <div className="phone-input-container">
-              <div className="country-code">
-                <span className="code">+91</span>
+              <div className="country-selector-wrapper">
+                <button 
+                  type="button"
+                  className="country-code-btn"
+                  onClick={() => setShowCountryDropdown(!showCountryDropdown)}
+                >
+                  <span className="country-flag">{selectedCountry.flag}</span>
+                  <span className="country-code-text">{selectedCountry.code}</span>
+                  <ChevronDown size={16} className={`dropdown-icon ${showCountryDropdown ? 'open' : ''}`} />
+                </button>
+                
+                {showCountryDropdown && (
+                  <div className="country-dropdown">
+                    {countries.map((country) => (
+                      <button
+                        key={country.code}
+                        type="button"
+                        className={`country-option ${country.code === selectedCountry.code ? 'selected' : ''}`}
+                        onClick={() => handleCountrySelect(country)}
+                      >
+                        <span className="country-flag">{country.flag}</span>
+                        <span className="country-name">{country.name}</span>
+                        <span className="country-code">{country.code}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <input
                 type="text"
-                placeholder="Enter Phone Number"
+                placeholder={`Enter ${selectedCountry.length}-digit phone number`}
                 value={phone}
                 onChange={handlePhoneChange}
+                maxLength={selectedCountry.length}
                 className={`phone-field ${fieldErrors.phone ? 'error' : ''}`}
               />
             </div>
@@ -253,42 +303,137 @@ const LoginForm = () => {
         
         .phone-input-container {
             display: flex;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px; /* Slightly tighter radius */
-            background-color: #f9fafb;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smoother */
-            overflow: hidden;
+            gap: 0.75rem;
+            align-items: stretch;
         }
         
-        .phone-input-container:focus-within {
-            border-color: #0d5f68;
-            box-shadow: 0 0 0 4px rgba(13, 95, 104, 0.12); /* Softer, wider glow */
-            transform: translateY(-1px); /* Gentle lift */
-            background-color: white;
-        }
-        
-        .country-code {
+        .country-selector-wrapper {
+            position: relative;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            padding: 0 1rem;
-            background-color: #f3f4f6;
-            border-right: 1px solid #e5e7eb;
+        }
+        
+        .country-code-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.65rem 0.6rem;
+            background-color: white;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 8px;
             color: #4b5563;
             font-weight: 600;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: fit-content;
+            white-space: nowrap;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         }
-
+        
+        .country-code-btn:hover {
+            background-color: #f9fafb;
+            border-color: #d1d5db;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+        }
+        
+        .country-code-btn:active {
+            background-color: #f3f4f6;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .country-flag {
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+        
+        .country-code-text {
+            min-width: 2.5rem;
+        }
+        
+        .dropdown-icon {
+            transition: transform 0.3s ease;
+            color: #9ca3af;
+        }
+        
+        .dropdown-icon.open {
+            transform: rotate(180deg);
+        }
+        
+        .country-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            max-height: 300px;
+            overflow-y: auto;
+            width: max-content;
+            margin-top: 0.5rem;
+        }
+        
+        .country-option {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: white;
+            border: none;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            min-width: 200px;
+        }
+        
+        .country-option:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .country-option.selected {
+            background-color: #f0fdfa;
+            border-left: 3px solid #0d5f68;
+            padding-left: calc(1rem - 3px);
+        }
+        
+        .country-option .country-flag {
+            font-size: 1.5rem;
+        }
+        
+        .country-option .country-name {
+            flex: 1;
+            font-weight: 500;
+            color: #111827;
+        }
+        
+        .country-option .country-code {
+            font-weight: 600;
+            color: #0d5f68;
+            font-size: 0.9rem;
+        }
+        
         .phone-field {
             flex: 1;
-            padding: 0.75rem 1rem;
-            border: none;
-            background: transparent;
+            padding: 0.65rem 1rem;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 8px;
+            background-color: #f9fafb;
             font-size: 1rem;
             color: #111827;
             outline: none;
             font-weight: 500;
             letter-spacing: 0.3px;
+            transition: all 0.2s ease;
+        }
+        
+        .phone-field:focus {
+            border-color: #0d5f68;
+            background-color: white;
+            box-shadow: 0 0 0 4px rgba(13, 95, 104, 0.12);
         }
         
         .phone-field::placeholder {
@@ -298,9 +443,6 @@ const LoginForm = () => {
         
         .phone-field.error {
             color: #ef4444;
-        }
-        
-        .phone-input-container:has(.error) {
             border-color: #fca5a5;
             background-color: #fef2f2;
         }

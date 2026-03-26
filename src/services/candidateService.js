@@ -3,42 +3,22 @@ import api from '../api/api';
 const BASE_PATH = '/candidates';
 
 export const candidateService = {
-    getAllCandidates: async () => {
+    getAllCandidates: async (page = 0, limit = 10, filters = {}) => {
         try {
-            const response = await api.get(BASE_PATH);
+            const queryParams = new URLSearchParams({
+                page,
+                limit,
+                candidateId: filters.candidateId || '',
+                name: filters.name || '',
+                status: filters.status || '',
+                appliedFor: filters.role || filters.appliedFor || ''
+            }).toString();
+            
+            const response = await api.get(`${BASE_PATH}?${queryParams}`);
             return response.data;
         } catch (error) {
             console.error("Error fetching candidates:", error);
-            // Return mock data if backend fails
-            return [
-                {
-                    id: 'CAN001',
-                    name: 'Michael Scott',
-                    email: 'michael.scott@example.com',
-                    phone: '555-0101',
-                    location: 'Scranton',
-                    role: 'Manager',
-                    status: 'Hired'
-                },
-                {
-                    id: 'CAN002',
-                    name: 'Dwight Schrute',
-                    email: 'dwight.schrute@example.com',
-                    phone: '555-0102',
-                    location: 'Scranton',
-                    role: 'Sales',
-                    status: 'Hired'
-                },
-                {
-                    id: 'CAN003',
-                    name: 'Jim Halpert',
-                    email: 'jim.halpert@example.com',
-                    phone: '555-0103',
-                    location: 'Stamford',
-                    role: 'Sales',
-                    status: 'Interviewing'
-                }
-            ];
+            throw error;
         }
     },
 
@@ -48,6 +28,36 @@ export const candidateService = {
             return response.data;
         } catch (error) {
             console.error(`Error fetching candidate ${id}:`, error);
+            throw error;
+        }
+    },
+
+    createCandidate: async (candidateData) => {
+        try {
+            const response = await api.post(BASE_PATH, candidateData);
+            return response.data;
+        } catch (error) {
+            console.error("Error creating candidate:", error);
+            throw error;
+        }
+    },
+
+    updateCandidate: async (id, candidateData) => {
+        try {
+            const response = await api.put(`${BASE_PATH}/${id}`, candidateData);
+            return response.data;
+        } catch (error) {
+            console.error(`Error updating candidate ${id}:`, error);
+            throw error;
+        }
+    },
+
+    deleteCandidate: async (id) => {
+        try {
+            const response = await api.delete(`${BASE_PATH}/${id}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error deleting candidate ${id}:`, error);
             throw error;
         }
     }

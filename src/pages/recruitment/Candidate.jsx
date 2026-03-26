@@ -8,14 +8,20 @@ import {
     User, CheckCircle, Clock, X, Eye, RotateCcw,
     ChevronDown,
     ChevronRight,
-    Upload
+    Upload,
+    FileText,
+    Copy,
+    Loader2
 } from 'lucide-react';
 import './Recruitment.css';
 import api from '../../api/api';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import MultiSelect from '../../components/common/MultiSelect';
-import departmentService from '../../services/departmentService';
-import positionService from '../../services/positionService';
+import PhoneInput from '../../components/common/PhoneInput';
+import { departmentService } from '../../services/departmentService';
+import { positionService } from '../../services/positionService';
+import { locationService } from '../../services/locationService';
+import { candidateService } from '../../services/candidateService';
 
 const Candidate = () => {
     const [viewMode, setViewMode] = useState('list'); // 'list', 'create', 'edit', 'view'
@@ -24,6 +30,7 @@ const Candidate = () => {
     const [vacancies, setVacancies] = useState([]);
     const [positions, setPositions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingDetails, setLoadingDetails] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
     // Master Data State
@@ -57,50 +64,81 @@ const Candidate = () => {
         availableToJoin: '',
         dob: '',
         gender: '',
-        address: ''
+        address: '',
+        resumeFile: null,
+        preferredLocation: []
     });
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [uploading, setUploading] = useState(false);
     const [formErrors, setFormErrors] = useState({});
 
-    // Filtering State
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterRole, setFilterRole] = useState('');
-    const [filterStatus, setFilterStatus] = useState('');
+    // Filtering & Pagination State
+    const [currentPage, setCurrentPage] = useState(0);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [totalEntries, setTotalEntries] = useState(0);
+    const [filters, setFilters] = useState({ 
+        candidateId: '',
+        name: '', 
+        email: '',
+        experience: '',
+        role: '',
+        status: '',
+        noticePeriod: ''
+    });
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const [candRes, vacRes, posRes, deptRes, skillRes, locRes] = await Promise.all([
-                api.get('/candidates').catch(() => ({ data: [] })),
+                candidateService.getAllCandidates(currentPage, itemsPerPage, filters),
                 api.get('/vacancies?approval=Approved&limit=1000').catch(() => ({ data: [] })),
                 positionService.getAllPositions().catch(() => []),
                 departmentService.getAllDepartments().catch(() => []),
                 api.get('/skills').catch(() => ({ data: { data: [] } })),
-                api.get('/locations').catch(() => ({ data: { data: [] } }))
+                locationService.getAllLocations().catch(() => [])
             ]);
             
-            // Properly unwrap data from paginated responses
-            const cands = (candRes.data && Array.isArray(candRes.data.data)) ? candRes.data.data : (Array.isArray(candRes.data) ? candRes.data : []);
-            const vacs = (vacRes.data && Array.isArray(vacRes.data.data)) ? vacRes.data.data : (Array.isArray(vacRes.data) ? vacRes.data : []);
-            const skillsData = (skillRes.data && Array.isArray(skillRes.data.data)) ? skillRes.data.data : (Array.isArray(skillRes.data) ? skillRes.data : []);
-            const locationsData = (locRes.data && Array.isArray(locRes.data.data)) ? locRes.data.data : (Array.isArray(locRes.data) ? locRes.data : []);
+            // Adjust based on typical REST pagination response { data: [], total: 100 }
+            const candidatesData = candRes.data?.data || candRes.data || candRes || [];
+            setCandidates(candidatesData);
+            setTotalEntries(candRes.data?.total || candidatesData.length);
             
-            setCandidates(cands);
-            setVacancies(vacs);
-            setPositions(posRes);
-            setDepartments(deptRes);
-            setAllSkills(skillsData.map(s => ({ value: s.name || s, label: s.name || s })));
-            setAllLocations(locationsData.map(l => ({ value: l.name || l, label: l.name || l })));
+            // Better unwrapping for all dropdowns
+            const rawVacs = (vacRes.data?.data) || (vacRes.data) || [];
+            const rawSkills = (skillRes.data?.data) || (skillRes.data) || [];
+            const rawDepts = (deptRes.data?.data) || (deptRes.data) || Array.isArray(deptRes) ? deptRes : [];
+            const rawPositions = (posRes.data?.data) || (posRes.data) || Array.isArray(posRes) ? posRes : [];
+
+            setVacancies(Array.isArray(rawVacs) ? rawVacs : []);
+            setPositions(Array.isArray(rawPositions) ? rawPositions : []);
+            setDepartments(Array.isArray(rawDepts) ? rawDepts : []);
+            setAllSkills(Array.isArray(rawSkills) ? rawSkills.map(s => ({ 
+                value: s._id || s.id || s, 
+                label: s.name || s 
+            })) : []);
+            setAllLocations(Array.isArray(locRes) ? locRes : []);
+
+            console.log('Fetched Candidates:', candRes.data?.length || candRes?.length);
+            console.log('Fetched Vacancies:', rawVacs.length);
         } catch (error) {
-            console.error("Error fetching data:", error);
-            toast.error("Failed to load candidates and master data.");
+            console.error("Critical error in fetchData:", error);
+            toast.error("Some data failed to load. Please refresh.");
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [currentPage, itemsPerPage, filters]);
 
     useEffect(() => {
-        fetchData();
+        const timer = setTimeout(() => {
+            fetchData();
+        }, 500); // Debounce
+        return () => clearTimeout(timer);
     }, [fetchData]);
+
+    const handleFilterChange = (field, value) => {
+        setFilters(prev => ({ ...prev, [field]: value }));
+        setCurrentPage(0); // Reset to first page on filter
+    };
 
     const validateForm = () => {
         const errors = {};
@@ -112,10 +150,23 @@ const Candidate = () => {
         }
         if (!formData.phone?.trim()) {
             errors.phone = "Phone number is required";
-        } else if (!/^\+?[0-9\s-]{10,15}$/.test(formData.phone.replace(/[\s-]/g, ''))) {
-            errors.phone = "Invalid phone number (10-15 digits required)";
+        } else if (formData.phone.replace(/\D/g, '').length < 5) {
+            errors.phone = "Invalid phone number";
         }
         if (!formData.role?.trim()) errors.role = "Applied for (Role) is required";
+        if (!formData.resumeFile) errors.resumeFile = "Resume upload is mandatory";
+
+        // URL Validation
+        const urlPattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([\/\w .-]*)*\/?$/;
+        if (formData.linkedinUrl && !urlPattern.test(formData.linkedinUrl)) {
+            errors.linkedinUrl = "Invalid LinkedIn URL";
+        }
+        if (formData.githubUrl && !urlPattern.test(formData.githubUrl)) {
+            errors.githubUrl = "Invalid GitHub URL";
+        }
+        if (formData.portfolioUrl && !urlPattern.test(formData.portfolioUrl)) {
+            errors.portfolioUrl = "Invalid Portfolio URL";
+        }
         
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
@@ -153,25 +204,41 @@ const Candidate = () => {
         }
     };
 
-    const locationOptions = [
-        ...allLocations,
-        ...[
-            "Chennai", "Bangalore", "Hyderabad", "Mumbai", "Pune", "Delhi", "Gurugram", "Noida", "Kochi", "Coimbatore",
-            "Trichy", "Ahmedabad", "Kolkata", "Remote (India)", "Other"
-        ].map(city => ({ value: city, label: city }))
-    ].filter((v, i, a) => a.findIndex(t => (t.value === v.value)) === i);
+    const locationOptions = Array.isArray(allLocations) ? allLocations : [];
 
-    const commonSkills = [
-        ...allSkills,
-        ...[
-            "React", "Node.js", "Express", "React Native", "Javascript", "TypeScript", "Python", "Java", "PHP", "Laravel",
-            "NestJS", "Next.js", "Flutter", "TailwindCSS", "CSS3", "HTML5", "PostgreSQL", "MongoDB", "MySQL", "AWS",
-            "Azure", "Git", "Docker", "Redux", "Context API", "Prisma", "Go", "DotNet", "QA testing", "Manual Testing"
-        ].map(skill => ({ value: skill, label: skill }))
-    ].filter((v, i, a) => a.findIndex(t => (t.value === v.value)) === i);
+    const commonSkills = Array.isArray(allSkills) ? allSkills : [];
+
+    const handleViewDetails = async (c) => {
+        setLoadingDetails(true);
+        try {
+            const res = await candidateService.getCandidateById(c._id || c.id);
+            const fullData = res.data?.data || res.data;
+            if (fullData) {
+                setSelectedCandidate(fullData);
+            } else {
+                setSelectedCandidate(c); // Fallback
+            }
+            setViewMode('view');
+        } catch (error) {
+            console.error("Error fetching candidate details:", error);
+            toast.error("Failed to load details. Showing basic info.");
+            setSelectedCandidate(c);
+            setViewMode('view');
+        } finally {
+            setLoadingDetails(false);
+        }
+    };
 
     const handleEditClick = (c) => {
-        // Ensure skills is an array for MultiSelect if it came as a comma string
+        // Helper to format date strings for HTML5 date input (YYYY-MM-DD)
+        const formatForDateInput = (dateStr) => {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return '';
+            return d.toISOString().split('T')[0];
+        };
+
+        // Ensure skills is an array for MultiSelect
         let skillsArr = [];
         if (typeof c.skills === 'string') {
             skillsArr = c.skills.split(',').map(s => s.trim()).filter(s => s);
@@ -183,7 +250,9 @@ const Candidate = () => {
         setFormData({
             ...c,
             vacancyId: c.vacancyId || '',
-            skills: skillsArr
+            skills: skillsArr,
+            dob: formatForDateInput(c.dob),
+            availableToJoin: formatForDateInput(c.availableToJoin)
         });
         setFormErrors({});
         setViewMode('edit');
@@ -222,23 +291,47 @@ const Candidate = () => {
         setViewMode('create');
     };
 
+    const handleDelete = (candidate) => {
+        setSelectedCandidate(candidate);
+        setViewMode('delete');
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!selectedCandidate) return;
+        setSubmitting(true);
+        try {
+            await candidateService.deleteCandidate(selectedCandidate._id || selectedCandidate.id);
+            toast.success('Candidate deleted successfully');
+            fetchData();
+            setViewMode('list');
+        } catch (error) {
+            console.error("Error deleting candidate:", error);
+            toast.error('Failed to delete candidate');
+        } finally {
+            setSubmitting(false);
+            setSelectedCandidate(null);
+        }
+    };
+
     const handleSubmit = async () => {
         if (!validateForm()) return;
         setSubmitting(true);
         const submissionData = {
             ...formData,
-            skills: Array.isArray(formData.skills) ? formData.skills.join(', ') : formData.skills
+            skills: Array.isArray(formData.skills) ? formData.skills.join(', ') : formData.skills,
+            preferredLocation: Array.isArray(formData.preferredLocation) ? formData.preferredLocation.join(', ') : formData.preferredLocation,
+            resumeUrl: formData.resumeFile?.url || ''
         };
 
         try {
-            if (viewMode === 'edit') {
-                await api.put(`/candidates/${selectedCandidate._id || selectedCandidate.id}`, submissionData);
-                toast.success("Candidate updated successfully!");
+            if (viewMode === 'edit' && selectedCandidate) { // Changed currentCandidate to selectedCandidate
+                await candidateService.updateCandidate(selectedCandidate._id || selectedCandidate.id, submissionData); // Updated to use candidateService
+                toast.success('Candidate updated successfully'); // Changed message
             } else {
-                await api.post('/candidates', submissionData);
-                toast.success("Candidate added successfully!");
+                await candidateService.createCandidate(submissionData); // Updated to use candidateService
+                toast.success('Candidate added successfully'); // Changed message
             }
-            setViewMode('list');
+            setViewMode('list'); // Changed setShowModal(false) to setViewMode('list')
             fetchData();
         } catch (error) {
             console.error("Submit error:", error);
@@ -249,15 +342,63 @@ const Candidate = () => {
         }
     };
 
+    const handleFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validation: Extension
+        const allowedExtensions = ['pdf', 'doc', 'docx'];
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!allowedExtensions.includes(ext)) {
+            toast.error("Only PDF, DOC, and DOCX files are allowed.");
+            return;
+        }
+
+        // Validation: Size (e.g., 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error("File size should not exceed 5MB.");
+            return;
+        }
+
+        setUploading(true);
+        setUploadProgress(0);
+
+        const uploadData = new FormData();
+        uploadData.append('file', file);
+
+        try {
+            const response = await api.post('/common/upload?folder=resumes', uploadData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    setUploadProgress(percentCompleted);
+                }
+            });
+
+            // Assuming response format from user screenshot: data[0] contains the info
+            const fileInfo = response.data?.data?.[0];
+            if (fileInfo) {
+                setFormData(prev => ({ ...prev, resumeFile: fileInfo }));
+                setFormErrors(prev => ({ ...prev, resumeFile: null }));
+                toast.success("Resume uploaded successfully!");
+            }
+        } catch (error) {
+            console.error("Upload error:", error);
+            toast.error("Failed to upload resume.");
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const renderCandidateForm = () => {
         const isEdit = viewMode === 'edit';
         
-        const vacancyOptions = vacancies.map(v => ({
+        const vacancyOptions = (Array.isArray(vacancies) ? vacancies : []).map(v => ({
             value: v._id || v.id,
             label: `${v.requestNumber} - ${v.position?.name || 'Unknown Position'}`
         }));
 
-        const departmentOptions = departments.map(d => ({
+        const departmentOptions = (Array.isArray(departments) ? departments : []).map(d => ({
             value: d.id || d.value,
             label: d.label || d.name
         }));
@@ -302,13 +443,11 @@ const Candidate = () => {
                                 </div>
                                 <div className="form-group">
                                     <label>Phone Number <span className="text-red-500">*</span></label>
-                                    <input 
-                                        type="tel" 
+                                    <PhoneInput 
                                         value={formData.phone ?? ''} 
-                                        onChange={e => handleInputChange('phone', e.target.value)}
-                                        placeholder="+91 9876543210" 
-                                        maxLength={16}
-                                        className={formErrors.phone ? 'input-error' : ''}
+                                        onChange={val => handleInputChange('phone', val)}
+                                        placeholder="9876543210" 
+                                        error={!!formErrors.phone}
                                     />
                                     {formErrors.phone && <span className="error-text">{formErrors.phone}</span>}
                                 </div>
@@ -463,22 +602,43 @@ const Candidate = () => {
                                     <label>LinkedIn URL</label>
                                     <div className="relative">
                                         <Linkedin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                        <input type="text" className="pl-8" value={formData.linkedinUrl} onChange={e => handleInputChange('linkedinUrl', e.target.value)} placeholder="https://linkedin.com/in/..." />
+                                        <input 
+                                            type="text" 
+                                            className={`pl-8 ${formErrors.linkedinUrl ? 'input-error' : ''}`} 
+                                            value={formData.linkedinUrl} 
+                                            onChange={e => handleInputChange('linkedinUrl', e.target.value)} 
+                                            placeholder="https://linkedin.com/in/..." 
+                                        />
                                     </div>
+                                    {formErrors.linkedinUrl && <span className="error-text">{formErrors.linkedinUrl}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>GitHub URL</label>
                                     <div className="relative">
                                         <Github size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                        <input type="text" className="pl-8" value={formData.githubUrl} onChange={e => handleInputChange('githubUrl', e.target.value)} placeholder="https://github.com/..." />
+                                        <input 
+                                            type="text" 
+                                            className={`pl-8 ${formErrors.githubUrl ? 'input-error' : ''}`} 
+                                            value={formData.githubUrl} 
+                                            onChange={e => handleInputChange('githubUrl', e.target.value)} 
+                                            placeholder="https://github.com/..." 
+                                        />
                                     </div>
+                                    {formErrors.githubUrl && <span className="error-text">{formErrors.githubUrl}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Portfolio URL</label>
                                     <div className="relative">
                                         <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                        <input type="text" className="pl-8" value={formData.portfolioUrl} onChange={e => handleInputChange('portfolioUrl', e.target.value)} placeholder="https://yourportfolio.com" />
+                                        <input 
+                                            type="text" 
+                                            className={`pl-8 ${formErrors.portfolioUrl ? 'input-error' : ''}`} 
+                                            value={formData.portfolioUrl} 
+                                            onChange={e => handleInputChange('portfolioUrl', e.target.value)} 
+                                            placeholder="https://yourportfolio.com" 
+                                        />
                                     </div>
+                                    {formErrors.portfolioUrl && <span className="error-text">{formErrors.portfolioUrl}</span>}
                                 </div>
                             </div>
                         </div>
@@ -493,11 +653,11 @@ const Candidate = () => {
                                 </div>
                                 <div className="form-group">
                                     <label>Preferred Location</label>
-                                    <SearchableSelect
-                                        options={locationOptions}
-                                        value={formData.preferredLocation}
-                                        onChange={val => handleInputChange('preferredLocation', val)}
-                                        placeholder="Select Preferred City"
+                                    <MultiSelect 
+                                        options={allLocations} 
+                                        value={formData.preferredLocation} 
+                                        onChange={(val) => handleInputChange('preferredLocation', val)} 
+                                        placeholder="Select Preferred Locations" 
                                     />
                                 </div>
                                 <div className="form-group">
@@ -535,12 +695,58 @@ const Candidate = () => {
                             <div className="form-card-title flex items-center gap-2"><FileText size={16} /> Documents & Remarks</div>
                             <div className="modal-info-grid">
                                 <div className="form-group" style={{ gridColumn: 'span 4' }}>
-                                    <label>Resume Upload</label>
-                                    <div className="file-upload-zone" onClick={() => document.getElementById('resume-file').click()}>
-                                        <Upload size={24} className="text-gray-400 mb-2" />
-                                        <span>Click to upload resume</span>
-                                        <input type="file" id="resume-file" style={{ display: 'none' }} />
+                                    <label>Resume Upload <span className="text-red-500">*</span></label>
+                                    <div 
+                                        className={`file-upload-zone ${uploading ? 'uploading' : ''} ${formData.resumeFile ? 'has-file' : ''} ${formErrors.resumeFile ? 'error-border' : ''}`} 
+                                        onClick={() => !uploading && document.getElementById('resume-file').click()}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '180px', width: '100%' }}
+                                    >
+                                        <div className="upload-content" style={{ width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+                                            {uploading ? (
+                                                <div className="upload-loader-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <div className="loader-spinner"></div>
+                                                    <p className="text-sm font-semibold">Uploading... {uploadProgress}%</p>
+                                                    <div className="progress-bar-bg" style={{ width: '200px' }}>
+                                                        <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }}></div>
+                                                    </div>
+                                                </div>
+                                             ) : formData.resumeFile ? (
+                                                 <div className="uploaded-file-card flex items-center gap-4 p-5 bg-emerald-50/50 border border-emerald-100 rounded-2xl w-full max-w-[450px] mx-auto shadow-sm animate-fadeIn">
+                                                     <div className="p-3 bg-emerald-100/50 text-emerald-600 rounded-xl">
+                                                         <CheckCircle size={24} />
+                                                     </div>
+                                                     <div className="flex-1 min-w-0 text-left">
+                                                         <p className="text-sm font-black text-slate-800 tracking-tight leading-tight">Resume Attached</p>
+                                                         <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">{formData.resumeFile.originalName}</p>
+                                                     </div>
+                                                     <button 
+                                                         type="button"
+                                                         className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all duration-200"
+                                                         onClick={(e) => {
+                                                             e.stopPropagation();
+                                                             setFormData(p => ({ ...p, resumeFile: null }));
+                                                         }}
+                                                         title="Remove file"
+                                                     >
+                                                         <Trash2 size={18} />
+                                                     </button>
+                                                 </div>
+                                            ) : (
+                                                <>
+                                                    <Upload size={24} className="text-slate-400 mb-2" />
+                                                    <span>Click to upload resume (PDF, DOC, DOCX)</span>
+                                                </>
+                                            )}
+                                        </div>
+                                        <input 
+                                            type="file" 
+                                            id="resume-file" 
+                                            style={{ display: 'none' }} 
+                                            accept=".pdf,.doc,.docx"
+                                            onChange={handleFileChange}
+                                        />
                                     </div>
+                                    {formErrors.resumeFile && <span className="error-text">{formErrors.resumeFile}</span>}
                                 </div>
                                 <div className="form-group" style={{ gridColumn: 'span 4' }}>
                                     <label>Remarks</label>
@@ -569,123 +775,402 @@ const Candidate = () => {
 
     const renderCandidateDetail = () => {
         const c = selectedCandidate || {};
+        
+        // Helper to format date
+        const formatDate = (dateStr) => {
+            if (!dateStr) return 'N/A';
+            return new Date(dateStr).toLocaleDateString();
+        };
+
         return (
-            <div className="modal-overlay" onClick={() => setViewMode('list')}>
+            <div className="modal-overlay" onClick={() => { setViewMode('list'); setSelectedCandidate(null); }}>
                 <div className="modal-content" onClick={e => e.stopPropagation()}>
                     <div className="form-header">
-                        <h2 className="text-xl font-bold text-white">Candidate Details - {c.name}</h2>
-                        <button className="icon-btn" onClick={() => setViewMode('list')}><X size={20} /></button>
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                             Candidate Profile: {c.name}
+                        </h2>
+                        <button className="icon-btn" onClick={() => { setViewMode('list'); setSelectedCandidate(null); }}><X size={20} /></button>
                     </div>
 
                     <div className="form-body">
+                        {/* Summary Info */}
                         <div className="form-card">
-                            <div className="form-card-title">Basic Information</div>
+                            <div className="form-card-title">Personal Information</div>
+                            <div className="modal-info-grid">
+                                <div className="info-item"><label>Full Name</label><div>{c.name || 'N/A'}</div></div>
+                                <div className="info-item"><label>Email Address</label><div className="text-blue-600">{c.email || 'N/A'}</div></div>
+                                <div className="info-item"><label>Phone Number</label><div>{c.phone || 'N/A'}</div></div>
+                                <div className="info-item"><label>Gender / Age</label><div>{c.gender || 'Not specified'} / {c.dob ? `${new Date().getFullYear() - new Date(c.dob).getFullYear()} Years` : 'N/A'}</div></div>
+                                <div className="info-item" style={{ gridColumn: 'span 2' }}><label>Permanent Address</label><div>{c.address || 'N/A'}</div></div>
+                            </div>
+                        </div>
+
+                        <div className="form-card" style={{ marginTop: '1.5rem' }}>
+                            <div className="form-card-title">Recruitment & Status</div>
                             <div className="modal-info-grid">
                                 <div className="info-item">
-                                    <label>Candidate ID</label>
-                                    <div>{c.candidateId}</div>
+                                    <label>Candidate Code</label>
+                                    <div className="bg-blue-50/50 text-blue-700 px-3 py-1 rounded-lg border border-blue-100 font-bold text-sm w-fit mt-1 uppercase tracking-tight">
+                                        {c.candidateCode || c.candidateId || 'N/A'}
+                                    </div>
                                 </div>
+                                <div className="info-item"><label>Applied For Role</label><div className="font-bold text-slate-800 mt-1">{c.role || 'N/A'}</div></div>
+                                <div className="info-item"><label>Vacancy / REQ</label><div className="font-medium text-slate-600 mt-1">{c.vacancy?.requestNumber || 'N/A'}</div></div>
+                                <div className="info-item"><label>Notice Period</label><div className="text-orange-600 font-bold mt-1">{c.noticePeriod || 'N/A'}</div></div>
+                                <div className="info-item"><label>Experience</label><div className="font-semibold text-slate-700 mt-1">{c.experience || '0'} Years</div></div>
                                 <div className="info-item">
-                                    <label>Experience</label>
-                                    <div>{c.experience}</div>
+                                    <label>Candidate Status</label>
+                                    <div className="flex items-center mt-1">
+                                        <span className={`status-badge ${
+                                            c.status === 'New' ? 'status-new' :
+                                            c.status === 'Interview' ? 'status-interview' :
+                                            c.status === 'Rejected' ? 'status-rejected' : 'status-passed'
+                                        }`}>
+                                            {c.status}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="info-item">
-                                    <label>Notice Period</label>
-                                    <div>{c.noticePeriod}</div>
+                                <div className="info-item"><label>Available to Join</label><div>{formatDate(c.availableToJoin)}</div></div>
+                                <div className="info-item"><label>Current Location</label><div>{c.currentLocationData?.name || 'N/A'}</div></div>
+                            </div>
+                        </div>
+
+                        <div className="form-card" style={{ marginTop: '1.5rem' }}>
+                            <div className="form-card-title">Financials & Expertise</div>
+                            <div className="modal-info-grid">
+                                <div className="info-item"><label>Current CTC (LPA)</label><div>₹{c.currentCTC || '0.00'}</div></div>
+                                <div className="info-item"><label>Expected CTC (LPA)</label><div>₹{c.expectedCTC || '0.00'}</div></div>
+                                <div className="info-item" style={{ gridColumn: 'span 2' }}>
+                                    <label>Key Skills Identified</label>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                        {(c.skillsData && c.skillsData.length > 0) ? c.skillsData.map((skill, idx) => (
+                                            <span key={idx} className="bg-teal-50 text-teal-700 px-3 py-1 rounded text-xs font-bold border border-teal-100">
+                                                {skill.name || skill}
+                                            </span>
+                                        )) : <span className="text-slate-400 italic">No skills listed</span>}
+                                    </div>
                                 </div>
-                                <div className="info-item">
-                                    <label>Email</label>
-                                    <div>{c.email}</div>
+                            </div>
+                        </div>
+
+                        <div className="form-card" style={{ marginTop: '1.5rem' }}>
+                            <div className="form-card-title">Documents & Remarks</div>
+                            <div className="modal-info-grid">
+                                <div className="info-item" style={{ gridColumn: 'span 2' }}>
+                                    <label>Resume Document</label>
+                                    {c.resumeFile ? (
+                                        <a 
+                                            href={`http://localhost:5002/api/candidates/resume/${c.resumeFile.fileName}`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 p-3 bg-emerald-50 text-emerald-700 font-bold rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-all w-fit"
+                                        >
+                                            <FileText size={16} /> View Attached Resume ({c.resumeFile.originalName})
+                                        </a>
+                                    ) : <span className="text-slate-400 italic">No resume uploaded</span>}
                                 </div>
-                                <div className="info-item">
-                                    <label>Status</label>
-                                    <div className={`status-badge ${c.status === 'New' ? 'status-new' : 'status-interview'}`}>{c.status}</div>
-                                </div>
-                                <div className="info-item">
-                                    <label>Applied For</label>
-                                    <div>{c.role}</div>
+                                <div className="info-item" style={{ gridColumn: 'span 2' }}>
+                                    <label>Remarks / Internal Notes</label>
+                                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-sm italic">
+                                        {c.remarks || 'No additional notes provided.'}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <div className="form-footer">
-                        <button className="btn-secondary" onClick={() => setViewMode('list')}>Close</button>
-                        <button className="btn-primary" onClick={() => setViewMode('edit')}>Edit Candidate</button>
+                        <button className="btn-secondary" onClick={() => { setViewMode('list'); setSelectedCandidate(null); }}>Close Profile</button>
+                        <button className="btn-primary" onClick={() => setViewMode('edit')} style={{ background: '#0d5f68' }}>
+                            <Edit size={16} /> Edit Profile
+                        </button>
                     </div>
                 </div>
             </div>
         );
     };
 
+    const renderDeleteModal = () => {
+        const c = selectedCandidate || {};
+        return (
+            <div className="modal-overlay" onClick={() => { setViewMode('list'); setSelectedCandidate(null); }}>
+                <div className="modal-content delete-modal-content" onClick={e => e.stopPropagation()}>
+                    <div className="delete-header-premium">
+                        <button className="icon-btn shadow-sm" onClick={() => { setViewMode('list'); setSelectedCandidate(null); }}>
+                            <X size={18} />
+                        </button>
+                    </div>
+                    <div className="delete-body-premium text-center">
+                        <div className="delete-icon-container">
+                            <Trash2 size={40} strokeWidth={1.5} />
+                        </div>
+                        <h2 className="delete-title-premium text-2xl font-black tracking-tight mb-2">Delete Candidate?</h2>
+                        <p className="delete-message-premium text-slate-500 leading-relaxed mb-6">
+                            Are you sure you want to permanently delete this candidate? This action cannot be reversed.
+                        </p>
+                        <div className="delete-item-badge bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-slate-700 font-bold mb-8 mx-auto w-fit">
+                            {c.name || 'Unknown Candidate'}
+                        </div>
+                    </div>
+                    <div className="delete-footer-premium flex gap-3 px-8 pb-8">
+                        <button className="btn-cancel-premium flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all cursor-pointer" onClick={() => { setViewMode('list'); setSelectedCandidate(null); }}>
+                            Keep Candidate
+                        </button>
+                        <button className="btn-delete-premium flex-1 py-3 rounded-xl font-bold bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-100 transition-all cursor-pointer" onClick={handleConfirmDelete} disabled={submitting}>
+                            {submitting ? 'Deleting...' : 'Confirm Delete'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+
+    if (loading && candidates.length === 0) { // Only show page-level spinner if first load
+        return (
+            <div className="employees-page" style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '80vh',
+                background: 'transparent'
+            }}>
+                <style>
+                    {`
+                    .spinner-container {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 1.5rem;
+                    }
+                    .premium-spinner {
+                        position: relative;
+                        width: 64px;
+                        height: 64px;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                    }
+                    .premium-spinner::before,
+                    .premium-spinner::after {
+                        content: '';
+                        position: absolute;
+                        border-radius: 50%;
+                    }
+                    .premium-spinner::before {
+                        width: 100%;
+                        height: 100%;
+                        border: 3px solid transparent;
+                        border-top-color: #2dd4bf;
+                        border-bottom-color: #0d9488;
+                        animation: spin 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+                        box-shadow: 0 0 15px rgba(45, 212, 191, 0.2);
+                    }
+                    .premium-spinner::after {
+                        width: 70%;
+                        height: 70%;
+                        border: 3px solid transparent;
+                        border-left-color: #0d9488;
+                        border-right-color: #2dd4bf;
+                        animation: spin-reverse 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+                    }
+                    .premium-core {
+                        width: 30%;
+                        height: 30%;
+                        background: radial-gradient(circle, #2dd4bf 0%, #0d9488 100%);
+                        border-radius: 50%;
+                        box-shadow: 0 0 20px #2dd4bf;
+                        animation: pulse-core 2s ease-in-out infinite;
+                    }
+                    .premium-text {
+                        color: #f8fafc;
+                        font-size: 1.05rem;
+                        font-weight: 600;
+                        letter-spacing: 0.1em;
+                        text-transform: uppercase;
+                        opacity: 0;
+                        animation: fade-up 0.5s ease-out 0.2s forwards, soft-pulse 2s ease-in-out infinite alternate 0.7s;
+                        text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                    }
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    @keyframes spin-reverse {
+                        0% { transform: rotate(360deg); }
+                        100% { transform: rotate(0deg); }
+                    }
+                    @keyframes pulse-core {
+                        0%, 100% { transform: scale(0.8); opacity: 0.8; }
+                        50% { transform: scale(1.2); opacity: 1; }
+                    }
+                    @keyframes fade-up {
+                        from { transform: translateY(10px); opacity: 0; }
+                        to { transform: translateY(0); opacity: 0.9; }
+                    }
+                    @keyframes soft-pulse {
+                        from { opacity: 0.7; }
+                        to { opacity: 1; }
+                    }
+                    `}
+                </style>
+                <div className="spinner-container">
+                    <div className="premium-spinner">
+                        <div className="premium-core"></div>
+                    </div>
+                    <p className="premium-text">Loading Candidate Data</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="employees-page">
             {viewMode === 'create' || viewMode === 'edit' ? renderCandidateForm() : null}
             {viewMode === 'view' ? renderCandidateDetail() : null}
+            {viewMode === 'delete' ? renderDeleteModal() : null}
 
             <div className="page-header">
                 <h1 className="page-title">Candidate Management</h1>
-                <button className="btn-primary" onClick={handleAddClick}>
+                <button className="btn-primary" onClick={handleAddClick} style={{ background: '#f8fafc', color: '#0d5f68', border: '1px solid #0d5f68', boxShadow: 'none' }}>
                     <Plus size={20} />
                     <span>Add Candidate</span>
                 </button>
             </div>
 
-            <div className="table-card">
+            <div className="table-card" style={{ position: 'relative' }}>
+                {loading && candidates.length > 0 && (
+                    <div className="loading-overlay" style={{
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(255,255,255,0.7)',
+                        zIndex: 100,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backdropFilter: 'blur(2px)',
+                        transition: 'all 0.3s'
+                    }}>
+                        <div className="premium-spinner" style={{ width: '40px', height: '40px' }}>
+                            <div className="premium-core"></div>
+                        </div>
+                    </div>
+                )}
                 <div className="table-wrapper">
                     <table className="employee-table">
                         <thead>
                             <tr>
                                 <th style={{ width: '150px' }} className="text-center">Candidate ID</th>
-                                <th style={{ width: '130px' }}>Experience</th>
-                                <th>Candidate Name</th>
-                                <th>Email</th>
-                                <th>Applied For</th>
+                                <th style={{ width: '220px' }}>Candidate Name</th>
+                                <th style={{ width: '250px' }}>Email</th>
+                                <th style={{ width: '130px' }} className="text-center">Experience</th>
+                                <th style={{ width: '180px' }}>Applied For</th>
                                 <th style={{ width: '150px' }} className="text-center">Status</th>
                                 <th style={{ width: '160px' }}>Notice Period</th>
                                 <th className="text-center" style={{ width: '150px' }}>Actions</th>
                             </tr>
-                            <tr className="filter-row">
-                                <th className="text-center"><input type="text" className="inline-filter text-center" placeholder="ID" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Exp" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Name" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Email" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Role" /></th>
-                                <th className="text-center"><input type="text" className="inline-filter text-center" placeholder="Status" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Notice" /></th>
+                            <tr className="filter-row bg-slate-50/50">
                                 <th className="text-center">
-                                    <button className="btn-reset-filters-roles" title="Reset Filters"><RotateCcw size={16} /></button>
+                                    <input 
+                                        type="text" 
+                                        className="inline-filter text-center" 
+                                        placeholder="ID" 
+                                        value={filters.candidateId}
+                                        onChange={(e) => handleFilterChange('candidateId', e.target.value)}
+                                    />
+                                </th>
+                                <th>
+                                    <input 
+                                        type="text" 
+                                        className="inline-filter" 
+                                        placeholder="Name" 
+                                        value={filters.name}
+                                        onChange={(e) => handleFilterChange('name', e.target.value)}
+                                    />
+                                </th>
+                                <th>
+                                    <input 
+                                        type="text" 
+                                        className="inline-filter" 
+                                        placeholder="Email" 
+                                        value={filters.email}
+                                        onChange={(e) => handleFilterChange('email', e.target.value)}
+                                    />
+                                </th>
+                                <th className="text-center">
+                                    <input 
+                                        type="text" 
+                                        className="inline-filter text-center" 
+                                        placeholder="Exp" 
+                                        value={filters.experience}
+                                        onChange={(e) => handleFilterChange('experience', e.target.value)}
+                                    />
+                                </th>
+                                <th>
+                                    <input 
+                                        type="text" 
+                                        className="inline-filter" 
+                                        placeholder="Role" 
+                                        value={filters.role}
+                                        onChange={(e) => handleFilterChange('role', e.target.value)}
+                                    />
+                                </th>
+                                <th className="text-center">
+                                    <input 
+                                        type="text" 
+                                        className="inline-filter text-center" 
+                                        placeholder="Status" 
+                                        value={filters.status}
+                                        onChange={(e) => handleFilterChange('status', e.target.value)}
+                                    />
+                                </th>
+                                <th>
+                                    <input 
+                                        type="text" 
+                                        className="inline-filter" 
+                                        placeholder="Notice" 
+                                        value={filters.noticePeriod}
+                                        onChange={(e) => handleFilterChange('noticePeriod', e.target.value)}
+                                    />
+                                </th>
+                                <th className="text-center">
+                                    <button 
+                                        className="btn-reset-filters-roles" 
+                                        title="Reset Filters"
+                                        onClick={() => setFilters({ candidateId: '', name: '', email: '', experience: '', role: '', status: '', noticePeriod: '' })}
+                                    >
+                                        <RotateCcw size={16} />
+                                    </button>
                                 </th>
                             </tr>
                         </thead>
                         <tbody>
-                            {loading ? (
-                                <tr>
-                                    <td colSpan="8" className="text-center py-10">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <div className="animate-spin text-teal-600"><RotateCcw size={24} /></div>
-                                            <span className="text-gray-500 font-medium">Loading candidates...</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : candidates.length === 0 ? (
+                            {candidates.length === 0 ? (
                                 <tr>
                                     <td colSpan="8" className="text-center py-10 text-gray-400">No candidates found.</td>
                                 </tr>
                             ) : candidates.map(candidate => (
-                                <tr key={candidate._id || candidate.id}>
-                                    <td className="text-center font-mono text-blue-600 font-medium">{candidate.candidateId || (candidate._id || candidate.id).substring(0, 8).toUpperCase()}</td>
-                                    <td className="font-mono text-sm">{candidate.experience}</td>
-                                    <td>
-                                        <div className="emp-profile">
-                                            <div className="emp-avatar">
-                                                {candidate.name?.charAt(0)}
-                                            </div>
-                                            <span className="emp-name">{candidate.name}</span>
-                                        </div>
-                                    </td>
-                                    <td className="text-sm text-gray-600">{candidate.email}</td>
-                                    <td className="text-sm">{candidate.role}</td>
+                                 <tr key={candidate._id || candidate.id}>
+                                     <td className="text-center">
+                                         <span className="candidate-code-badge">
+                                            {candidate.candidateCode || candidate.candidateId || (candidate._id || candidate.id).substring(0, 8).toUpperCase()}
+                                         </span>
+                                     </td>
+                                     <td>
+                                         <div className="emp-profile">
+                                             <div className="emp-avatar">
+                                                 {candidate.name?.charAt(0)}
+                                             </div>
+                                             <span className="candidate-name-premium">{candidate.name}</span>
+                                         </div>
+                                     </td>
+                                     <td className="text-sm font-medium text-slate-500">{candidate.email}</td>
+                                     <td className="text-center">
+                                         <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded font-bold text-xs">
+                                             {candidate.experience || '0'} Yrs
+                                         </span>
+                                     </td>
+                                     <td className="text-sm font-semibold text-slate-600 truncate max-w-[150px]">{candidate.role}</td>
                                     <td className="text-center">
                                         <span className={`status-badge ${candidate.status === 'New' ? 'status-new' :
                                             candidate.status === 'Interview' ? 'status-interview' :
@@ -698,13 +1183,13 @@ const Candidate = () => {
                                     <td className="text-sm font-medium text-gray-700 font-mono">{candidate.noticePeriod}</td>
                                     <td>
                                         <div className="actions-wrapper" style={{ justifyContent: 'center' }}>
-                                            <button className="action-btn view" title="View" onClick={() => { setSelectedCandidate(candidate); setViewMode('view'); }}>
+                                            <button className="action-btn view" title="View" onClick={() => handleViewDetails(candidate)} disabled={loadingDetails}>
                                                 <Eye size={18} />
                                             </button>
                                             <button className="action-btn edit" title="Edit" onClick={() => handleEditClick(candidate)}>
                                                 <Edit size={18} />
                                             </button>
-                                            <button className="action-btn delete" title="Delete">
+                                            <button className="action-btn delete" title="Delete" onClick={() => handleDelete(candidate)}>
                                                 <Trash2 size={18} />
                                             </button>
                                         </div>
@@ -715,11 +1200,33 @@ const Candidate = () => {
                     </table>
                 </div>
                 <div className="pagination">
-                    <span className="pagination-info">Showing 1 to 3 of 3 entries</span>
+                    <span className="pagination-info">
+                        Showing {candidates.length > 0 ? currentPage * itemsPerPage + 1 : 0} to {Math.min((currentPage + 1) * itemsPerPage, totalEntries)} of {totalEntries} entries
+                    </span>
                     <div className="pagination-controls">
-                        <button className="page-btn disabled">Previous</button>
-                        <button className="page-btn active">1</button>
-                        <button className="page-btn disabled">Next</button>
+                        <button 
+                            className={`page-btn ${currentPage === 0 ? 'disabled' : ''}`}
+                            onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                            disabled={currentPage === 0}
+                        >
+                            Previous
+                        </button>
+                        {[...Array(Math.ceil(totalEntries / itemsPerPage))].map((_, i) => (
+                            <button 
+                                key={i}
+                                className={`page-btn ${currentPage === i ? 'active' : ''}`}
+                                onClick={() => setCurrentPage(i)}
+                            >
+                                {i + 1}
+                            </button>
+                        ))}
+                        <button 
+                            className={`page-btn ${currentPage >= Math.ceil(totalEntries / itemsPerPage) - 1 ? 'disabled' : ''}`}
+                            onClick={() => setCurrentPage(p => p + 1)}
+                            disabled={totalEntries === 0 || currentPage >= Math.ceil(totalEntries / itemsPerPage) - 1}
+                        >
+                            Next
+                        </button>
                     </div>
                 </div>
             </div>
@@ -732,6 +1239,7 @@ const Candidate = () => {
                     flex-direction: column;
                     gap: 1rem;
                     height: calc(100vh - 60px);
+                    background-color: #0d5f68;
                     overflow: hidden;
                 }
 
@@ -801,14 +1309,15 @@ const Candidate = () => {
                 }
 
                 .employee-table th {
-                    padding: 0.75rem 1.25rem; /* Compact padding */
-                    color: #374151;
+                    padding: 0.75rem 1.25rem;
+                    color: #475569;
                     font-weight: 700;
-                    font-size: 0.8rem;
-                    border-bottom: 1px solid #e5e7eb;
+                    font-size: 0.75rem;
+                    border-bottom: 1px solid #f1f5f9;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
                     vertical-align: middle;
+                    background: #f8fafc;
                 }
 
                 /* Filter Row Styling */
@@ -1026,6 +1535,32 @@ const Candidate = () => {
                     letter-spacing: 0.03em;
                     margin-bottom: 0.5rem;
                 }
+
+                .form-group input, 
+                .form-group select, 
+                .form-group .multi-select-container,
+                .form-group .searchable-select-container,
+                .form-group .relative {
+                    height: 44px !important;
+                    min-height: 44px !important;
+                    display: flex;
+                    align-items: center;
+                }
+                
+                .form-group .relative input {
+                    height: 100% !important;
+                    background: transparent;
+                }
+                
+                .form-group .multi-select-container > div {
+                    height: 100%;
+                    border-radius: 6px;
+                }
+
+                .form-group .multi-select-container > div {
+                    height: 100%;
+                    border-radius: 6px;
+                }
                 .text-teal-600 { color: #0d5f68; }
                 .animate-spin {
                     animation: spin 1s linear infinite;
@@ -1051,6 +1586,28 @@ const Candidate = () => {
                     border-color: #0d5f68;
                     background-color: #f8fafc;
                     color: #0d5f68;
+                }
+                 .candidate-code-badge {
+                    display: inline-block;
+                    background-color: #f0f9ff;
+                    color: #0369a1;
+                    padding: 0.35rem 0.6rem;
+                    border-radius: 8px;
+                    font-family: 'JetBrains Mono', 'Monaco', monospace;
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                    border: 1px solid #e0f2fe;
+                    letter-spacing: 0.02em;
+                 }
+                .candidate-name-premium {
+                    color: #0f172a;
+                    font-weight: 700;
+                    font-size: 0.95rem;
+                }
+                .candidate-role-premium {
+                    color: #0d5f68;
+                    font-weight: 600;
+                    font-size: 0.85rem;
                 }
             `}</style>
         </div>

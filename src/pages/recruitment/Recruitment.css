@@ -538,6 +538,7 @@ tr:hover td {
     font-weight: 700;
     font-size: 0.9rem;
 }
+
 /* Delete Confirmation Premium Styles */
 .delete-modal-content {
     max-width: 440px !important;
@@ -663,4 +664,174 @@ tr:hover td {
 .btn-delete-premium:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+}
+
+/* File Upload Zone Refinement */
+.file-upload-zone {
+    border: 2px dashed #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    background: #f8fafc;
+    position: relative;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-upload-zone:hover {
+    border-color: #0d5f68;
+    background: #f1f5f9;
+}
+
+.file-upload-zone.uploading {
+    cursor: wait;
+    border-style: solid;
+    border-color: #0d5f68;
+}
+
+.file-upload-zone.has-file {
+    border-color: #10b981;
+    background: #f0fdfa;
+    border-style: solid;
+}
+
+.file-upload-zone.error-border {
+    border-color: #ef4444;
+    background: #fef2f2;
+}
+
+.upload-content {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.upload-loader-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.loader-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #0d5f68;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.progress-bar-bg {
+    width: 100%;
+    max-width: 200px;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: #0d5f68;
+    transition: width 0.3s ease;
+}
+
+.uploaded-file-info {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0.5rem;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #d1fae5;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.error-text {
+    color: #ef4444;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+/* Premium Status Badges for Interviews */
+.status-badge-premium {
+    padding: 0.4rem 0.75rem;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 90px;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+
+.status-scheduled {
+    background: #eff6ff;
+    color: #2563eb;
+    border-color: #dbeafe;
+}
+
+.status-completed {
+    background: #f0fdf4;
+    color: #16a34a;
+    border-color: #dcfce7;
+}
+
+.status-cancelled {
+    background: #fff1f2;
+    color: #e11d48;
+    border-color: #ffe4e6;
+}
+
+.status-rescheduled {
+    background: #fff7ed;
+    color: #d97706;
+    border-color: #ffedd5;
+}
+
+/* Premium Inline Filters */
+.inline-filter-premium {
+    width: 100%;
+    height: 34px;
+    padding: 0.4rem 0.8rem;
+    background: white;
+    border: 1px solid #f1f5f9;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.inline-filter-premium:focus {
+    border-color: #0d5f68;
+    background: white;
+    box-shadow: 0 4px 12px rgba(13, 95, 104, 0.08);
+}
+
+.inline-filter-premium::placeholder {
+    color: #cbd5e1;
+    font-weight: 500;
 }

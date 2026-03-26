@@ -7,6 +7,7 @@ import {
 import { candidateService } from '../services/candidateService';
 import { employeeService } from '../services/employeeService';
 import SearchableSelect from '../components/common/SearchableSelect';
+import PhoneInput from '../components/common/PhoneInput';
 
 const Employees = () => {
     // State
@@ -283,7 +284,10 @@ const Employees = () => {
                                         </div>
                                         <div className="form-group">
                                             <label>Phone Number <span className="required">*</span></label>
-                                            <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} required />
+                                            <PhoneInput 
+                                                value={formData.phone} 
+                                                onChange={val => setFormData({ ...formData, phone: val })} 
+                                            />
                                         </div>
                                         <div className="form-group">
                                             <label>Reporting Manager</label>
@@ -384,7 +388,10 @@ const Employees = () => {
                                         </div>
                                         <div className="form-group">
                                             <label>Emergency Contact Phone</label>
-                                            <input type="tel" value={formData.emergencyContactPhone} onChange={e => setFormData({ ...formData, emergencyContactPhone: e.target.value })} />
+                                            <PhoneInput 
+                                                value={formData.emergencyContactPhone} 
+                                                onChange={val => setFormData({ ...formData, emergencyContactPhone: val })} 
+                                            />
                                         </div>
                                         <div className="form-group">
                                             <label>Aadhaar / Nat. ID</label>

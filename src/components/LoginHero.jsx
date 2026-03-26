@@ -16,7 +16,7 @@ const LoginHero = () => {
           flex: 0.9;
           position: relative;
           overflow: hidden;
-          background-color: #0d5f68; /* Fallback */
+          background-color: #0d5f68;
           display: flex;
         }
         
@@ -36,10 +36,10 @@ const LoginHero = () => {
         .hero-overlay {
           position: absolute;
           inset: 0;
-          background: linear-gradient(to bottom, rgba(13, 95, 104, 0.6) 0%, rgba(13, 95, 104, 0.95) 100%); /* Improved contrast */
+          background: linear-gradient(to bottom, rgba(13, 95, 104, 0.6) 0%, rgba(13, 95, 104, 0.95) 100%);
           display: flex;
           flex-direction: column;
-          justify-content: center; /* Center-aligned for balance */
+          justify-content: center;
           align-items: flex-start;
           padding: 4rem;
           text-align: left;
@@ -47,7 +47,7 @@ const LoginHero = () => {
 
         .hero-overlay h1 {
           color: white;
-          font-size: 3rem; /* Slightly larger heading */
+          font-size: 3rem;
           font-weight: 800;
           margin-bottom: 1.5rem;
           letter-spacing: -1.5px;
@@ -57,16 +57,11 @@ const LoginHero = () => {
         }
         
         .hero-subtitle {
-            color: rgba(255, 255, 255, 0.95);
-            font-size: 1.125rem;
-            line-height: 1.6;
-            max-width: 420px;
-            font-weight: 400;
-        }
-            font-size: 1.125rem;
-            font-weight: 400;
-            max-width: 90%;
-            line-height: 1.6;
+          color: rgba(255, 255, 255, 0.95);
+          font-size: 1.125rem;
+          line-height: 1.6;
+          max-width: 420px;
+          font-weight: 400;
         }
       `}</style>
     </div>

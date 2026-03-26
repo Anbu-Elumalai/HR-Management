@@ -7,6 +7,7 @@ import {
     AlertTriangle
 } from 'lucide-react';
 import api from '../api/api';
+import PhoneInput from '../components/common/PhoneInput';
 
 const SettingsPage = () => {
     const { tab } = useParams();
@@ -135,8 +136,8 @@ const SettingsPage = () => {
         if (!formCompany.trim()) errors.companyName = 'Company name is required';
         if (!formPhone.trim()) {
             errors.phoneNumber = 'Phone number is required';
-        } else if (!/^\d{10}$/.test(formPhone)) {
-            errors.phoneNumber = 'Phone number must be exactly 10 digits';
+        } else if (formPhone.length < 5) {
+            errors.phoneNumber = 'Invalid phone number';
         }
         if (viewMode === 'create' && pin.some(d => !d)) {
             errors.pin = '4-digit PIN is required';
@@ -770,19 +771,14 @@ const SettingsPage = () => {
 
                     <div className="form-group-settings">
                         <label>Phone Number <span className="required">*</span></label>
-                        <input
-                            type="text"
-                            placeholder="Enter 10-digit mobile number"
-                            className={formErrors.phoneNumber ? 'input-error' : ''}
-                            value={formPhone}
-                            maxLength="10"
-                            onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, '');
-                                if (val.length <= 10) {
-                                    setFormPhone(val);
-                                    if (formErrors.phoneNumber) setFormErrors(prev => ({ ...prev, phoneNumber: null }));
-                                }
+                        <PhoneInput 
+                            value={formPhone} 
+                            onChange={val => {
+                                setFormPhone(val);
+                                if (formErrors.phoneNumber) setFormErrors(prev => ({ ...prev, phoneNumber: null }));
                             }}
+                            placeholder="9876543210" 
+                            error={!!formErrors.phoneNumber}
                         />
                         {formErrors.phoneNumber && <span className="error-msg">{formErrors.phoneNumber}</span>}
                     </div>

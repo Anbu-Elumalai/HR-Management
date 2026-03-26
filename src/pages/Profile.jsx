@@ -3,6 +3,7 @@ import {
     User, Mail, Phone, MapPin, Camera, Lock,
     Edit2, Save, X, Key, Shield, CheckCircle
 } from 'lucide-react';
+import PhoneInput from '../components/common/PhoneInput';
 
 const ProfilePage = () => {
     // Mode: 'view' or 'edit'
@@ -167,7 +168,10 @@ const ProfilePage = () => {
                                 <div className="detail-group">
                                     <label>Phone Number</label>
                                     {isEditing ? (
-                                        <input type="text" name="phone" value={profile.phone} onChange={handleInputChange} />
+                                        <PhoneInput 
+                                            value={profile.phone} 
+                                            onChange={val => setProfile(prev => ({ ...prev, phone: val }))} 
+                                        />
                                     ) : (
                                         <p>{profile.phone}</p>
                                     )}
