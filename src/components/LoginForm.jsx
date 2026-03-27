@@ -14,16 +14,13 @@ const LoginForm = () => {
   const handlePinChange = (index, value) => {
     if (value.length > 1) return;
     if (!/^\d*$/.test(value)) return;
-
     const newPin = [...pin];
     newPin[index] = value;
     setPin(newPin);
     if (fieldErrors.pin) setFieldErrors({ ...fieldErrors, pin: '' });
-
-    // Auto focus next input
     if (value !== '' && index < 3) {
-      const nextInput = document.getElementById(`pin-${index + 1}`);
-      if (nextInput) nextInput.focus();
+      const next = document.getElementById(`pin-${index + 1}`);
+      if (next) next.focus();
     }
   };
 
@@ -31,27 +28,23 @@ const LoginForm = () => {
     e.preventDefault();
     setError('');
     const newFieldErrors = { phone: '', pin: '' };
-
-    // Validation
     let hasError = false;
+
     if (phone.length === 0) {
       newFieldErrors.phone = 'Please enter your phone number';
       hasError = true;
-    } else if (phone.length !== selectedCountry.length) {
-      newFieldErrors.phone = `Please enter a valid ${selectedCountry.length}-digit phone number`;
+    } else if (phone.length !== 10) {
+      newFieldErrors.phone = 'Please enter a valid 10-digit phone number';
       hasError = true;
     }
 
     const pinValue = pin.join('');
     if (pinValue.length !== 4) {
-      newFieldErrors.pin = 'Please enter a complete 4-digit PIN';
+      newFieldErrors.pin = 'Please enter your 4-digit PIN';
       hasError = true;
     }
 
-    if (hasError) {
-      setFieldErrors(newFieldErrors);
-      return;
-    }
+    if (hasError) { setFieldErrors(newFieldErrors); return; }
 
     setLoading(true);
     try {
@@ -60,354 +53,296 @@ const LoginForm = () => {
         countryCode: '+91',
         pin: pinValue,
       });
-
       const result = response.data;
-
       if (response.status === 200 || response.status === 201) {
-        // Success
         localStorage.setItem('token', result.data.token);
         localStorage.setItem('userType', result.data.userType);
         localStorage.setItem('user', JSON.stringify(result.data.user));
         navigate('/app/dashboard');
       } else {
-        // API Error
         setError(result.message || 'Login failed. Please try again.');
       }
     } catch (err) {
-      const errorMsg = err.response?.data?.message || err.message || 'Connection error. Is the server running?';
-      setError(errorMsg);
-      console.error('Login error:', err);
+      setError(err.response?.data?.message || 'Connection error. Is the server running?');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-form-container">
-      <div className="form-wrapper">
-        <div className="form-header-section">
-          <div className="brand-logo-container fade-in">
-            <img src={MarsLogo} alt="Mars Solutions Logo" className="brand-logo-image" />
-          </div>
-          <p className="welcome-sub">Sign in to your HR dashboard</p>
+    <div className="lf-outer">
+      <div className="lf-inner">
+
+        {/* ── Logo ── */}
+        <div className="lf-logo-row">
+          <img src={MarsLogo} alt="Mars Solutions" className="lf-logo" />
         </div>
+        <p className="lf-subtitle">Sign in to your HR dashboard</p>
 
-        <form onSubmit={handleLogin} className="login-form-main">
-          {error && <div className="error-message">{error}</div>}
+        {error && <div className="lf-error">{error}</div>}
 
-          <div className="input-group">
-            <label className="input-label">Phone Number</label>
-            <div className="phone-input-container">
-              <div className="country-code-display">
-                <span className="country-code-text">+91</span>
-              </div>
+        <form onSubmit={handleLogin} className="lf-form">
+
+          {/* Phone */}
+          <div className="lf-group">
+            <label className="lf-label">Phone Number</label>
+            <div className={`lf-phone-wrap ${fieldErrors.phone ? 'lf-err-border' : ''}`}>
+              <span className="lf-cc">+91</span>
               <input
                 type="text"
                 placeholder="Enter Phone Number"
                 value={phone}
+                maxLength={10}
+                className="lf-phone-input"
                 onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, ''); // Only digits
-                  if (val.length <= 10) {
-                    setPhone(val);
+                  const v = e.target.value.replace(/\D/g, '');
+                  if (v.length <= 10) {
+                    setPhone(v);
                     if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: '' });
                   }
                 }}
-                maxLength={10}
-                className={`phone-field ${fieldErrors.phone ? 'error' : ''}`}
               />
             </div>
-            {fieldErrors.phone && <div className="field-error-text">{fieldErrors.phone}</div>}
+            {fieldErrors.phone && <span className="lf-field-err">{fieldErrors.phone}</span>}
           </div>
 
-          <div className="input-group">
-            <label className="input-label">4-digit PIN</label>
-            <div className="login-pin-container">
+          {/* PIN */}
+          <div className="lf-group">
+            <label className="lf-label">4-digit PIN</label>
+            <div className="lf-pin-row">
               {pin.map((digit, idx) => (
                 <input
                   key={idx}
                   id={`pin-${idx}`}
                   type="password"
                   maxLength="1"
-                  className={`login-pin-box ${fieldErrors.pin ? 'error' : ''}`}
                   value={digit}
+                  className={`lf-pin-box ${fieldErrors.pin ? 'lf-pin-err' : ''}`}
                   onChange={(e) => handlePinChange(idx, e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Backspace' && !digit && idx > 0) {
+                    if (e.key === 'Backspace' && !digit && idx > 0)
                       document.getElementById(`pin-${idx - 1}`).focus();
-                    }
                   }}
                 />
               ))}
             </div>
-            {fieldErrors.pin && <div className="field-error-text">{fieldErrors.pin}</div>}
+            {fieldErrors.pin && <span className="lf-field-err">{fieldErrors.pin}</span>}
           </div>
 
-          <div className="form-actions">
-            <label className="remember-me">
+          {/* Remember / Forgot */}
+          <div className="lf-actions-row">
+            <label className="lf-remember">
               <input type="checkbox" />
               <span>Remember Me</span>
             </label>
-            <a href="#" className="forgot-password">Forgot Password?</a>
+            <a href="#" className="lf-forgot">Forgot Password?</a>
           </div>
 
-          <button type="submit" className="sign-in-btn" disabled={loading}>
-            {loading ? 'Signing In...' : 'Sign In'}
+          {/* Submit */}
+          <button type="submit" className="lf-submit" disabled={loading}>
+            {loading ? 'Signing In…' : 'Sign In'}
           </button>
+
         </form>
       </div>
 
       <style>{`
-        .login-form-container {
-            flex: 1.1;
-            background: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 4rem 3rem 3rem 3rem; /* Increased top padding to 64px */
-            position: relative;
+        /* ── Outer panel fills remaining card width ── */
+        .lf-outer {
+          flex: 1;
+          background: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 2.5rem 3rem;
         }
 
-        .form-wrapper {
-            width: 100%;
-            max-width: 380px;
+        /* ── Inner content block, max width ── */
+        .lf-inner {
+          width: 100%;
+          max-width: 400px;
         }
 
-        .form-header-section {
-            text-align: center;
-            margin-bottom: 2.5rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+        /* ── Logo ── */
+        .lf-logo-row {
+          margin-bottom: 0.6rem;
         }
 
-        .brand-logo-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 2rem; /* 32px spacing to subtitle */
-            width: 100%;
-            margin-top: 2.25rem; /* Moved further down */
+        .lf-logo {
+          height: 52px;      /* fits the compact row in the reference */
+          width: auto;
+          display: block;
+          object-fit: contain;
         }
 
-        .fade-in {
-            animation: fadeIn 0.8s ease-out forwards;
-            opacity: 0;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
+        /* ── Subtitle ── */
+        .lf-subtitle {
+          color: #6b7280;
+          font-size: 0.85rem;
+          font-weight: 400;
+          margin-bottom: 2rem;
         }
 
-        .brand-logo-image {
-            height: 90px;
-            width: auto;
-            object-fit: contain;
-            display: block;
+        /* ── Error banner ── */
+        .lf-error {
+          background: #fee2e2;
+          color: #b91c1c;
+          padding: 0.65rem 0.875rem;
+          border-radius: 8px;
+          font-size: 0.82rem;
+          font-weight: 500;
+          margin-bottom: 1rem;
         }
 
-        .welcome-sub {
-            color: #1f2937;
-            font-size: 1.125rem;
-            font-weight: 500;
-            text-align: center;
-            margin-bottom: 0.5rem;
+        /* ── Form ── */
+        .lf-form {
+          display: flex;
+          flex-direction: column;
+          gap: 1.1rem;
         }
 
-        .login-form-main {
-            display: flex;
-            flex-direction: column;
-            gap: 2rem; /* Increased to 32px (+4px breathing room) */
+        .lf-group {
+          display: flex;
+          flex-direction: column;
+          gap: 0.4rem;
         }
 
-        .error-message {
-            background-color: #fee2e2;
-            color: #b91c1c;
-            padding: 0.75rem;
-            border-radius: 8px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            text-align: center;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        .lf-label {
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: #374151;
         }
 
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem; /* 12px spacing between label and input */
+        /* Phone */
+        .lf-phone-wrap {
+          display: flex;
+          align-items: stretch;
+          border: 1.5px solid #D7DDE2;
+          border-radius: 10px;
+          overflow: hidden;
+          background: #F1F3F5;
+          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+        .lf-phone-wrap:focus-within {
+          border-color: #2E7A78;
+          background: #fff;
+          box-shadow: 0 0 0 3px rgba(46, 122, 120, 0.12);
+        }
+        .lf-phone-wrap.lf-err-border { border-color: #fca5a5; }
+
+        .lf-cc {
+          padding: 0 0.85rem;
+          background: #E4E8EC;
+          border-right: 1.5px solid #D7DDE2;
+          display: flex;
+          align-items: center;
+          font-size: 0.875rem;
+          font-weight: 600;
+          color: #4b5563;
+          flex-shrink: 0;
         }
 
-        .input-label {
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: #374151;
-            margin-left: 2px;
+        .lf-phone-input {
+          flex: 1;
+          padding: 0.72rem 0.9rem;
+          border: none;
+          background: transparent;
+          font-size: 0.9rem;
+          color: #111827;
+          outline: none;
         }
-        
-        .phone-input-container {
-            display: flex;
-            align-items: stretch;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            background-color: white;
-            transition: all 0.2s ease;
-            overflow: hidden;
-        }
-        
-        .phone-input-container:focus-within {
-            border-color: #0d5f68;
-            box-shadow: 0 0 0 2px rgba(13, 95, 104, 0.1);
-        }
-        
-        .country-code-display {
-            background-color: #f3f4f6;
-            padding: 0 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-right: 1px solid #e5e7eb;
-            color: #4b5563;
-            font-weight: 600;
-            font-size: 1rem;
-        }
-        
-        .phone-field {
-            flex: 1;
-            padding: 0.875rem 1rem;
-            border: none;
-            background-color: transparent;
-            font-size: 1rem;
-            color: #111827;
-            outline: none;
-            font-weight: 500;
-        }
-        
-        .phone-field::placeholder {
-            color: #9ca3af;
-            font-weight: 400;
-        }
-        
-        .phone-field.error {
-            color: #ef4444;
-            background-color: #fef2f2;
+        .lf-phone-input::placeholder { color: #9ca3af; }
+
+        /* PIN */
+        .lf-pin-row {
+          display: flex;
+          gap: 0.65rem;
         }
 
-        .field-error-text {
-            color: #dc2626;
-            font-size: 0.75rem;
-            font-weight: 500;
-            margin-left: 2px;
+        .lf-pin-box {
+          flex: 1;
+          height: 54px;
+          max-width: 80px;
+          border: 1.5px solid #D7DDE2;
+          border-radius: 12px;
+          background: #F1F3F5;
+          text-align: center;
+          font-size: 1.4rem;
+          font-weight: 700;
+          color: #111827;
+          outline: none;
+          transition: all 0.18s ease;
+        }
+        .lf-pin-box:focus {
+          border-color: #2E7A78;
+          background: #fff;
+          box-shadow: 0 0 0 3px rgba(46, 122, 120, 0.12);
+          transform: translateY(-1px) scale(1.03);
+        }
+        .lf-pin-box.lf-pin-err { border-color: #fca5a5; background: #fef2f2; }
+
+        /* Field err */
+        .lf-field-err {
+          color: #dc2626;
+          font-size: 0.72rem;
+          font-weight: 500;
         }
 
-        .login-pin-container {
-            display: flex;
-            gap: 0.75rem;
-            justify-content: space-between;
-            /* margin-top removed for consistent spacing */
+        /* Actions row */
+        .lf-actions-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 0.82rem;
+          margin-top: 0.1rem;
         }
 
-        .login-pin-box {
-            flex: 1;
-            width: 100%;
-            height: 64px;
-            border: 1.5px solid #d1d5db;
-            border-radius: 16px;
-            text-align: center;
-            font-size: 1.5rem;
-            font-weight: 700;
-            outline: none;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            background-color: #fff;
-            color: #111827;
-            max-width: 64px;
+        .lf-remember {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          color: #4b5563;
+          cursor: pointer;
+          font-weight: 500;
+          user-select: none;
+        }
+        .lf-remember input {
+          accent-color: #2D7B78;
+          width: 0.95rem;
+          height: 0.95rem;
         }
 
-        .login-pin-box:focus {
-            border-color: #0d5f68;
-            background-color: white;
-            box-shadow: 0 0 0 4px rgba(13, 95, 104, 0.15); /* Soft teal glow */
-            transform: translateY(-1px) scale(1.02); /* Micro scale on focus */
+        .lf-forgot {
+          color: #2E7A78;
+          text-decoration: none;
+          font-weight: 600;
+          font-size: 0.82rem;
+          transition: color 0.15s;
         }
+        .lf-forgot:hover { color: #245f5d; text-decoration: underline; }
 
-        .login-pin-box.error {
-            border-color: #fca5a5;
-            background-color: #fef2f2;
+        /* Submit */
+        .lf-submit {
+          width: 100%;
+          padding: 0.82rem;
+          background: #2D7B78;
+          color: #fff;
+          border: none;
+          border-radius: 10px;
+          font-size: 1rem;
+          font-weight: 700;
+          cursor: pointer;
+          letter-spacing: 0.2px;
+          transition: background 0.22s, transform 0.15s, box-shadow 0.22s;
+          margin-top: 0.25rem;
         }
-
-        .form-actions {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.875rem;
-            margin-top: 1.25rem; /* Reduced slightly (20px) */
+        .lf-submit:hover:not(:disabled) {
+          background: #245f5d;
+          box-shadow: 0 4px 18px rgba(46, 122, 120, 0.3);
+          transform: translateY(-1px);
         }
-
-        .remember-me {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: #4b5563;
-            cursor: pointer;
-            font-weight: 500;
-            transition: color 0.15s ease;
-        }
-        
-        .remember-me:hover {
-            color: #111827;
-        }
-
-        .remember-me input {
-            width: 1rem;
-            height: 1rem;
-            border-radius: 4px;
-            accent-color: #0d5f68;
-            cursor: pointer;
-            border: 1px solid #d1d5db;
-        }
-
-        .forgot-password {
-            color: #0d5f68;
-            text-decoration: none;
-            font-weight: 600;
-            transition: color 0.15s ease;
-        }
-        
-        .forgot-password:hover {
-            color: #0f7682;
-            text-decoration: underline;
-        }
-
-        .sign-in-btn {
-            width: 100%;
-            padding: 0.875rem;
-            background-color: #115e59;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            margin-top: 1.75rem;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .sign-in-btn:hover:not(:disabled) {
-            background-color: #0f4c48;
-        }
-
-        .sign-in-btn:active:not(:disabled) {
-            transform: translateY(0) scale(0.98);
-        }
-
-        .sign-in-btn:disabled {
-            background-color: #9ca3af;
-            cursor: not-allowed;
-            opacity: 0.7;
-        }
+        .lf-submit:active:not(:disabled) { transform: translateY(0); }
+        .lf-submit:disabled { background: #9ca3af; cursor: not-allowed; }
       `}</style>
     </div>
   );

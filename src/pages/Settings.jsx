@@ -331,7 +331,8 @@ const SettingsPage = () => {
             { id: 'department', name: 'Department' },
             { id: 'reason-requisition', name: 'Reason Requisition' },
             { id: 'location', name: 'Location' },
-            { id: 'skill', name: 'Skill' }
+            { id: 'skill', name: 'Skill' },
+            { id: 'interview-round', name: 'Interview Round' }
         ];
         setCategories(staticCategories);
         if (!selectedCategory) {
@@ -363,6 +364,8 @@ const SettingsPage = () => {
                 response = await api.get('/locations');
             } else if (isSkill) {
                 response = await api.get('/skills');
+            } else if (selectedCategory?.id === 'interview-round' || selectedCategory?.name?.toLowerCase() === 'interview round') {
+                response = await api.get('/interview-rounds');
             } else {
                 response = await api.get(`/master-data/categories/${categoryId}/values`);
             }
@@ -468,6 +471,8 @@ const SettingsPage = () => {
                     response = await api.patch(`/locations/${editingValueId}`, { name: newValue.trim() });
                 } else if (isSkill) {
                     response = await api.patch(`/skills/${editingValueId}`, { name: newValue.trim() });
+                } else if (selectedCategory?.id === 'interview-round' || selectedCategory?.name?.toLowerCase() === 'interview round') {
+                    response = await api.patch(`/interview-rounds/${editingValueId}`, { name: newValue.trim() });
                 } else {
                     response = await api.patch(`/master-data/categories/${categoryId}/values/${editingValueId}`, { value: newValue.trim() });
                 }
@@ -494,6 +499,10 @@ const SettingsPage = () => {
                     });
                 } else if (isSkill) {
                     response = await api.post('/skills', {
+                        name: newValue.trim()
+                    });
+                } else if (selectedCategory?.id === 'interview-round' || selectedCategory?.name?.toLowerCase() === 'interview round') {
+                    response = await api.post('/interview-rounds', {
                         name: newValue.trim()
                     });
                 } else {
@@ -556,6 +565,8 @@ const SettingsPage = () => {
                 response = await api.delete(`/locations/${valueId}`);
             } else if (isSkill) {
                 response = await api.delete(`/skills/${valueId}`);
+            } else if (selectedCategory?.id === 'interview-round' || selectedCategory?.name?.toLowerCase() === 'interview round') {
+                response = await api.delete(`/interview-rounds/${valueId}`);
             } else {
                 response = await api.delete(`/master-data/categories/${categoryId}/values/${valueId}`);
             }
