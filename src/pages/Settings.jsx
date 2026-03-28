@@ -35,6 +35,7 @@ const SettingsPage = () => {
     const [formErrors, setFormErrors] = useState({});
     const [saving, setSaving] = useState(false);
     const [rolesList, setRolesList] = useState([]);
+    const [employeesList, setEmployeesList] = useState([]);
     const [toast, setToast] = useState(null);
 
     // Users List State (Matching Roles)
@@ -109,9 +110,34 @@ const SettingsPage = () => {
         }
     };
 
+    const fetchEmployeesList = async () => {
+        try {
+            const response = await api.get('/admin-users/?limit=1000');
+            const result = response.data;
+            if (result.status === 200 || result.statusCode === 200) {
+                setEmployeesList(result.data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching employees for select:', error);
+        }
+    };
+
     React.useEffect(() => {
         fetchRoles();
+        fetchEmployeesList();
     }, []);
+
+    const handleEmployeeSelect = (empId) => {
+        const emp = employeesList.find(e => String(e._id || e.id) === String(empId));
+        if (emp) {
+            setFormName(emp.name || '');
+            setFormEmail(emp.email || '');
+            setFormPhone(emp.phoneNumber || emp.phone || '');
+            setFormCompany(emp.companyName || '');
+            setFormRoleId(emp.roleId?._id || emp.roleId || '');
+            setFormErrors({});
+        }
+    };
 
     React.useEffect(() => {
         const timer = setTimeout(() => {
@@ -751,6 +777,21 @@ const SettingsPage = () => {
 
             <div className="form-body-settings">
                 <div className="form-grid">
+                    <div className="form-group-settings" style={{ gridColumn: '1 / span 2' }}>
+                        <label>Select Employee (Auto-fill)</label>
+                        <select
+                            onChange={(e) => handleEmployeeSelect(e.target.value)}
+                            className="employee-select-bind"
+                        >
+                            <option value="">Choose an employee to bind details...</option>
+                            {employeesList.map(emp => (
+                                <option key={emp._id || emp.id} value={emp._id || emp.id}>
+                                    {emp.name} ({emp.email || 'No email'})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
                     <div className="form-group-settings">
                         <label>Name <span className="required">*</span></label>
                         <input

@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import {
     Plus, Eye, Edit, Trash2, X, RotateCcw,
     Users, MapPin, Monitor, Clock, Calendar,
-    User, AlertCircle
+    User, AlertCircle, ChevronLeft, ChevronRight,
+    Loader2
 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import './Recruitment.css';
 import api from '../../api/api';
 import { candidateService } from '../../services/candidateService';
@@ -13,10 +15,28 @@ import { departmentService } from '../../services/departmentService';
 // ─────────────────────────────────────────────────────────────────────────────
 // PanelMemberCard — self-contained card for a single panel member
 // ─────────────────────────────────────────────────────────────────────────────
-const PANEL_ROLES = ['Lead Interviewer', 'Technical Expert', 'Observer', 'HR Representative'];
 const INTERVIEWER_TYPES = ["Employee", "Admins Users"];
 
-const PanelMemberCard = ({ index, member, employees, onChange, onRemove, showRemove }) => {
+const PanelMemberCard = ({ index, member, employees, roles, departments, onChange, onRemove, showRemove, errors }) => {
+    const [positions, setPositions] = useState([]);
+    const [loadingPositions, setLoadingPositions] = useState(false);
+
+    // Fetch positions when interviewer is selected and role is Employee
+    const fetchInterviewerPositions = async (interviewerId) => {
+        if (!interviewerId) return;
+        setLoadingPositions(true);
+        try {
+            // Fetch positions based on selected interviewer (User)
+            const response = await api.get(`/positions/?interviewerId=${interviewerId}`);
+            setPositions(response.data?.data || []);
+        } catch (error) {
+            console.error("Error fetching interviewer positions:", error);
+            setPositions([]);
+        } finally {
+            setLoadingPositions(false);
+        }
+    };
+
     const handleField = (field, value) => {
         let updated = { ...member, [field]: value };
 
@@ -27,8 +47,9 @@ const PanelMemberCard = ({ index, member, employees, onChange, onRemove, showRem
                 employeeId: '',
                 interviewerName: '',
                 interviewerEmail: '',
-                department: '',
-                panelRole: ''
+                panelRole: '',
+                positionId: '',
+                interviewerDesignation: ''
             };
         }
 
@@ -38,19 +59,84 @@ const PanelMemberCard = ({ index, member, employees, onChange, onRemove, showRem
             if (emp) {
                 updated.interviewerName = emp.name || '';
                 updated.interviewerEmail = emp.email || '';
-                updated.department = emp.department?.name || emp.departmentName || '';
+
+                // Resolve designation
+                let desig = '';
+                if (updated.interviewerType === "Employee") {
+                    desig = emp.position?.name || emp.positionName || emp.designation || emp.role?.name || '';
+                } else if (updated.interviewerType === "Admins Users") {
+                    desig = emp.role?.name || emp.roleName || emp.role || emp.position?.name || '';
+                }
+                updated.interviewerDesignation = desig;
+
+                // 1. Auto-fetch and pre-fill the Panel Role based on that interviewer's roleId
+                const empRoleId = emp.roleId || (emp.role && typeof emp.role === 'object' ? emp.role._id : emp.role);
+                const foundRole = roles.find(r => String(r._id) === String(empRoleId));
                 
-                // Auto-fetch Panel Role based on company role
-                const sysRole = (emp.systemRole || emp.role?.name || '').toLowerCase();
-                if (sysRole.includes('hr')) updated.panelRole = 'HR Representative';
-                else if (sysRole.includes('tech') || sysRole.includes('employee')) updated.panelRole = 'Technical Expert';
-                else if (sysRole.includes('admin') || sysRole.includes('manager')) updated.panelRole = 'Lead Interviewer';
-                else updated.panelRole = 'Observer';
+                if (foundRole) {
+                    updated.panelRole = foundRole.name;
+                    
+                    // 2. Conditional logic: If role is "Employee", fetch and set position
+                    if (foundRole.name === "Employee") {
+                        fetchInterviewerPositions(value);
+                        // Auto-populate based on emp's positionId
+                        if (emp.positionId) {
+                            updated.positionId = emp.positionId;
+                        }
+                    } else {
+                        updated.positionId = '';
+                    }
+                }
+            }
+        }
+
+        // Handle manual manual selection of the role
+        if (field === 'panelRole') {
+            if (value === 'Employee' && updated.employeeId) {
+                fetchInterviewerPositions(updated.employeeId);
+            } else {
+                updated.positionId = '';
             }
         }
 
         onChange(index, updated);
     };
+
+    // Keep positions synced in EDIT mode
+    React.useEffect(() => {
+        if (member.employeeId && member.panelRole === 'Employee') {
+            fetchInterviewerPositions(member.employeeId);
+        }
+    }, [member.employeeId, member.panelRole]);
+
+    // Auto-populate human-readable data if only IDs are present (critical for EDIT mode)
+    React.useEffect(() => {
+        if (member.employeeId && !member.interviewerEmail && employees.length > 0) {
+            const emp = employees.find(e => String(e._id || e.id) === String(member.employeeId));
+            if (emp) {
+                const updated = { ...member };
+                updated.interviewerName = emp.name || '';
+                updated.interviewerEmail = emp.email || '';
+
+                let desig = '';
+                if (member.interviewerType === "Employee") {
+                    desig = emp.position?.name || emp.positionName || emp.designation || emp.role?.name || '';
+                } else if (member.interviewerType === "Admins Users") {
+                    desig = emp.role?.name || emp.roleName || emp.role || emp.position?.name || '';
+                }
+                updated.interviewerDesignation = desig;
+
+                // Auto-sync panelRole on load if not set
+                if (!updated.panelRole && roles.length > 0) {
+                    const empRoleId = emp.roleId || (emp.role && typeof emp.role === 'object' ? emp.role._id : emp.role);
+                    const foundRole = roles.find(r => String(r._id) === String(empRoleId));
+                    if (foundRole) updated.panelRole = foundRole.name;
+                }
+
+                onChange(index, updated);
+            }
+        }
+    }, [member.employeeId, employees, roles]);
 
     // Filter employees based on interviewerType
     const filteredEmployees = employees.filter(emp => {
@@ -67,15 +153,15 @@ const PanelMemberCard = ({ index, member, employees, onChange, onRemove, showRem
 
     return (
         <div style={{
-            border: '1.5px solid #e5e7eb', borderRadius: '12px',
+            border: errors ? '1.5px solid #ef4444' : '1.5px solid #e5e7eb', borderRadius: '12px',
             padding: '20px', marginBottom: '16px', backgroundColor: '#ffffff',
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)', transition: 'all 0.2s'
         }}>
             {/* Card header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#2563eb' }}></div>
-                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: errors ? '#ef4444' : '#2563eb' }}></div>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: errors ? '#ef4444' : '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                         Panel Member {index + 1}
                     </span>
                 </div>
@@ -95,10 +181,13 @@ const PanelMemberCard = ({ index, member, employees, onChange, onRemove, showRem
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
                     <label>Interviewer Type <span className="text-red-500">*</span></label>
-                    <select value={member.interviewerType || ''} onChange={e => handleField('interviewerType', e.target.value)}>
+                    <select
+                        style={errors?.interviewerType ? { borderColor: '#ef4444', backgroundColor: '#fef2f2' } : {}}
+                        value={member.interviewerType || ''} onChange={e => handleField('interviewerType', e.target.value)}>
                         <option value="" disabled>Select Type</option>
                         {INTERVIEWER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
+                    {errors?.interviewerType && <span className="error-text">{errors.interviewerType}</span>}
                 </div>
 
                 <div className="form-group" style={{ margin: 0 }}>
@@ -107,33 +196,61 @@ const PanelMemberCard = ({ index, member, employees, onChange, onRemove, showRem
                         value={member.employeeId || ''}
                         onChange={e => handleField('employeeId', e.target.value)}
                         disabled={!member.interviewerType}
-                        style={{ opacity: member.interviewerType ? 1 : 0.6 }}
+                        style={{
+                            opacity: member.interviewerType ? 1 : 0.6,
+                            ...(errors?.employeeId ? { borderColor: '#ef4444', backgroundColor: '#fef2f2' } : {})
+                        }}
                     >
                         <option value="">{member.interviewerType ? 'Select Interviewer' : 'Choose type first'}</option>
                         {filteredEmployees.map(emp => (
                             <option key={emp._id || emp.id} value={emp._id || emp.id}>{emp.name}</option>
                         ))}
                     </select>
+                    {errors?.employeeId && <span className="error-text">{errors.employeeId}</span>}
                 </div>
 
                 <div className="form-group" style={{ margin: 0 }}>
                     <label>Panel Role <span className="text-red-500">*</span></label>
-                    <select value={member.panelRole || ''} onChange={e => handleField('panelRole', e.target.value)}>
+                    <select
+                        style={errors?.panelRole ? { borderColor: '#ef4444', backgroundColor: '#fef2f2' } : {}}
+                        value={member.panelRole || ''} onChange={e => handleField('panelRole', e.target.value)}>
                         <option value="" disabled>Select Role</option>
-                        {PANEL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                        {roles.map(r => <option key={r._id} value={r.name}>{r.name}</option>)}
                     </select>
+                    {errors?.panelRole && <span className="error-text">{errors.panelRole}</span>}
                 </div>
             </div>
 
-            {/* Row 2: Department (auto-fill) | Email (auto-fill) */}
+            {/* Conditional Row: Position (if Employee) */}
+            {member.panelRole === "Employee" && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '16px', marginBottom: '16px' }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                        <label>Position <span className="text-red-500">*</span></label>
+                        <select
+                            style={errors?.positionId ? { borderColor: '#ef4444', backgroundColor: '#fef2f2' } : {}}
+                            value={member.positionId || ''}
+                            onChange={e => handleField('positionId', e.target.value)}
+                            disabled={loadingPositions}
+                        >
+                            <option value="">{loadingPositions ? 'Loading positions...' : 'Select Position'}</option>
+                            {positions.map(p => (
+                                <option key={p._id || p.id} value={p._id || p.id}>{p.name || p.jobTitle}</option>
+                            ))}
+                        </select>
+                        {errors?.positionId && <span className="error-text">{errors.positionId}</span>}
+                    </div>
+                </div>
+            )}
+
+            {/* Row 2: Designation (auto-fill) | Email (auto-fill) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
-                    <label>Department <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'normal' }}>(auto-fill)</span></label>
-                    <input type="text" readOnly placeholder="Automatic" value={member.department || ''}
+                    <label>Designation <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'normal' }}>(auto-fill)</span></label>
+                    <input type="text" readOnly placeholder="Automatic" value={member.interviewerDesignation || ''}
                         style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b', fontStyle: 'italic' }} />
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                    <label>Interviewer Email <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'normal' }}>(auto-fill)</span></label>
+                    <label>Email <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'normal' }}>(auto-fill)</span></label>
                     <input type="text" readOnly placeholder="Automatic" value={member.interviewerEmail || ''}
                         style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b', fontStyle: 'italic' }} />
                 </div>
@@ -154,35 +271,217 @@ const Interview = () => {
     const [employees, setEmployees] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [interviewRounds, setInterviewRounds] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [roles, setRoles] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [loadingDetails, setLoadingDetails] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [errors, setErrors] = useState({});
+
+    const [page, setPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [filters, setFilters] = useState({
+        interviewId: '',
+        candidate: '',
+        position: '',
+        round: '',
+        interviewer: '',
+        date: '',
+        type: '',
+        status: '',
+        feedback: ''
+    });
+    const [limit] = useState(10);
+
+    // Status Modal State
+    const [showStatusModal, setShowStatusModal] = useState(false);
+    const [statusInterview, setStatusInterview] = useState(null);
+    const [newStatus, setNewStatus] = useState('Scheduled');
+    const [statusReason, setStatusReason] = useState('');
+    const [statusDate, setStatusDate] = useState('');
+    const [statusTime, setStatusTime] = useState('');
+    const [statusModalErrors, setStatusModalErrors] = useState({});
+    const [submittingStatus, setSubmittingStatus] = useState(false);
+
+    // Feedback Modal State
+    const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+    const [feedbackInterview, setFeedbackInterview] = useState(null);
+    const [feedbackText, setFeedbackText] = useState('');
+    const [interviewResult, setInterviewResult] = useState('');
+    const [feedbackErrors, setFeedbackErrors] = useState({});
+    const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
     // ── Panel Members State ──────────────────────────────────────────────────
     const [panelMembers, setPanelMembers] = useState([{ id: Date.now() }]);
 
     const addPanelMember = () => setPanelMembers(prev => [...prev, { id: Date.now() }]);
     const removePanelMember = (idx) => setPanelMembers(prev => prev.filter((_, i) => i !== idx));
-    const updatePanelMember = (idx, updated) => setPanelMembers(prev => prev.map((m, i) => i === idx ? updated : m));
+    const updatePanelMember = (idx, updated) => {
+        setPanelMembers(prev => prev.map((m, i) => i === idx ? updated : m));
+        // Clear panelist-specific error when they make a change
+        if (errors.panelMembers?.[idx]) {
+            setErrors(prev => {
+                const newPanelErrors = [...(prev.panelMembers || [])];
+                newPanelErrors[idx] = null;
+                return { ...prev, panelMembers: newPanelErrors };
+            });
+        }
+    };
+
+    // Reset errors when view mode changes
+    React.useEffect(() => {
+        setErrors({});
+    }, [viewMode]);
+    // ── Filtering Effect ─────────────────────────────────────────────────────
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchInterviews(0);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [filters]);
     // ────────────────────────────────────────────────────────────────────────
+
+    const fetchInterviews = async (pageNum = 0) => {
+        setLoading(true);
+        try {
+            const queryParams = new URLSearchParams({
+                page: String(pageNum),
+                limit: String(limit),
+                ...filters
+            });
+            const response = await api.get(`/interviews/?${queryParams.toString()}`);
+            const result = response.data;
+            if (result.status === 200 || result.statusCode === 200) {
+                setInterviews(result.data || []);
+                setTotalItems(result.total || result.data.length);
+                setTotalPages(result.totalPages || 1);
+                setPage(pageNum);
+            }
+        } catch (error) {
+            console.error('Error fetching interviews:', error);
+            toast.error('Failed to load interviews');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleStatusClick = (interview) => {
+        setStatusInterview(interview);
+        setNewStatus(interview.status || 'Scheduled');
+        setStatusReason(''); // Reset reason
+        setStatusDate(''); // Resets New Date - FORCE them to pick a new one
+        setStatusTime(''); // Resets New Time - FORCE them to pick a new one
+        setStatusModalErrors({});
+        setShowStatusModal(true);
+    };
+
+    const handleStatusConfirm = async () => {
+        if (!statusInterview) return;
+
+        // Final Validation
+        const newErrors = {};
+        if (newStatus === 'Rescheduled' || newStatus === 'Cancelled') {
+            if (!statusReason.trim()) newErrors.reason = true;
+        }
+        if (newStatus === 'Rescheduled') {
+            if (!statusDate) newErrors.date = true;
+            if (!statusTime) newErrors.time = true;
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setStatusModalErrors(newErrors);
+            toast.error('Please fill in all required fields');
+            return;
+        }
+
+        setSubmittingStatus(true);
+        try {
+            const id = statusInterview._id || statusInterview.id;
+            const payload = {
+                status: newStatus,
+                reason: statusReason
+            };
+
+            // If rescheduling, include new date/time
+            if (newStatus === 'Rescheduled') {
+                payload.scheduleDate = statusDate;
+                payload.time = statusTime;
+            }
+
+            await api.patch(`/interviews/${id}/status`, payload);
+            toast.success(`Status updated to ${newStatus}`);
+            fetchInterviews(page);
+            setShowStatusModal(false);
+        } catch (error) {
+            console.error('Error updating status:', error);
+            toast.error(error.response?.data?.message || 'Failed to update status');
+        } finally {
+            setSubmittingStatus(false);
+        }
+    };
+
+    const handleFeedbackClick = (interview) => {
+        setFeedbackInterview(interview);
+        setFeedbackText(interview.feedback || '');
+        setInterviewResult(interview.interviewResult || 'Pending');
+        setFeedbackErrors({});
+        setShowFeedbackModal(true);
+    };
+
+    const handleFeedbackConfirm = async () => {
+        if (!feedbackInterview) return;
+
+        // Validation
+        const newErrors = {};
+        if (!interviewResult) newErrors.interviewResult = true;
+        if (!feedbackText.trim()) newErrors.feedback = true;
+
+        if (Object.keys(newErrors).length > 0) {
+            setFeedbackErrors(newErrors);
+            toast.error('Please fill in all mandatory fields');
+            return;
+        }
+
+        setSubmittingFeedback(true);
+        try {
+            const id = feedbackInterview._id || feedbackInterview.id;
+            await api.patch(`/interviews/${id}/feedback`, {
+                feedback: feedbackText,
+                interviewResult: interviewResult
+            });
+            toast.success(`Feedback updated successfully!`);
+            fetchInterviews(page);
+            setShowFeedbackModal(false);
+        } catch (error) {
+            console.error('Error updating feedback:', error);
+            toast.error(error.response?.data?.message || 'Failed to update feedback');
+        } finally {
+            setSubmittingFeedback(false);
+        }
+    };
 
     const fetchInitialData = async () => {
         setLoading(true);
         try {
-            const [intRes, candRes, vacRes, empRes, deptRes, roundRes] = await Promise.all([
-                api.get('/interviews').catch(() => ({ data: [] })),
+            const [candRes, vacRes, empRes, deptRes, rolesRes, roundRes] = await Promise.all([
                 candidateService.getAllCandidates(0, 1000).catch(() => ({ data: [] })),
                 api.get('/vacancies?approval=Approved&limit=1000').catch(() => ({ data: [] })),
                 employeeService.getAllEmployees().catch(() => []),
                 departmentService.getAllDepartments().catch(() => []),
+                api.get('/roles/?page=0&limit=10').catch(() => ({ data: { data: [] } })),
                 api.get('/interview-rounds').catch(() => ({ data: [] }))
             ]);
-            setInterviews(Array.isArray(intRes.data?.data) ? intRes.data.data : (Array.isArray(intRes.data) ? intRes.data : []));
             setCandidates(candRes.data || []);
             setVacancies(vacRes.data?.data || []);
             setEmployees(empRes || []);
             setDepartments(deptRes || []);
+            setRoles(rolesRes.data?.data || []);
             setInterviewRounds(roundRes.data?.data || []);
+
+            // Fetch first page of interviews
+            await fetchInterviews(0);
         } catch (error) {
-            console.error('Error fetching data:', error);
+            console.error('Error fetching background data:', error);
         } finally {
             setLoading(false);
         }
@@ -192,46 +491,87 @@ const Interview = () => {
 
     const [formData, setFormData] = useState({
         candidateId: '', candidateName: '', vacancyId: '', vacancyName: '',
-        date: '', time: '', round: 'Technical Round 1', level: 'Level 1 (Screening)',
-        type: 'Online / Remote', duration: 60, interviewerId: '', interviewerName: '',
-        location: '', status: 'Scheduled', email: '', phone: '', departmentId: ''
+        scheduleDate: '', time: '', round: '', roundNumber: 1, level: 'Level 1 (Screening)',
+        type: 'Online / Remote', mode: 'Video Call (Google Meet)', duration: 60,
+        status: 'Scheduled', email: '', phone: '', timezone: '(GMT+05:30) India Standard Time',
+        platform: 'Google Meet', location: '', notes: '', candidateInstructions: ''
     });
 
-    React.useEffect(() => {
-        if (viewMode === 'edit' && selectedInterview) {
-            setFormData({
-                ...selectedInterview,
-                candidateId: selectedInterview.candidateId || '',
-                candidateName: selectedInterview.candidate || '',
-                vacancyId: selectedInterview.vacancyId || '',
-                vacancyName: selectedInterview.role || '',
-                interviewerId: selectedInterview.interviewerId || '',
-                interviewerName: selectedInterview.interviewer || ''
-            });
-            // Restore saved panel members on edit, else start with one blank card
-            setPanelMembers(
-                selectedInterview.panelMembers?.length
-                    ? selectedInterview.panelMembers
-                    : [{ id: Date.now() }]
-            );
-        } else if (viewMode === 'create') {
-            setFormData({
-                candidateId: '', candidateName: '', vacancyId: '', vacancyName: '',
-                date: '', time: '', round: 'Technical Round 1', level: 'Level 1 (Screening)',
-                type: 'Online / Remote', duration: 60, interviewerId: '', interviewerName: '',
-                location: '', status: 'Scheduled', email: '', phone: '', departmentId: ''
-            });
-            setPanelMembers([{ id: Date.now() }]);
+    const generateInterviewCode = async () => {
+        try {
+            const response = await api.get('/interviews/code/generate');
+            // Backend returns { status: 200, data: "INT-2024-001" } or similar
+            if (response.data && response.data.data) {
+                return response.data.data;
+            }
+        } catch (error) {
+            console.error('Error generating interview code:', error);
         }
+        // Fallback with current year
+        return `INT-${new Date().getFullYear()}-000`;
+    };
+
+    const fetchInterviewById = async (id) => {
+        try {
+            const response = await api.get(`/interviews/${id}`);
+            if (response.data.status === 200 || response.data.statusCode === 200) {
+                return response.data.data;
+            }
+        } catch (error) {
+            console.error('Error fetching single interview:', error);
+        }
+        return null;
+    };
+
+    React.useEffect(() => {
+        const prepareForm = async () => {
+            setLoadingDetails(true);
+            if (viewMode === 'edit' && selectedInterview) {
+                const detailed = await fetchInterviewById(selectedInterview._id || selectedInterview.id);
+                const dataToUse = detailed || selectedInterview;
+
+                setFormData({
+                    ...dataToUse,
+                    candidateId: dataToUse.candidateId?._id || dataToUse.candidateId || '',
+                    candidateName: dataToUse.candidateName || dataToUse.candidate?.name || '',
+                    vacancyId: dataToUse.vacancyId?._id || dataToUse.vacancyId || '',
+                    vacancyName: dataToUse.vacancyName || dataToUse.vacancy?.positionId?.name || dataToUse.appliedFor || '',
+                    scheduleDate: dataToUse.scheduleDate ? (String(dataToUse.scheduleDate).includes('T') ? String(dataToUse.scheduleDate).split('T')[0] : dataToUse.scheduleDate) : '',
+                    time: dataToUse.time || '',
+                    round: dataToUse.roundId || dataToUse.round || ''
+                });
+                setPanelMembers(
+                    dataToUse.panelMembers?.length
+                        ? dataToUse.panelMembers.map(m => ({
+                            ...m,
+                            id: m.id || m._id || Date.now()
+                        }))
+                        : [{ id: Date.now() }]
+                );
+            } else if (viewMode === 'create') {
+                const nextCode = await generateInterviewCode();
+                setFormData({
+                    candidateId: '', candidateName: '', vacancyId: '', vacancyName: '',
+                    scheduleDate: '', time: '', round: '', roundNumber: 1, level: 'Level 1 (Screening)',
+                    type: 'Online / Remote', mode: 'Video Call (Google Meet)', duration: 60,
+                    status: 'Scheduled', email: '', phone: '', timezone: '(GMT+05:30) India Standard Time',
+                    platform: 'Google Meet', location: '', notes: '', candidateInstructions: '',
+                    interviewCode: nextCode // Store the generated code
+                });
+                setPanelMembers([{ id: Date.now() }]);
+            }
+            setLoadingDetails(false);
+        };
+        if (viewMode === 'edit' || viewMode === 'create') prepareForm();
     }, [viewMode, selectedInterview]);
 
     const handleCandidateChange = (e) => {
-        const candidateId = e.target.value;
-        const candidate = candidates.find(c => String(c._id || c.id) === String(candidateId));
+        const candidateIdSelection = e.target.value;
+        const candidate = candidates.find(c => String(c._id || c.id) === String(candidateIdSelection));
         if (candidate) {
             setFormData(prev => ({
                 ...prev,
-                candidateId: candidate.id,
+                candidateId: candidate._id || candidate.id,
                 candidateName: candidate.name,
                 vacancyId: candidate.vacancyId || '',
                 vacancyName: candidate.role || '',
@@ -239,27 +579,108 @@ const Interview = () => {
                 phone: candidate.phone || '',
                 departmentId: candidate.departmentId || ''
             }));
+            if (errors.candidateId) setErrors(prev => ({ ...prev, candidateId: null }));
         } else {
             setFormData(prev => ({ ...prev, candidateId: '' }));
         }
     };
 
+    const validateForm = () => {
+        const newErrors = {};
+        if (!formData.candidateId) newErrors.candidateId = "Required";
+        if (!formData.vacancyId) newErrors.vacancyId = "Required";
+        if (!formData.scheduleDate) {
+            newErrors.scheduleDate = "Required";
+        } else {
+            const selectedDate = new Date(formData.scheduleDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (selectedDate < today) {
+                newErrors.scheduleDate = "Cannot be in past";
+            }
+        }
+        if (!formData.time) newErrors.time = "Required";
+
+        // Panel members validation
+        const panelErrors = [];
+        panelMembers.forEach((member, index) => {
+            const memberErrors = {};
+            if (!member.interviewerType) memberErrors.interviewerType = "Selection required";
+            if (!member.employeeId) memberErrors.employeeId = "Selection required";
+            if (!member.panelRole) memberErrors.panelRole = "Selection required";
+            if (member.panelRole === "Employee" && !member.positionId) memberErrors.positionId = "Selection required";
+
+            if (Object.keys(memberErrors).length > 0) {
+                panelErrors[index] = memberErrors;
+            }
+        });
+
+        if (panelErrors.length > 0) {
+            newErrors.panelMembers = panelErrors;
+        }
+
+        setErrors(newErrors);
+
+        if (Object.keys(newErrors).length > 0) {
+            toast.error("Please fill all mandatory fields.");
+            return false;
+        }
+        return true;
+    };
+
     const handleSubmit = async () => {
+        if (!validateForm()) return;
+        setSubmitting(true);
         try {
-            // panelMembers is included in the payload
-            const payload = { ...formData, panelMembers };
+            // Transform payload to exactly match requested structure
+            const {
+                candidateName, vacancyName, interviewerId, interviewerName, departmentId,
+                ...cleanData
+            } = formData;
+
+            const finalPanel = panelMembers.filter(m => !!m).map(m => ({
+                interviewerType: m.interviewerType,
+                employeeId: m.employeeId,
+                panelRole: m.panelRole,
+                positionId: m.panelRole === "Employee" ? m.positionId : undefined
+            }));
+
+            const payload = {
+                ...cleanData,
+                panelMembers: finalPanel
+            };
             if (viewMode === 'create') {
                 await api.post('/interviews', payload);
                 toast.success('Interview scheduled successfully!');
             } else {
-                await api.put(`/interviews/${selectedInterview.id}`, payload);
+                const id = selectedInterview._id || selectedInterview.id;
+                await api.put(`/interviews/${id}`, payload);
                 toast.success('Interview schedule updated!');
             }
             setViewMode('list');
-            fetchInitialData();
+            fetchInterviews(page);
         } catch (error) {
             console.error('Error saving interview:', error);
-            toast.error('Failed to save interview schedule.');
+            toast.error(error.response?.data?.message || 'Failed to save interview schedule.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!selectedInterview) return;
+        setSubmitting(true);
+        try {
+            const id = selectedInterview._id || selectedInterview.id;
+            await api.delete(`/interviews/${id}`);
+            toast.success('Interview cancelled successfully!');
+            setViewMode('list');
+            fetchInterviews(page);
+        } catch (error) {
+            console.error('Error deleting interview:', error);
+            toast.error('Failed to cancel interview.');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -267,6 +688,8 @@ const Interview = () => {
     const renderInterviewForm = () => {
         const isEdit = viewMode === 'edit';
         const i = selectedInterview || {};
+
+        const inputErrorStyle = (field) => errors[field] ? { borderColor: '#ef4444', backgroundColor: '#fef2f2' } : {};
 
         return (
             <div className="modal-overlay" onClick={() => setViewMode('list')}>
@@ -278,7 +701,24 @@ const Interview = () => {
                         <button className="icon-btn" onClick={() => setViewMode('list')}><X size={20} /></button>
                     </div>
 
-                    <div className="form-body">
+                    <div className="form-body" style={{ position: 'relative' }}>
+                        {(loadingDetails || submitting) && (
+                            <div className="loading-overlay" style={{
+                                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                zIndex: 1000, borderRadius: '12px'
+                            }}>
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="premium-spinner" style={{ width: '60px', height: '60px' }}>
+                                        <div className="premium-core"></div>
+                                    </div>
+                                    <p className="premium-text" style={{ color: '#0d5f68', fontSize: '0.9rem' }}>
+                                        {submitting ? 'Processing Request...' : 'Preparing Interview Profile...'}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* ── Section 1: Basic Information ───────────────────────────── */}
                         <div className="form-card">
@@ -286,11 +726,13 @@ const Interview = () => {
                             <div className="modal-info-grid">
                                 <div className="form-group">
                                     <label>Interview ID</label>
-                                    <input type="text" placeholder="Auto-generated" value={i.id ? `INT-2024-00${i.id}` : 'INT-2024-004'} readOnly className="bg-gray-50" />
+                                    <input type="text" placeholder="Auto-generated" value={formData.interviewCode || ''} readOnly className="bg-gray-50 font-mono" />
                                 </div>
                                 <div className="form-group">
                                     <label>Candidate <span className="text-red-500">*</span></label>
-                                    <select value={formData.candidateId} onChange={handleCandidateChange}>
+                                    <select
+                                        style={inputErrorStyle('candidateId')}
+                                        value={formData.candidateId} onChange={handleCandidateChange}>
                                         <option value="" disabled>Select Candidate</option>
                                         {Array.isArray(candidates) && candidates.map(c => (
                                             <option key={c._id || c.id} value={c._id || c.id}>
@@ -298,14 +740,18 @@ const Interview = () => {
                                             </option>
                                         ))}
                                     </select>
+                                    {errors.candidateId && <span className="error-text">{errors.candidateId}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Vacancy / Role <span className="text-red-500">*</span></label>
                                     <select
+                                        style={inputErrorStyle('vacancyId')}
                                         value={formData.vacancyId}
                                         onChange={e => {
-                                            const vac = vacancies.find(v => String(v._id || v.id) === String(e.target.value));
-                                            setFormData({ ...formData, vacancyId: e.target.value, vacancyName: vac?.role || vac?.jobTitle || '' });
+                                            const vId = e.target.value;
+                                            const vac = vacancies.find(v => String(v._id || v.id) === String(vId));
+                                            setFormData({ ...formData, vacancyId: vId, vacancyName: vac?.role || vac?.jobTitle || '' });
+                                            if (errors.vacancyId) setErrors(prev => ({ ...prev, vacancyId: null }));
                                         }}
                                     >
                                         <option value="" disabled>Select Vacancy</option>
@@ -315,21 +761,22 @@ const Interview = () => {
                                             </option>
                                         ))}
                                     </select>
+                                    {errors.vacancyId && <span className="error-text">{errors.vacancyId}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label>Interview Round</label>
                                     <select value={formData.round} onChange={e => setFormData({ ...formData, round: e.target.value })}>
                                         <option value="" disabled>Select Round</option>
                                         {interviewRounds.length > 0 ? (
-                                            interviewRounds.map(r => <option key={r.id || r._id} value={r.name}>{r.name}</option>)
+                                            interviewRounds.map(r => <option key={r._id || r.id} value={r._id || r.id}>{r.name}</option>)
                                         ) : (
                                             <>
-                                                <option>HR Round</option>
-                                                <option>Technical Round 1</option>
-                                                <option>Technical Round 2</option>
-                                                <option>Managerial Round</option>
-                                                <option>Final Interview</option>
-                                                <option>Client Interview</option>
+                                                <option value="HR Round">HR Round</option>
+                                                <option value="Technical Round 1">Technical Round 1</option>
+                                                <option value="Technical Round 2">Technical Round 2</option>
+                                                <option value="Managerial Round">Managerial Round</option>
+                                                <option value="Final Interview">Final Interview</option>
+                                                <option value="Client Interview">Client Interview</option>
                                             </>
                                         )}
                                     </select>
@@ -348,51 +795,15 @@ const Interview = () => {
                                     </select>
                                 </div>
                                 <div className="form-group">
+                                    <label>Round Number</label>
+                                    <input type="number" min="1" value={formData.roundNumber || 1} onChange={e => setFormData({ ...formData, roundNumber: parseInt(e.target.value) || 1 })} />
+                                </div>
+                                <div className="form-group">
                                     <label>Interview Type</label>
-                                    <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })}>
+                                    <select value={formData.type || 'Online / Remote'} onChange={e => setFormData({ ...formData, type: e.target.value })}>
                                         <option>Online / Remote</option>
                                         <option>Offline / In-Person</option>
                                         <option>Telephonic</option>
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label>Candidate Email</label>
-                                    <input type="text" placeholder="Auto-fill email" readOnly value={formData.email || ''} className="bg-gray-50" />
-                                </div>
-                                <div className="form-group">
-                                    <label>Candidate Phone</label>
-                                    <input type="text" placeholder="Auto-fill phone" readOnly value={formData.phone || ''} className="bg-gray-50" />
-                                </div>
-                                <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                                    <label>Scheduled By</label>
-                                    <select value={formData.scheduledBy || ''} onChange={e => setFormData({ ...formData, scheduledBy: e.target.value })}>
-                                        <option value="">Select Scheduler</option>
-                                        {employees.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ── Section 2: Logistics & Schedule ────────────────────────── */}
-                        <div className="form-card">
-                            <div className="form-card-title">Logistics & Schedule</div>
-                            <div className="modal-info-grid">
-                                <div className="form-group">
-                                    <label>Scheduled Date <span className="text-red-500">*</span></label>
-                                    <input type="date" value={formData.date || ''} onChange={e => setFormData({ ...formData, date: e.target.value })} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Scheduled Time <span className="text-red-500">*</span></label>
-                                    <input type="time" value={formData.time || ''} onChange={e => setFormData({ ...formData, time: e.target.value })} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Duration (Minutes)</label>
-                                    <select value={formData.duration || 60} onChange={e => setFormData({ ...formData, duration: e.target.value })}>
-                                        <option value={30}>30 Minutes</option>
-                                        <option value={45}>45 Minutes</option>
-                                        <option value={60}>60 Minutes</option>
-                                        <option value={90}>90 Minutes</option>
-                                        <option value={120}>120 Minutes</option>
                                     </select>
                                 </div>
                                 <div className="form-group">
@@ -405,15 +816,67 @@ const Interview = () => {
                                     </select>
                                 </div>
                                 <div className="form-group">
+                                    <label>Candidate Email</label>
+                                    <input type="text" placeholder="Auto-fill email" readOnly value={formData.email || ''} className="bg-gray-50" />
+                                </div>
+                                <div className="form-group">
+                                    <label>Candidate Phone</label>
+                                    <input type="text" placeholder="Auto-fill phone" readOnly value={formData.phone || ''} className="bg-gray-50" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── Section 2: Logistics & Schedule ────────────────────────── */}
+                        <div className="form-card">
+                            <div className="form-card-title">Logistics & Schedule</div>
+                            <div className="modal-info-grid">
+                                <div className="form-group">
+                                    <label>Scheduled Date <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="date"
+                                        style={inputErrorStyle('scheduleDate')}
+                                        value={formData.scheduleDate || ''}
+                                        onChange={e => {
+                                            setFormData({ ...formData, scheduleDate: e.target.value });
+                                            if (errors.scheduleDate) setErrors(prev => ({ ...prev, scheduleDate: null }));
+                                        }}
+                                    />
+                                    {errors.scheduleDate && <span className="error-text">{errors.scheduleDate}</span>}
+                                </div>
+                                <div className="form-group">
+                                    <label>Scheduled Time <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="time"
+                                        style={inputErrorStyle('time')}
+                                        value={formData.time || ''}
+                                        onChange={e => {
+                                            setFormData({ ...formData, time: e.target.value });
+                                            if (errors.time) setErrors(prev => ({ ...prev, time: null }));
+                                        }}
+                                    />
+                                    {errors.time && <span className="error-text">{errors.time}</span>}
+                                </div>
+                                <div className="form-group">
+                                    <label>Duration (Minutes)</label>
+                                    <select value={formData.duration || 60} onChange={e => setFormData({ ...formData, duration: e.target.value })}>
+                                        <option value={30}>30 Minutes</option>
+                                        <option value={45}>45 Minutes</option>
+                                        <option value={60}>60 Minutes</option>
+                                        <option value={90}>90 Minutes</option>
+                                        <option value={120}>120 Minutes</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
                                     <label>Interview Status</label>
                                     <select value={formData.status || 'Scheduled'} onChange={e => setFormData({ ...formData, status: e.target.value })}>
                                         <option>Scheduled</option>
                                         <option>Completed</option>
                                         <option>Cancelled</option>
                                         <option>Rescheduled</option>
+                                        <option>Move to Offer</option>
                                     </select>
                                 </div>
-                                {formData.mode !== 'In-Person Meeting' && (
+                                {(formData.mode !== 'In-Person Meeting' && formData.type !== 'Offline / In-Person') && (
                                     <>
                                         <div className="form-group">
                                             <label>Time Zone</label>
@@ -423,7 +886,7 @@ const Interview = () => {
                                                 <option>(GMT-05:00) Eastern Time</option>
                                             </select>
                                         </div>
-                                        <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                                        <div className="form-group">
                                             <label>Interview Platform</label>
                                             <select value={formData.platform || 'Google Meet'} onChange={e => setFormData({ ...formData, platform: e.target.value })}>
                                                 <option>Google Meet</option>
@@ -435,7 +898,7 @@ const Interview = () => {
                                         </div>
                                     </>
                                 )}
-                                <div className="form-group" style={{ gridColumn: 'span 4' }}>
+                                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                                     <label>Location / Meeting Link</label>
                                     <textarea rows="2" placeholder="Google Meet / Zoom URL or Office Room Address"
                                         value={formData.location || ''} onChange={e => setFormData({ ...formData, location: e.target.value })} />
@@ -476,9 +939,12 @@ const Interview = () => {
                                     index={index}
                                     member={member}
                                     employees={employees}
+                                    roles={roles}
+                                    departments={departments}
                                     onChange={updatePanelMember}
                                     onRemove={removePanelMember}
                                     showRemove={panelMembers.length > 1}
+                                    errors={errors.panelMembers?.[index]}
                                 />
                             ))}
 
@@ -501,8 +967,8 @@ const Interview = () => {
 
                     <div className="form-footer">
                         <button className="btn-secondary" onClick={() => setViewMode('list')}>Cancel</button>
-                        <button className="btn-primary" onClick={handleSubmit}>
-                            {isEdit ? 'Save Changes' : 'Confirm Schedule'}
+                        <button className="btn-primary" onClick={handleSubmit} disabled={loading}>
+                            {loading ? 'Saving...' : (isEdit ? 'Save Changes' : 'Confirm Schedule')}
                         </button>
                     </div>
                 </div>
@@ -526,7 +992,22 @@ const Interview = () => {
                         <button className="icon-btn" onClick={() => { setViewMode('list'); setSelectedInterview(null); }}><X size={20} /></button>
                     </div>
 
-                    <div className="form-body" style={{ overflowY: 'auto' }}>
+                    <div className="form-body" style={{ position: 'relative', overflowY: 'auto' }}>
+                        {loadingDetails && (
+                            <div className="loading-overlay" style={{
+                                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                zIndex: 1000, borderRadius: '12px'
+                            }}>
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="premium-spinner" style={{ width: '60px', height: '60px' }}>
+                                        <div className="premium-core"></div>
+                                    </div>
+                                    <p className="premium-text" style={{ color: '#0d5f68', fontSize: '0.9rem' }}>Retrieving Round Data...</p>
+                                </div>
+                            </div>
+                        )}
                         {/* Candidate & Round Overview */}
                         <div className="form-card">
                             <div className="form-card-title flex items-center gap-2">
@@ -616,7 +1097,7 @@ const Interview = () => {
                                 <Users size={16} className="text-teal-600" /> Panel Members
                             </div>
 
-                            {(i.panelMembers?.length ? i.panelMembers : []).map((m, idx) => (
+                            {(i.panelMembers?.filter(m => !!m) || []).map((m, idx) => (
                                 <div key={idx} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px 16px', marginBottom: '10px', backgroundColor: '#fafafa', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
                                     <div className="info-item">
                                         <label>Name</label>
@@ -669,19 +1150,36 @@ const Interview = () => {
             <div className="modal-overlay" onClick={() => { setViewMode('list'); setSelectedInterview(null); }}>
                 <div className="modal-content delete-modal-content" onClick={e => e.stopPropagation()}>
                     <div className="delete-header-premium">
-                        <button className="icon-btn" onClick={() => { setViewMode('list'); setSelectedInterview(null); }}><X size={18} /></button>
+                        <button className="icon-btn" onClick={() => { setViewMode('list'); setSelectedInterview(null); }} disabled={submitting}><X size={18} /></button>
                     </div>
-                    <div className="delete-body-premium">
+                    <div className="delete-body-premium" style={{ position: 'relative' }}>
+                        {submitting && (
+                            <div className="loading-overlay" style={{
+                                position: 'absolute', top: -50, left: -40, right: -40, bottom: -40,
+                                backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                zIndex: 1000, borderRadius: '12px'
+                            }}>
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="premium-spinner" style={{ width: '50px', height: '50px' }}>
+                                        <div className="premium-core"></div>
+                                    </div>
+                                    <p className="premium-text" style={{ color: '#0d5f68', fontSize: '0.85rem' }}>Processing Cancellation...</p>
+                                </div>
+                            </div>
+                        )}
                         <div className="delete-icon-container"><Trash2 size={36} /></div>
                         <h2 className="delete-title-premium">Cancel Interview?</h2>
                         <p className="delete-message-premium">
                             Are you sure you want to permanently cancel and remove this interview schedule for <span className="font-bold text-slate-800">{i.candidate}</span>?
                         </p>
-                        <div className="delete-item-badge">Ref: {i.id ? `INT-2024-00${i.id}` : 'INT-PENDING'}</div>
+                        <div className="delete-item-badge">Ref: {i.interviewCode || 'PENDING'}</div>
                     </div>
                     <div className="delete-footer-premium">
-                        <button className="btn-cancel-premium" onClick={() => { setViewMode('list'); setSelectedInterview(null); }}>Keep Schedule</button>
-                        <button className="btn-delete-premium" onClick={() => setViewMode('list')} style={{ background: '#ef4444' }}>Confirm Cancel</button>
+                        <button className="btn-cancel-premium" onClick={() => { setViewMode('list'); setSelectedInterview(null); }} disabled={submitting}>Keep Schedule</button>
+                        <button className="btn-delete-premium" onClick={handleDelete} disabled={submitting} style={{ background: '#ef4444' }}>
+                            {submitting ? 'Cancelling...' : 'Confirm Cancel'}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -689,6 +1187,104 @@ const Interview = () => {
     };
 
     // ── Render ─────────────────────────────────────────────────────────────
+    if (loading && interviews.length === 0) { // Only show page-level spinner if first load
+        return (
+            <div className="employees-page" style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '80vh',
+                background: 'transparent'
+            }}>
+                <style>
+                    {`
+                    .spinner-container {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 2rem;
+                    }
+                    .premium-spinner {
+                        position: relative;
+                        width: 80px;
+                        height: 80px;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                    }
+                    .premium-spinner::before,
+                    .premium-spinner::after {
+                        content: '';
+                        position: absolute;
+                        border-radius: 50%;
+                    }
+                    .premium-spinner::before {
+                        width: 100%;
+                        height: 100%;
+                        border: 3px solid transparent;
+                        border-top-color: #2dd4bf;
+                        border-bottom-color: #0d9488;
+                        animation: spin 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+                        box-shadow: 0 0 15px rgba(45, 212, 191, 0.2);
+                    }
+                    .premium-spinner::after {
+                        width: 70%;
+                        height: 70%;
+                        border: 3px solid transparent;
+                        border-left-color: #0d9488;
+                        border-right-color: #2dd4bf;
+                        animation: spin-reverse 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+                    }
+                    .premium-core {
+                        width: 30%;
+                        height: 30%;
+                        background: radial-gradient(circle, #2dd4bf 0%, #0d9488 100%);
+                        border-radius: 50%;
+                        box-shadow: 0 0 20px #2dd4bf;
+                        animation: pulse-core 2s ease-in-out infinite;
+                    }
+                    .premium-text {
+                        color: #f8fafc;
+                        font-size: 1.05rem;
+                        font-weight: 600;
+                        letter-spacing: 0.1em;
+                        text-transform: uppercase;
+                        opacity: 0;
+                        animation: fade-up 0.5s ease-out 0.2s forwards, soft-pulse 2s ease-in-out infinite alternate 0.7s;
+                        text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                    }
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    @keyframes spin-reverse {
+                        0% { transform: rotate(360deg); }
+                        100% { transform: rotate(0deg); }
+                    }
+                    @keyframes pulse-core {
+                        0%, 100% { transform: scale(0.8); opacity: 0.8; }
+                        50% { transform: scale(1.2); opacity: 1; }
+                    }
+                    @keyframes fade-up {
+                        from { transform: translateY(10px); opacity: 0; }
+                        to { transform: translateY(0); opacity: 0.9; }
+                    }
+                    @keyframes soft-pulse {
+                        from { opacity: 0.7; }
+                        to { opacity: 1; }
+                    }
+                    `}
+                </style>
+                <div className="spinner-container">
+                    <div className="premium-spinner">
+                        <div className="premium-core"></div>
+                    </div>
+                    <p className="premium-text" style={{ color: '#0d5f68' }}>Loading Interview Data</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="employees-page">
             {(viewMode === 'create' || viewMode === 'edit') && renderInterviewForm()}
@@ -706,28 +1302,68 @@ const Interview = () => {
                 </button>
             </div>
 
-            <div className="table-card">
+            <div className="table-card" style={{ position: 'relative' }}>
+                {loading && interviews.length > 0 && (
+                    <div className="loading-overlay" style={{
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(255,255,255,0.7)',
+                        zIndex: 100,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backdropFilter: 'blur(2px)',
+                        transition: 'all 0.3s',
+                        borderRadius: '0 0 16px 16px'
+                    }}>
+                        <div className="premium-spinner" style={{ width: '40px', height: '40px' }}>
+                            <div className="premium-core"></div>
+                        </div>
+                    </div>
+                )}
                 <div className="table-wrapper">
                     <table className="employee-table">
                         <thead>
                             <tr className="header-row">
+                                <th>Interview ID</th>
                                 <th>Candidate</th>
-                                <th>Round & Level</th>
+                                <th>Applied For</th>
+                                <th>Round</th>
                                 <th>Interviewer</th>
                                 <th>Date & Time</th>
                                 <th className="text-center">Type</th>
                                 <th className="text-center">Status</th>
+                                <th className="text-center">Feedback</th>
                                 <th className="text-center">Actions</th>
                             </tr>
                             <tr className="filter-row">
-                                <th><input type="text" className="inline-filter" placeholder="Filter Candidate" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Filter Round" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Filter Panelist" /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Filter Date" /></th>
-                                <th className="text-center"><input type="text" className="inline-filter text-center" placeholder="Type" /></th>
-                                <th className="text-center"><input type="text" className="inline-filter text-center" placeholder="Status" /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Filter ID" value={filters.interviewId} onChange={e => setFilters(prev => ({ ...prev, interviewId: e.target.value }))} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Filter Candidate" value={filters.candidate} onChange={e => setFilters(prev => ({ ...prev, candidate: e.target.value }))} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Filter Position" value={filters.position} onChange={e => setFilters(prev => ({ ...prev, position: e.target.value }))} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Filter Round" value={filters.round} onChange={e => setFilters(prev => ({ ...prev, round: e.target.value }))} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Filter Panelist" value={filters.interviewer} onChange={e => setFilters(prev => ({ ...prev, interviewer: e.target.value }))} /></th>
+                                <th><input type="text" className="inline-filter" placeholder="Filter Date" value={filters.date} onChange={e => setFilters(prev => ({ ...prev, date: e.target.value }))} /></th>
+                                <th className="text-center"><input type="text" className="inline-filter text-center" placeholder="Type" value={filters.type} onChange={e => setFilters(prev => ({ ...prev, type: e.target.value }))} /></th>
+                                <th className="text-center"><input type="text" className="inline-filter text-center" placeholder="Status" value={filters.status} onChange={e => setFilters(prev => ({ ...prev, status: e.target.value }))} /></th>
+                                <th className="text-center"><input type="text" className="inline-filter text-center" placeholder="Feedback" value={filters.feedback} onChange={e => setFilters(prev => ({ ...prev, feedback: e.target.value }))} /></th>
                                 <th className="text-center">
-                                    <button className="btn-reset-filters-roles" title="Clear Filters"><RotateCcw size={16} /></button>
+                                    <button
+                                        className="btn-reset-filters-roles"
+                                        title="Clear Filters"
+                                        onClick={() => setFilters({
+                                            interviewId: '',
+                                            candidate: '',
+                                            position: '',
+                                            round: '',
+                                            interviewer: '',
+                                            date: '',
+                                            type: '',
+                                            status: '',
+                                            feedback: ''
+                                        })}
+                                    >
+                                        <RotateCcw size={16} />
+                                    </button>
                                 </th>
                             </tr>
                         </thead>
@@ -735,49 +1371,93 @@ const Interview = () => {
                             {interviews.map(interview => (
                                 <tr key={interview.id}>
                                     <td>
+                                        <span className="emp-id font-mono font-bold text-[#0d5f68]">
+                                            {interview.interviewCode || 'PENDING'}
+                                        </span>
+                                    </td>
+                                    <td>
                                         <div className="emp-profile">
                                             <div className="emp-avatar">
-                                                {(interview.candidateName || interview.candidate || 'C').charAt(0)}
+                                                {String(interview.candidateName || (typeof interview.candidate === 'object' ? interview.candidate?.name : interview.candidate) || 'C').charAt(0)}
                                             </div>
-                                            <div className="flex flex-col">
-                                                <span className="emp-name">{interview.candidateName || interview.candidate || 'Unknown'}</span>
-                                                <span className="emp-id">ID: {interview.id ? `INT-2024-00${interview.id}` : 'PENDING'}</span>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span className="emp-name">
+                                                    {interview.candidateName ||
+                                                        (typeof interview.candidate === 'object' ? interview.candidate?.name : interview.candidate) ||
+                                                        'Unknown'}
+                                                </span>
                                             </div>
                                         </div>
                                     </td>
                                     <td>
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-slate-700 text-sm leading-tight mb-0.5">{interview.round}</span>
-                                            <span className="text-[10px] font-black text-[#0d5f68] uppercase bg-teal-50 px-1.5 py-0.5 rounded-md w-fit">
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontWeight: '700', color: '#334155', fontSize: '0.85rem' }}>
+                                                {interview.appliedFor ||
+                                                    interview.vacancyName ||
+                                                    (typeof interview.vacancyId === 'object' ? interview.vacancyId?.positionName : interview.vacancyId) ||
+                                                    'Position N/A'}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontWeight: '700', color: '#334155', fontSize: '0.85rem' }}>
+                                                {typeof interview.round === 'object' ? interview.round?.roundName : interview.round}
+                                            </span>
+                                            <span style={{ fontSize: '10px', fontWeight: '800', color: '#0d5f68', background: '#f0fdfa', padding: '1px 6px', borderRadius: '4px', width: 'fit-content', marginTop: '4px', textTransform: 'uppercase' }}>
                                                 Level: {interview.level || 'L1'}
                                             </span>
                                         </div>
                                     </td>
                                     <td>
-                                        <div className="flex items-center gap-2 text-slate-600">
-                                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-[#0d5f68]">
-                                                {(interview.interviewerName || interview.interviewer || 'I').charAt(0)}
-                                            </div>
-                                            <span className="text-sm font-medium">{interview.interviewerName || interview.interviewer || 'Not Assigned'}</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', color: '#475569' }}>
+                                            <span style={{ fontSize: '0.875rem', fontWeight: '500' }} title={interview.interviewers?.join(', ')}>
+                                                {(() => {
+                                                    const list = interview.interviewers || [];
+                                                    if (list.length === 0) {
+                                                        return interview.interviewerName || (typeof interview.interviewer === 'object' ? interview.interviewer?.name : interview.interviewer) || 'Not Assigned';
+                                                    }
+                                                    const names = list.map(i => (i && typeof i === 'object') ? i.interviewerName || i.name : (i || 'Pending'));
+                                                    if (names.length <= 2) return names.join(', ');
+                                                    return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
+                                                })()}
+                                            </span>
                                         </div>
                                     </td>
                                     <td>
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-slate-700 text-sm tracking-tight">{interview.date}</span>
-                                            <div className="flex items-center gap-1 text-[11px] text-slate-400 font-medium">
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontWeight: '700', color: '#334155', fontSize: '0.85rem' }}>
+                                                {interview.scheduleDate ?
+                                                    (typeof interview.scheduleDate === 'string' && interview.scheduleDate.includes('T') ? interview.scheduleDate.split('T')[0] : interview.scheduleDate) :
+                                                    interview.date || 'TBA'}
+                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8', fontWeight: '500', marginTop: '2px' }}>
                                                 <Clock size={10} /> {interview.time}
                                             </div>
                                         </div>
                                     </td>
                                     <td className="text-center">
-                                        <span className={`status-badge ${interview.type?.toLowerCase().includes('video') ? 'status-video' : 'status-onsite'}`}>
-                                            {interview.type?.toLowerCase().includes('video') ? <Monitor size={12} strokeWidth={2.5} /> : <MapPin size={12} strokeWidth={2.5} />}
-                                            {interview.type || 'Online'}
+                                        <span className={`status-badge ${interview.mode?.toLowerCase().includes('video') || interview.mode?.toLowerCase().includes('online') ? 'status-video' : 'status-onsite'}`}>
+                                            {interview.mode?.toLowerCase().includes('video') || interview.mode?.toLowerCase().includes('online') ? <Monitor size={12} strokeWidth={2.5} /> : <MapPin size={12} strokeWidth={2.5} />}
+                                            {interview.mode || 'Online'}
                                         </span>
                                     </td>
                                     <td className="text-center">
-                                        <span className={`status-badge ${interview.status === 'Scheduled' ? 'status-scheduled' : interview.status === 'Completed' ? 'status-completed' : interview.status === 'Cancelled' ? 'status-cancelled' : 'status-rescheduled'}`}>
+                                        <span
+                                            className={`status-badge ${interview.status === 'Scheduled' ? 'status-scheduled' : interview.status === 'Completed' ? 'status-completed' : interview.status === 'Cancelled' ? 'status-cancelled' : 'status-rescheduled'}`}
+                                            onClick={() => handleStatusClick(interview)}
+                                            style={{ cursor: 'pointer' }}
+                                        >
                                             {interview.status}
+                                        </span>
+                                    </td>
+                                    <td className="text-center">
+                                        <span
+                                            className={`status-badge ${interview.feedback ? 'status-completed' : 'status-pending'}`}
+                                            onClick={() => handleFeedbackClick(interview)}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            {interview.feedback ? 'View' : 'Pending'}
                                         </span>
                                     </td>
                                     <td className="text-center">
@@ -803,15 +1483,240 @@ const Interview = () => {
                     </table>
                 </div>
                 <div className="pagination">
-                    <span className="pagination-info">Showing {interviews.length} Schedule(s)</span>
+                    <span className="pagination-info">Showing {interviews.length} of {totalItems} Schedule(s)</span>
                     <div className="pagination-controls">
-                        <button className="page-btn disabled"><Clock size={14} /></button>
-                        <button className="page-btn active">1</button>
-                        <button className="page-btn disabled"><Plus size={14} /></button>
+                        <button
+                            className={`page-btn ${page === 0 ? 'disabled' : ''}`}
+                            onClick={() => page > 0 && fetchInterviews(page - 1)}
+                            disabled={page === 0}
+                        >
+                            <ChevronLeft size={14} />
+                        </button>
+                        {Array.from({ length: totalPages }, (_, idx) => (
+                            <button
+                                key={idx}
+                                className={`page-btn ${page === idx ? 'active' : ''}`}
+                                onClick={() => fetchInterviews(idx)}
+                            >
+                                {idx + 1}
+                            </button>
+                        ))}
+                        <button
+                            className={`page-btn ${page >= totalPages - 1 ? 'disabled' : ''}`}
+                            onClick={() => page < totalPages - 1 && fetchInterviews(page + 1)}
+                            disabled={page >= totalPages - 1}
+                        >
+                            <ChevronRight size={14} />
+                        </button>
                     </div>
                 </div>
             </div>
 
+            {showStatusModal && (
+                <div className="modal-overlay" onClick={() => setShowStatusModal(false)}>
+                    <div className="modal-content delete-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <div className="delete-header-premium">
+                            <button className="icon-btn" onClick={() => setShowStatusModal(false)}><X size={18} /></button>
+                        </div>
+                        <div className="delete-body-premium" style={{ paddingTop: '0rem', position: 'relative' }}>
+                            {submittingStatus && (
+                                <div className="loading-overlay" style={{
+                                    position: 'absolute', top: -50, left: -40, right: -40, bottom: -40,
+                                    backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    zIndex: 1000, borderRadius: '12px'
+                                }}>
+                                    <div className="flex flex-col items-center gap-4">
+                                        <div className="premium-spinner" style={{ width: '50px', height: '50px' }}>
+                                            <div className="premium-core"></div>
+                                        </div>
+                                        <p className="premium-text" style={{ color: '#0d5f68', fontSize: '0.85rem' }}>Updating Status...</p>
+                                    </div>
+                                </div>
+                            )}
+                            <h2 className="delete-title-premium" style={{ fontSize: '1.25rem' }}>Update Status</h2>
+                            <p className="delete-message-premium" style={{ fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                                Updating status for: <br />
+                                <span className="delete-item-badge" style={{ marginTop: '0.5rem', background: '#f8fafc' }}>
+                                    {statusInterview?.interviewCode || statusInterview?.id}
+                                </span>
+                            </p>
+                            <div className="form-group" style={{ textAlign: 'left', marginBottom: '0.5rem' }}>
+                                <label className="reason-label">Select Interview Status</label>
+                                <select
+                                    value={newStatus}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setNewStatus(val);
+                                        setStatusModalErrors({}); // Reset errors when switching status
+                                        if (val !== 'Rescheduled' && val !== 'Cancelled') setStatusReason('');
+                                    }}
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid #e2e8f0', marginTop: '0.4rem', fontSize: '0.9rem', fontWeight: '600', background: '#fcfcfd' }}
+                                >
+                                    <option value="Scheduled">Scheduled</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="Rescheduled">Rescheduled</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                    <option value="Move to Offer">Move to Offer</option>
+                                </select>
+                            </div>
+
+                            {(newStatus === 'Rescheduled' || newStatus === 'Cancelled') && (
+                                <div className="reason-field">
+                                    <label className="reason-label">
+                                        {newStatus === 'Rescheduled' ? 'Reason for Reschedule' : 'Reason for Cancellation'}
+                                    </label>
+                                    <textarea
+                                        className="reason-textarea"
+                                        placeholder={`Please enter why this interview is being ${newStatus.toLowerCase()}...`}
+                                        value={statusReason}
+                                        onChange={(e) => {
+                                            setStatusReason(e.target.value);
+                                            if (e.target.value.trim()) setStatusModalErrors(prev => ({ ...prev, reason: false }));
+                                        }}
+                                        style={{ borderColor: statusModalErrors.reason ? '#ef4444' : '#e2e8f0' }}
+                                    />
+                                    {statusModalErrors.reason && <p style={{ color: '#ef4444', fontSize: '10px', marginTop: '4px', fontWeight: 'bold' }}>Reason is required</p>}
+                                </div>
+                            )}
+
+                            {newStatus === 'Rescheduled' && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '1rem', textAlign: 'left' }}>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                        <label className="reason-label" style={{ color: statusModalErrors.date ? '#ef4444' : '' }}>New Date</label>
+                                        <input
+                                            type="date"
+                                            value={statusDate}
+                                            onChange={(e) => {
+                                                setStatusDate(e.target.value);
+                                                if (e.target.value) setStatusModalErrors(prev => ({ ...prev, date: false }));
+                                            }}
+                                            style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid', borderColor: statusModalErrors.date ? '#ef4444' : '#e2e8f0', fontSize: '0.85rem' }}
+                                        />
+                                        {statusModalErrors.date && <p style={{ color: '#ef4444', fontSize: '10px', marginTop: '4px', fontWeight: 'bold' }}>Choose Date</p>}
+                                    </div>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                        <label className="reason-label" style={{ color: statusModalErrors.time ? '#ef4444' : '' }}>New Time</label>
+                                        <input
+                                            type="time"
+                                            value={statusTime}
+                                            onChange={(e) => {
+                                                setStatusTime(e.target.value);
+                                                if (e.target.value) setStatusModalErrors(prev => ({ ...prev, time: false }));
+                                            }}
+                                            style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid', borderColor: statusModalErrors.time ? '#ef4444' : '#e2e8f0', fontSize: '0.85rem' }}
+                                        />
+                                        {statusModalErrors.time && <p style={{ color: '#ef4444', fontSize: '10px', marginTop: '4px', fontWeight: 'bold' }}>Choose Time</p>}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="delete-footer-premium" style={{ borderTop: 'none', paddingBottom: '2.5rem' }}>
+                            <button className="btn-cancel-premium" onClick={() => setShowStatusModal(false)} disabled={submittingStatus}>Cancel</button>
+                            <button
+                                className="btn-primary"
+                                onClick={handleStatusConfirm}
+                                disabled={submittingStatus}
+                                style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', justifyContent: 'center', background: '#0d5f68', boxShadow: '0 4px 12px rgba(13, 95, 104, 0.2)', border: 'none', color: 'white', fontWeight: '600', cursor: 'pointer', opacity: submittingStatus ? 0.7 : 1 }}
+                            >
+                                {submittingStatus ? 'Updating...' : 'Save Change'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showFeedbackModal && (
+                <div className="modal-overlay" onClick={() => setShowFeedbackModal(false)}>
+                    <div className="modal-content delete-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+                        <div className="delete-header-premium">
+                            <button className="icon-btn" onClick={() => setShowFeedbackModal(false)}><X size={18} /></button>
+                        </div>
+                        <div className="delete-body-premium" style={{ paddingTop: '0rem', position: 'relative' }}>
+                            {submittingFeedback && (
+                                <div className="loading-overlay" style={{
+                                    position: 'absolute', top: -50, left: -40, right: -40, bottom: -40,
+                                    backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    zIndex: 1000, borderRadius: '12px'
+                                }}>
+                                    <div className="flex flex-col items-center gap-4">
+                                        <div className="premium-spinner" style={{ width: '50px', height: '50px' }}>
+                                            <div className="premium-core"></div>
+                                        </div>
+                                        <p className="premium-text" style={{ color: '#0d5f68', fontSize: '0.85rem' }}>Saving Feedback...</p>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="delete-icon-container" style={{ background: '#f0f9ff', color: '#0ea5e9', width: '60px', height: '60px', marginBottom: '1rem' }}>
+                                <AlertCircle size={32} />
+                            </div>
+                            <h2 className="delete-title-premium" style={{ fontSize: '1.25rem' }}>Interview Feedback</h2>
+                            <p className="delete-message-premium" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                Candidate: <strong>{feedbackInterview?.candidateName}</strong><br />
+                                Round: <strong>{typeof feedbackInterview?.round === 'object' ? feedbackInterview.round?.roundName : feedbackInterview?.round}</strong>
+                            </p>
+
+                            <div className="reason-field" style={{ marginBottom: '1rem' }}>
+                                <label className="reason-label" style={{ color: feedbackErrors.interviewResult ? '#ef4444' : '' }}>Interview Result *</label>
+                                <select
+                                    value={interviewResult}
+                                    onChange={(e) => {
+                                        setInterviewResult(e.target.value);
+                                        if (e.target.value) setFeedbackErrors(prev => ({ ...prev, interviewResult: false }));
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.8rem',
+                                        borderRadius: '10px',
+                                        border: '1px solid',
+                                        borderColor: feedbackErrors.interviewResult ? '#ef4444' : '#e2e8f0',
+                                        fontSize: '0.9rem',
+                                        outline: 'none',
+                                        backgroundColor: 'white'
+                                    }}
+                                >
+                                    <option value="" disabled>Select Result</option>
+                                    <option value="Pending">Pending</option>
+                                    <option value="Passed">Passed</option>
+                                    <option value="Failed">Failed</option>
+                                    <option value="On Hold">On Hold</option>
+                                    <option value="Move to Offer">Move to Offer</option>
+                                </select>
+                                {feedbackErrors.interviewResult && <p style={{ color: '#ef4444', fontSize: '10px', marginTop: '4px', textAlign: 'left', fontWeight: 'bold' }}>Please select a result</p>}
+                            </div>
+
+                            <div className="reason-field" style={{ marginTop: '0' }}>
+                                <label className="reason-label" style={{ color: feedbackErrors.feedback ? '#ef4444' : '' }}>Evaluation Notes *</label>
+                                <textarea
+                                    className="reason-textarea"
+                                    placeholder="Enter your detailed feedback here..."
+                                    value={feedbackText}
+                                    onChange={(e) => setFeedbackText(e.target.value)}
+                                    style={{
+                                        minHeight: '150px',
+                                        borderColor: feedbackErrors.feedback ? '#ef4444' : '#e2e8f0'
+                                    }}
+                                />
+                                <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px', fontStyle: 'italic' }}>
+                                    This feedback will be stored and used for the final selection process.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="delete-footer-premium" style={{ borderTop: 'none', paddingTop: '0.5rem' }}>
+                            <button className="btn-cancel-premium" onClick={() => setShowFeedbackModal(false)} disabled={submittingFeedback}>Close</button>
+                            <button
+                                className="btn-primary"
+                                onClick={handleFeedbackConfirm}
+                                disabled={submittingFeedback}
+                                style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', justifyContent: 'center', background: '#0d5f68', border: 'none', color: 'white', fontWeight: '600', cursor: 'pointer' }}
+                            >
+                                {submittingFeedback ? 'Saving...' : 'Save Feedback'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <style>{`
                 .employees-page { padding: 1.5rem; padding-top: 1rem; display: flex; flex-direction: column; gap: 1rem; height: calc(100vh - 60px); overflow: hidden; }
                 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
@@ -833,7 +1738,9 @@ const Interview = () => {
                 .emp-profile { display: flex; align-items: center; gap: 0.75rem; }
                 .emp-avatar { width: 36px; height: 36px; background-color: #e0e7ff; color: #4f46e5; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; }
                 .emp-name { font-weight: 600; color: #111827; }
-                .status-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; justify-content: center; min-width: 70px; }
+                .status-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; justify-content: center; min-width: 70px; transition: transform 0.2s, background-color 0.2s; }
+                .status-badge:hover { transform: translateY(-1px); }
+                .status-badge:active { transform: translateY(0); }
                 .status-video { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
                 .status-onsite { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; }
                 .status-scheduled { background: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; }
@@ -867,6 +1774,23 @@ const Interview = () => {
                 .btn-delete-premium { flex: 1; padding: 0.8rem !important; border-radius: 12px !important; font-weight: 600 !important; color: white !important; border: none !important; cursor: pointer; }
                 .text-center { text-align: center; }
                 .font-mono { font-family: monospace; }
+                .reason-field { margin-top: 1rem; text-align: left; }
+                .reason-label { font-size: 0.8rem; color: #64748b; font-weight: 800; text-transform: uppercase; margin-bottom: 0.4rem; display: block; }
+                .reason-textarea { width: 100%; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 0.9rem; resize: vertical; min-height: 80px; outline: none; transition: border-color 0.2s; }
+                .reason-textarea:focus { border-color: #0d5f68; }
+                .flex { display: flex; }
+                .items-center { align-items: center; }
+                .justify-center { justify-content: center; }
+                .flex-col { flex-direction: column; }
+                .gap-4 { gap: 1rem; }
+                .h-full { height: 100%; }
+                .w-12 { width: 3rem; }
+                .h-12 { height: 3rem; }
+                .animate-spin { animation: spin 1s linear infinite; }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
             `}</style>
         </div>
     );
