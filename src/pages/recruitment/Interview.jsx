@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { toast } from 'react-hot-toast';
 import {
     Plus, Eye, Edit, Trash2, X, RotateCcw,
     Users, MapPin, Monitor, Clock, Calendar,
-    User, AlertCircle, ChevronLeft, ChevronRight,
-    Loader2
+    User, AlertCircle, ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
 import './Recruitment.css';
 import api from '../../api/api';
 import { candidateService } from '../../services/candidateService';
 import { employeeService } from '../../services/employeeService';
 import { departmentService } from '../../services/departmentService';
+import { useActionLoader } from '../../hooks';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PanelMemberCard — self-contained card for a single panel member
@@ -332,8 +332,13 @@ const Interview = () => {
     React.useEffect(() => {
         setErrors({});
     }, [viewMode]);
+    const filterEffectFirstRender = useRef(true);
     // ── Filtering Effect ─────────────────────────────────────────────────────
     React.useEffect(() => {
+        if (filterEffectFirstRender.current) {
+            filterEffectFirstRender.current = false;
+            return;
+        }
         const timer = setTimeout(() => {
             fetchInterviews(0);
         }, 500);
@@ -487,7 +492,12 @@ const Interview = () => {
         }
     };
 
-    React.useEffect(() => { fetchInitialData(); }, []);
+    const initialLoadDone = useRef(false);
+    React.useEffect(() => {
+        if (initialLoadDone.current) return;
+        initialLoadDone.current = true;
+        fetchInitialData();
+    }, []);
 
     const [formData, setFormData] = useState({
         candidateId: '', candidateName: '', vacancyId: '', vacancyName: '',
@@ -1519,7 +1529,7 @@ const Interview = () => {
                             <button className="icon-btn" onClick={() => setShowStatusModal(false)}><X size={18} /></button>
                         </div>
                         <div className="delete-body-premium" style={{ paddingTop: '0rem', position: 'relative' }}>
-                            {submittingStatus && (
+                            {updatingStatus && (
                                 <div className="loading-overlay" style={{
                                     position: 'absolute', top: -50, left: -40, right: -40, bottom: -40,
                                     backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
@@ -1612,12 +1622,12 @@ const Interview = () => {
                             )}
                         </div>
                         <div className="delete-footer-premium" style={{ borderTop: 'none', paddingBottom: '2.5rem' }}>
-                            <button className="btn-cancel-premium" onClick={() => setShowStatusModal(false)} disabled={submittingStatus}>Cancel</button>
+                            <button className="btn-cancel-premium" onClick={() => setShowStatusModal(false)} disabled={updatingStatus}>Cancel</button>
                             <button
                                 className="btn-primary"
                                 onClick={handleStatusConfirm}
-                                disabled={submittingStatus}
-                                style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', justifyContent: 'center', background: '#0d5f68', boxShadow: '0 4px 12px rgba(13, 95, 104, 0.2)', border: 'none', color: 'white', fontWeight: '600', cursor: 'pointer', opacity: submittingStatus ? 0.7 : 1 }}
+                                disabled={updatingStatus}
+                                style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', justifyContent: 'center', background: '#0d5f68', boxShadow: '0 4px 12px rgba(13, 95, 104, 0.2)', border: 'none', color: 'white', fontWeight: '600', cursor: 'pointer', opacity: updatingStatus ? 0.7 : 1 }}
                             >
                                 {submittingStatus ? 'Updating...' : 'Save Change'}
                             </button>

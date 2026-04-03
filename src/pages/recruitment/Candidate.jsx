@@ -60,7 +60,6 @@ const Candidate = () => {
         portfolioUrl: '',
         githubUrl: '',
         highestQualification: '',
-        preferredLocation: '',
         availableToJoin: '',
         dob: '',
         gender: '',
