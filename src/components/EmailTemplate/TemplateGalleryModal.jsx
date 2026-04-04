@@ -9,7 +9,7 @@ const categoryColors = {
   Marketing: '#9b59b6',
   System: '#6c757d',
   Internal: '#2c3e50',
-  'E-Commerce': '#1d8c7c',
+  'E-Commerce': '#0d5f68',
   Events: '#f39c12',
   Engagement: '#e91e8c',
 };

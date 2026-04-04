@@ -331,6 +331,7 @@ const Candidate = () => {
                 toast.success('Candidate added successfully'); // Changed message
             }
             setViewMode('list'); // Changed setShowModal(false) to setViewMode('list')
+            setFilters({ candidateId: '', name: '', email: '', experience: '', role: '', status: '', noticePeriod: '' });
             fetchData();
         } catch (error) {
             console.error("Submit error:", error);

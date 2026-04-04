@@ -20,7 +20,7 @@ const PreviewModal = ({ open, onClose, subject, body }) => {
     <div className="preview-overlay">
       <div className="preview-modal">
         <div className="preview-header">
-          <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e3a3a' }}>📧 Email Preview</h3>
+          <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#0d5f68' }}>📧 Email Preview</h3>
           <span className="preview-note">
             Placeholders replaced with sample data
           </span>

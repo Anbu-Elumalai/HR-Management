@@ -12,7 +12,7 @@
   flex-direction: column; overflow: hidden;
 }
 .modal-header {
-  background: #1e3a3a; color: #fff;
+  background: #0d5f68; color: #fff;
   padding: 18px 24px;
   display: flex; justify-content: space-between;
   align-items: center;
@@ -32,14 +32,14 @@
 .modal-body {
   padding: 24px; overflow-y: auto;
   flex: 1; display: flex; flex-direction: column; gap: 16px;
-  color: #1e3a3a;
+  color: #0d5f68;
 }
 .form-row-2 {
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
 }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-group label {
-  font-size: 13px; font-weight: 600; color: #1e3a3a;
+  font-size: 13px; font-weight: 600; color: #0d5f68;
 }
 .required { color: #e74c3c; }
 .form-group input, .form-group select {
@@ -48,7 +48,7 @@
   transition: border 0.2s;
 }
 .form-group input:focus, .form-group select:focus {
-  border-color: #1d8c7c;
+  border-color: #0d5f68;
 }
 .input-error { border-color: #e74c3c !important; }
 .error-msg { font-size: 11.5px; color: #e74c3c; margin-top: 2px; }
@@ -61,7 +61,7 @@
   border: 0.5px solid #e0e0e0;
 }
 .color-group { display: flex; align-items: center; gap: 10px; }
-.color-group label { font-size: 13px; font-weight: 500; color: #1e3a3a; }
+.color-group label { font-size: 13px; font-weight: 500; color: #0d5f68; }
 .color-group input[type="color"] {
   width: 40px; height: 32px; border: 1px solid #e0e0e0;
   border-radius: 6px; padding: 2px; cursor: pointer;
@@ -72,11 +72,11 @@
   font-size: 13px; font-weight: 500;
 }
 .btn-choose-template {
-  border: 1.5px solid #1e3a3a; color: #1e3a3a; background: #fff;
+  border: 1.5px solid #0d5f68; color: #0d5f68; background: #fff;
 }
 .btn-choose-template:hover { background: #f0f4f4; }
 .btn-preview {
-  border: 1.5px solid #1d8c7c; color: #1d8c7c; background: #fff;
+  border: 1.5px solid #0d5f68; color: #0d5f68; background: #fff;
 }
 .btn-preview:hover { background: #e1f5ee; }
 
@@ -91,17 +91,17 @@
   display: flex; align-items: center; gap: 6px;
   padding: 7px 14px; border: 0.5px solid #ddd;
   border-radius: 6px; background: #fff; cursor: pointer;
-  font-size: 12.5px; color: #1e3a3a; font-weight: 500;
+  font-size: 12.5px; color: #0d5f68; font-weight: 500;
 }
-.insert-btn:hover { background: #f0f4f4; border-color: #1d8c7c; }
+.insert-btn:hover { background: #f0f4f4; border-color: #0d5f68; }
 
 /* ===== CRM DROPDOWN ===== */
 .crm-dropdown-wrapper { position: relative; }
 .crm-fields-btn {
   display: flex; align-items: center; gap: 6px;
-  padding: 7px 14px; border: 0.5px solid #1d8c7c;
+  padding: 7px 14px; border: 0.5px solid #0d5f68;
   border-radius: 6px; background: #fff; cursor: pointer;
-  font-size: 12.5px; color: #1d8c7c; font-weight: 600;
+  font-size: 12.5px; color: #0d5f68; font-weight: 600;
 }
 .crm-fields-btn:hover { background: #e1f5ee; }
 .crm-arrow { font-size: 10px; }
@@ -122,7 +122,7 @@
   color: #6c757d; font-weight: 500; border-bottom: 2px solid transparent;
 }
 .crm-cat-tab.active {
-  color: #1d8c7c; border-bottom-color: #1d8c7c; background: #fff;
+  color: #0d5f68; border-bottom-color: #0d5f68; background: #fff;
 }
 .crm-fields-list { max-height: 200px; overflow-y: auto; }
 .crm-field-item {
@@ -131,7 +131,7 @@
 }
 .crm-field-item:hover { background: #f0f9f6; }
 .field-label { font-size: 13px; color: #1a1a2e; font-weight: 500; }
-.field-value { font-size: 11.5px; color: #1d8c7c; font-family: monospace; }
+.field-value { font-size: 11.5px; color: #0d5f68; font-family: monospace; }
 .crm-dropdown-footer {
   padding: 8px 14px; font-size: 11px; color: #adb5bd;
   text-align: center; border-top: 1px solid #f0f0f0;
@@ -174,8 +174,8 @@
   width: 100%;
 }
 .ql-editor .ql-table-selection {
-  background-color: rgba(29, 140, 124, 0.15) !important;
-  border: 1px solid #1d8c7c !important;
+  background-color: rgba(13, 95, 104, 0.15) !important;
+  border: 1px solid #0d5f68 !important;
 }
 
 /* ===== DEFAULT CHECKBOX ===== */
@@ -183,9 +183,9 @@
   display: flex; align-items: center; gap: 10px;
 }
 .default-checkbox-row input[type="checkbox"] {
-  width: 16px; height: 16px; accent-color: #1d8c7c;
+  width: 16px; height: 16px; accent-color: #0d5f68;
 }
-.default-checkbox-row label { font-size: 13.5px; font-weight: 500; color: #1e3a3a; }
+.default-checkbox-row label { font-size: 13.5px; font-weight: 500; color: #0d5f68; }
 .default-hint { font-size: 11.5px; color: #6c757d; margin-left: 4px; }
 .default-warning {
   background: #fff4e0; border: 1px solid #f0c050;
@@ -205,12 +205,12 @@
   font-size: 13.5px; color: #6c757d;
 }
 .btn-send-test {
-  padding: 10px 22px; border: 1.5px solid #1d8c7c;
+  padding: 10px 22px; border: 1.5px solid #0d5f68;
   border-radius: 8px; background: #fff; cursor: pointer;
-  font-size: 13.5px; color: #1d8c7c; font-weight: 600;
+  font-size: 13.5px; color: #0d5f68; font-weight: 600;
 }
 .btn-save {
-  padding: 10px 24px; background: #1e3a3a; color: #fff;
+  padding: 10px 24px; background: #0d5f68; color: #fff;
   border: none; border-radius: 8px; cursor: pointer;
   font-size: 13.5px; font-weight: 600;
 }
@@ -332,7 +332,7 @@
   display: flex; align-items: center; gap: 12px;
   padding: 16px 22px; border-bottom: 1px solid #e0e0e0;
 }
-.preview-header h3 { font-size: 16px; font-weight: 600; color: #1e3a3a; }
+.preview-header h3 { font-size: 16px; font-weight: 600; color: #0d5f68; }
 .preview-note {
   font-size: 11.5px; color: #6c757d;
   background: #f0f9f6; padding: 3px 10px;

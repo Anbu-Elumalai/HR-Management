@@ -9,7 +9,8 @@ import {
     AlignCenter, AlignRight, Link, Image, 
     Undo, Redo, Code, Send, Globe, Briefcase,
     Mail, Box, Container, UserPlus, ChevronDown, 
-    Layout, Pencil, RefreshCw, Pencil as PencilIcon, Trash, FileText, Package, AlertCircle
+    Layout, Pencil, RefreshCw, Pencil as PencilIcon, Trash, FileText, Package, AlertCircle,
+    UserCheck, Building2, MapPin, Zap
 } from 'lucide-react';
 import api from '../api/api';
 import PhoneInput from '../components/common/PhoneInput';
@@ -50,7 +51,7 @@ const SettingsPage = () => {
     const [templateForm, setTemplateForm] = useState({
         name: '', companyId: '', type: '', language: 'English', subject: '', 
         body: '', status: 'Active', isDefault: false, modelName: 'candidates',
-        headerBgColor: '#1e3a3a', footerBgColor: '#f5f7f7'
+        headerBgColor: '#0d5f68', footerBgColor: '#f5f7f7'
     });
     const [templateErrors, setTemplateErrors] = useState({});
     const [templateFilters, setTemplateFilters] = useState({
@@ -58,7 +59,7 @@ const SettingsPage = () => {
     });
 
     const TEMPLATE_DESIGNS = [
-        { id: '1', name: 'Modern Business', category: 'BUSINESS', desc: 'Clean corporate layout with a bold header', color: '#1e3a3a' },
+        { id: '1', name: 'Modern Business', category: 'BUSINESS', desc: 'Clean corporate layout with a bold header', color: '#0d5f68' },
         { id: '2', name: 'Order Confirmation', category: 'E-COMMERCE', desc: 'E-commerce style order confirmation', color: '#8b5cf6' },
         { id: '3', name: 'Welcome Onboard', category: 'ONBOARDING', desc: 'Friendly welcome email for new users', color: '#10b981' },
         { id: '4', name: 'Invoice / Payment', category: 'FINANCE', desc: 'Professional invoice notification', color: '#3b82f6' },
@@ -401,14 +402,14 @@ const SettingsPage = () => {
 
     const fetchCategories = () => {
         const staticCategories = [
-            { id: 'employment-type', name: 'Employment Type' },
-            { id: 'position', name: 'Position' },
-            { id: 'department', name: 'Department' },
-            { id: 'reason-requisition', name: 'Reason Requisition' },
-            { id: 'location', name: 'Location' },
-            { id: 'skill', name: 'Skill' },
-            { id: 'interview-round', name: 'Interview Round' },
-            { id: 'email-template', name: 'Email Template' }
+            { id: 'employment-type', name: 'Employment Type', icon: 'Briefcase' },
+            { id: 'position', name: 'Position', icon: 'UserCheck' },
+            { id: 'department', name: 'Department', icon: 'Building2' },
+            { id: 'reason-requisition', name: 'Reason Requisition', icon: 'FileText' },
+            { id: 'location', name: 'Location', icon: 'MapPin' },
+            { id: 'skill', name: 'Skill', icon: 'Zap' },
+            { id: 'interview-round', name: 'Interview Round', icon: 'RefreshCw' },
+            { id: 'email-template', name: 'Email Template', icon: 'Mail' }
         ];
         setCategories(staticCategories);
         if (!selectedCategory) {
@@ -641,7 +642,7 @@ const SettingsPage = () => {
                 status: val.status || 'Active',
                 isDefault: val.isDefault || false,
                 modelName: val.modelName || 'candidates',
-                headerBgColor: val.headerBgColor || '#1e3a3a',
+                headerBgColor: val.headerBgColor || '#0d5f68',
                 footerBgColor: val.footerBgColor || '#f1f5f9'
             });
             setEditingValueId(valueId);
@@ -1172,15 +1173,39 @@ const SettingsPage = () => {
                             <button className="btn-text-action" onClick={() => setShowAddCategoryModal(true)}>+ Create One</button>
                         </div>
                     ) : (
-                        categories.map(cat => (
-                            <div
-                                key={cat._id || cat.id}
-                                className={`category-item ${selectedCategory && (selectedCategory._id === cat._id || selectedCategory.id === cat.id) ? 'active' : ''}`}
-                                onClick={() => setSelectedCategory(cat)}
-                            >
-                                <span>{cat.name}</span>
-                            </div>
-                        ))
+                        categories.map(cat => {
+                            const isSelected = selectedCategory && (
+                                (cat.id && selectedCategory.id === cat.id) ||
+                                (cat._id && selectedCategory._id === cat._id) ||
+                                (cat.name && selectedCategory.name === cat.name)
+                            );
+                            
+                            // Map icon string to component
+                            const getIcon = (iconName) => {
+                                switch(iconName) {
+                                    case 'Briefcase': return <Briefcase size={16} />;
+                                    case 'UserCheck': return <UserCheck size={16} />;
+                                    case 'Building2': return <Building2 size={16} />;
+                                    case 'FileText': return <FileText size={16} />;
+                                    case 'MapPin': return <MapPin size={16} />;
+                                    case 'Zap': return <Zap size={16} />;
+                                    case 'RefreshCw': return <RefreshCw size={16} />;
+                                    case 'Mail': return <Mail size={16} />;
+                                    default: return <List size={16} />;
+                                }
+                            };
+
+                            return (
+                                <div
+                                    key={cat._id || cat.id}
+                                    className={`category-item ${isSelected ? 'active' : ''}`}
+                                    onClick={() => setSelectedCategory(cat)}
+                                >
+                                    <span className="cat-icon">{getIcon(cat.icon)}</span>
+                                    <span>{cat.name}</span>
+                                </div>
+                            );
+                        })
                     )}
                 </div>
             </div>
@@ -1188,18 +1213,24 @@ const SettingsPage = () => {
             <div className="settings-main-content">
                 {selectedCategory ? (
                     <>
-                        <div className="card-header-flex hrm-list-header" style={{ padding: '1.25rem 1.5rem', background: '#1e3a3a', color: 'white' }}>
+                        <div className="card-header-flex hrm-list-header" style={{ padding: '1.25rem 1.5rem', background: '#0d5f68', color: 'white' }}>
                             <div>
-                                <h2 className="card-title" style={{ margin: 0, fontSize: '1.25rem', color: 'white' }}>Email Template Management</h2>
-                                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', opacity: 0.8 }}>Create and manage email templates across companies</p>
+                                <h2 className="card-title" style={{ margin: 0, fontSize: '1.25rem', color: 'white' }}>
+                                    {(selectedCategory?.id === 'email-template' || selectedCategory?.name === 'Email Template') ? 'Email Template Management' : `${selectedCategory?.name || 'Master Data'} Management`}
+                                </h2>
+                                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', opacity: 0.8 }}>
+                                    {selectedCategory?.id === 'email-template' 
+                                        ? 'Create and manage email templates across companies' 
+                                        : `Manage and configure values for ${selectedCategory?.name || 'master data'}`}
+                                </p>
                             </div>
-                            <button className="btn-primary-alt" style={{ background: '#1d8c7c', border: 'none', color: 'white' }} onClick={() => { 
-                                if (selectedCategory.id === 'email-template') {
-                                    setTemplateForm({ 
-                                        name: '', companyId: '', type: '', language: 'English', subject: '', 
-                                        body: '', status: 'Active', isDefault: false, modelName: 'candidates',
-                                        headerBgColor: '#1e3a3a', footerBgColor: '#f1f5f9'
-                                    });
+                                    <button className="btn-primary-alt" style={{ background: '#0d5f68', border: '1px solid rgba(255,255,255,0.2)', color: 'white' }} onClick={() => { 
+                                        if (selectedCategory?.id === 'email-template' || selectedCategory?.name === 'Email Template') {
+                                            setTemplateForm({ 
+                                                name: '', companyId: '', type: '', language: 'English', subject: '', 
+                                                body: '', status: 'Active', isDefault: false, modelName: 'candidates',
+                                                headerBgColor: '#0d5f68', footerBgColor: '#f1f5f9'
+                                            });
                                     setIsEditingValue(false);
                                     setEditingValueId(null);
                                     setShowAddTemplateModal(true);
@@ -1217,7 +1248,7 @@ const SettingsPage = () => {
                         </div>
 
                         <div className="values-list-container hrm-table-wrapper">
-                            {selectedCategory.id === 'email-template' ? (
+                            {(selectedCategory?.id === 'email-template' || selectedCategory?.name === 'Email Template') ? (
                                 <>
                                     <div className="values-list-header hrm-thead" style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) 1.5fr minmax(140px, 1fr) 1fr 2fr 1fr 1fr 0.8fr 1fr 1fr', padding: '1rem 1.25rem', background: '#f8fafc', fontWeight: 'bold', fontSize: '0.75rem', textTransform: 'uppercase' }}>
                                         <div>TEMPLATE CODE</div>
@@ -1260,8 +1291,8 @@ const SettingsPage = () => {
                                                     <span className="code-badge-premium">TMP-{2026}-00{idx+1}</span>
                                                     <span className="value-text" style={{ fontWeight: 600 }}>{tmpl.name}</span>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <div className="avatar-initials-mini">{(tmpl.companyName || 'AS').substring(0,2).toUpperCase()}</div>
-                                                        <span>{tmpl.companyName || 'Antigravity AI'}</span>
+                                                        <div className="avatar-initials-mini">{(tmpl.companyName || 'AZ').substring(0,2).toUpperCase()}</div>
+                                                        <span>{tmpl.companyName || 'Syncraze Inc'}</span>
                                                     </div>
                                                     <span className={`tag-premium category-badge-${(tmpl.type || 'Custom').split(' ')[0].toLowerCase()}`} style={{ fontSize: '10px' }}>{tmpl.type || 'Custom'}</span>
                                                     <span className="truncate-text" title={tmpl.subject}>{tmpl.subject}</span>
@@ -1272,7 +1303,7 @@ const SettingsPage = () => {
                                                     <div className="text-center">
                                                         {tmpl.isDefault ? <span className="default-yes-badge">Yes</span> : ''}
                                                     </div>
-                                                    <span style={{ color: '#64748b' }}>Anbu Elumalai</span>
+                                                    <span style={{ color: '#64748b' }}>{tmpl.createdBy || 'Administrator'}</span>
                                                     <div className="value-actions">
                                                         <button className="action-icon-btn edit" title="Edit" onClick={() => handleEditValue(tmpl)}>
                                                             <Pencil size={14} />
@@ -1914,20 +1945,46 @@ const SettingsPage = () => {
                 text - decoration: underline;
                 }
             .category-item {
-                padding: 0.75rem 1rem;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-            color: #475569;
-            transition: all 0.2s;
-                }
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 0.85rem 1rem;
+                border-radius: 10px;
+                cursor: pointer;
+                font-weight: 500;
+                color: #64748b;
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                border: 1px solid transparent;
+                margin-bottom: 4px;
+            }
             .category-item:hover {
-                background - color: #f1f5f9;
-                }
+                background-color: #f1f5f9;
+                color: #0d5f68;
+                transform: translateX(6px);
+                border-left: 3px solid #0d5f68;
+                padding-left: calc(1rem - 3px);
+            }
             .category-item.active {
-                background - color: #f0fdfa;
-            color: #0d5f68;
-                }
+                background-color: #0d5f68 !important;
+                color: white !important;
+                font-weight: 700;
+                box-shadow: 0 8px 20px -4px rgba(13, 95, 104, 0.35);
+                transform: translateX(4px);
+            }
+            .cat-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0.65;
+                transition: transform 0.2s;
+            }
+            .category-item:hover .cat-icon {
+                transform: scale(1.1);
+                opacity: 1;
+            }
+            .category-item.active .cat-icon {
+                opacity: 1;
+            }
             .settings-main-content {
                 flex: 1;
                 display: flex;
@@ -2475,22 +2532,22 @@ const SettingsPage = () => {
             .hrm-filters { background: #f8f8f8; }
             .table-filter-input { width: 100%; padding: 4px 8px; border: 0.5px solid #e0e0e0; border-radius: 4px; font-size: 11px; outline: none; }
             .reset-filter-btn { background: none; border: none; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: flex-end; width: 100%; transition: color 0.2s; }
-            .reset-filter-btn:hover { color: #1e3a3a; }
+            .reset-filter-btn:hover { color: #0d5f68; }
             
-            .code-badge-premium { background: #f0fdfa; color: #1d8c7c; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; border: 1px solid #ccfbf1; }
+            .code-badge-premium { background: #f0fdfa; color: #0d5f68; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; border: 1px solid #ccfbf1; }
             .avatar-initials-mini { width: 22px; height: 22px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: #475569; }
-            .default-yes-badge { background: #1d8c7c; color: white; padding: 1px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; }
+            .default-yes-badge { background: #0d5f68; color: white; padding: 1px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; }
             .hrm-row-hover:hover { background-color: #f1f5f9 !important; }
             .pg-btn { padding: 4px 10px; border: 1px solid #e2e8f0; background: white; border-radius: 4px; font-size: 12px; cursor: pointer; color: #64748b; }
-            .pg-btn.active { background: #1e3a3a; color: white; border-color: #1e3a3a; }
+            .pg-btn.active { background: #0d5f68; color: white; border-color: #0d5f68; }
             
             /* Floating Labels */
             .floating-input-group { position: relative; margin-bottom: 0rem; width: 100%; }
             .floating-input, .floating-select { width: 100%; padding: 1rem 0.75rem 0.5rem; border: 1px solid #e2e8f0; border-radius: 8px; background: white; font-size: 14px; outline: none; transition: border-color 0.2s; -webkit-appearance: none; }
-            .floating-input:focus, .floating-select:focus { border-color: #1e3a3a; }
+            .floating-input:focus, .floating-select:focus { border-color: #0d5f68; }
             .floating-input.error, .floating-select.error { border-color: #ef4444 !important; }
             .floating-label { position: absolute; top: 0.8rem; left: 0.75rem; color: #94a3b8; font-size: 14px; pointer-events: none; transition: all 0.2s; background: white; padding: 0 4px; }
-            .floating-input:focus ~ .floating-label, .floating-input:not(:placeholder-shown) ~ .floating-label, .floating-select:focus ~ .floating-label, .floating-select:not([value=""]) ~ .floating-label { top: -0.6rem; left: 0.5rem; font-size: 12px; color: #1e3a3a; font-weight: 600; }
+            .floating-input:focus ~ .floating-label, .floating-input:not(:placeholder-shown) ~ .floating-label, .floating-select:focus ~ .floating-label, .floating-select:not([value=""]) ~ .floating-label { top: -0.6rem; left: 0.5rem; font-size: 12px; color: #0d5f68; font-weight: 600; }
             
             .inline-error { color: #ef4444; font-size: 11px; margin-top: 4px; display: block; position: absolute; bottom: -15px; }
             .color-swatch-wrapper { position: relative; width: 32px; height: 32px; cursor: pointer; }
@@ -2503,7 +2560,7 @@ const SettingsPage = () => {
             .gallery-search-box .search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; }
             .gallery-tabs { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 1rem; scrollbar-width: none; }
             .gallery-tab-pill { padding: 0.5rem 1rem; border-radius: 100px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
-            .gallery-tab-pill.active { background: #1e3a3a; color: white; border-color: #1e3a3a; }
+            .gallery-tab-pill.active { background: #0d5f68; color: white; border-color: #0d5f68; }
             .gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
             .gallery-card { border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; cursor: pointer; position: relative; overflow: hidden; transition: all 0.2s; }
             .gallery-card:hover { border-color: #3a3aad; box-shadow: 0 4px 12px rgba(58, 58, 173, 0.1); }
@@ -2519,7 +2576,7 @@ const SettingsPage = () => {
             .editor-label { display: block; margin-bottom: 0.5rem; font-weight: 700; color: #475569; font-size: 0.85rem; }
             .tinymce-custom-toolbar { display: flex; gap: 0.5rem; padding: 0.5rem; background: #f8fafc; border: 1.5px solid #e2e8f0; border-bottom: none; border-radius: 10px 10px 0 0; }
             .tb-action-btn { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.8rem; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.2s; }
-            .tb-action-btn:hover { background: #f1f5f9; color: #1e3a3a; border-color: #cbd5e1; }
+            .tb-action-btn:hover { background: #f1f5f9; color: #0d5f68; border-color: #cbd5e1; }
             .tb-action-btn.crm-btn { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
             .crm-fields-dropdown-container { position: relative; }
             .crm-fields-popover { position: absolute; top: 100%; right: 0; width: 250px; background: white; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 100; display: none; padding: 1rem; max-height: 400px; overflow-y: auto; }
@@ -2531,8 +2588,8 @@ const SettingsPage = () => {
             .hrm-checkbox-container { display: flex; align-items: center; cursor: pointer; user-select: none; }
             .hrm-warning-banner { display: flex; alignItems: center; gap: 0.75rem; background: #fff7ed; border: 1px solid #ffedd5; padding: 0.75rem 1rem; border-radius: 8px; color: #9a3412; font-size: 0.8rem; margin-top: 1rem; }
             
-            .btn-primary-teal { background: #1d8c7c; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.9rem; }
-            .btn-outline-teal { border: 1.5px solid #1d8c7c; color: #1d8c7c; background: transparent; padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; }
+            .btn-primary-teal { background: #0d5f68; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.9rem; }
+            .btn-outline-teal { border: 1.5px solid #0d5f68; color: #0d5f68; background: transparent; padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; }
             .btn-outline-indigo { border: 1.5px solid #3a3aad; color: #3a3aad; background: white; padding: 0.6rem 1rem; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
             .btn-outline-action { border: 1px solid #e2e8f0; color: #64748b; background: white; padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.9rem; }
             `}</style>

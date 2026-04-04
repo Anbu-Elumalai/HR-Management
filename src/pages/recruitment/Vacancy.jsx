@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Plus, Search, Eye, Edit, Trash2, X, RotateCcw
 } from 'lucide-react';
@@ -29,6 +29,13 @@ const Vacancy = () => {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [vacancies, setVacancies] = useState([]);
+    const [page, setPage] = useState(0);
+    const [limit] = useState(10);
+    const [hasMore, setHasMore] = useState(true);
+    const [fetchingMore, setFetchingMore] = useState(false);
+    const [totalVacancies, setTotalVacancies] = useState(0);
+    const tableWrapperRef = useRef(null);
+    const loadingRef = useRef(false);
 
     const [filterCode, setFilterCode] = useState('');
     const [filterPosition, setFilterPosition] = useState('');
@@ -65,14 +72,13 @@ const Vacancy = () => {
         if (isInitial) setLoading(true);
         try {
             console.log("Vacancy.jsx: Initializing master data fetch...");
-            const [depsRes, posRes, empsRes, reasRes, projsRes, etypesRes, vacsRes, skillRes, locRes] = await Promise.all([
+            const [depsRes, posRes, empsRes, reasRes, projsRes, etypesRes, skillRes, locRes] = await Promise.all([
                 departmentService.getAllDepartments().catch(e => { console.error("Dept error:", e); return []; }),
                 positionService.getAllPositions().catch(e => { console.error("Pos error:", e); return []; }),
                 employeeService.getAllEmployees().catch(e => { console.error("Emp error:", e); return []; }),
                 api.get('/reason-requisition').catch(e => ({ data: [] })),
                 projectService.getAllProjects(0, 100).catch(e => ({ data: [] })),
                 api.get('/employment-types/').catch(e => ({ data: [] })),
-                api.get('/vacancies').catch(e => ({ data: [] })),
                 api.get('/skills').catch(e => ({ data: { data: [] } })),
                 api.get('/locations').catch(e => ({ data: { data: [] } }))
             ]);
@@ -129,7 +135,6 @@ const Vacancy = () => {
                 name: p.projectName || p.name
             })));
 
-            setVacancies(getArray(vacsRes));
             console.log("Vacancy.jsx: Master data fully loaded and mapped.");
         } catch (error) {
             console.error("Vacancy.jsx: Critical fetch failure:", error);
@@ -138,11 +143,133 @@ const Vacancy = () => {
         }
     }, [departments.length, positions.length]); // Added dependency to check for empty data
 
+    // Function to fetch initial vacancies or with filters
+    const fetchVacancies = useCallback(async (isInitial = false) => {
+        if (isInitial) setLoading(true);
+        try {
+            const params = new URLSearchParams({
+                page: 0,
+                limit: limit,
+                vacancyCode: filterCode,
+                position: filterPosition,
+                department: filterDepartment,
+                project: filterProject,
+                vacancies: filterVacancies,
+                filled: filterFilled,
+                remaining: filterRemaining,
+                hiringType: filterHiringType,
+                targetDate: filterTargetDate,
+                status: filterStatus,
+                approval: filterApproval
+            });
+
+            const res = await api.get(`/vacancies?${params.toString()}`);
+            const resData = res.data || { data: [], total: 0 };
+            
+            setVacancies(resData.data || []);
+            setTotalVacancies(resData.total || 0);
+            setHasMore((resData.data || []).length < (resData.total || 0));
+            setPage(0);
+        } catch (error) {
+            console.error("Error fetching vacancies:", error);
+            toast.error("Failed to fetch vacancies");
+        } finally {
+            if (isInitial) setLoading(false);
+        }
+    }, [limit, filterCode, filterPosition, filterDepartment, filterProject, filterVacancies, filterFilled, filterRemaining, filterHiringType, filterTargetDate, filterStatus, filterApproval]);
+
     // Unified Effect for Data Loading
     useEffect(() => {
         // Initial Mount Fetch
         loadMasterData();
+        fetchVacancies(true);
     }, []);
+
+    // Function to fetch more vacancies (infinite scroll)
+    const fetchMoreVacancies = useCallback(async () => {
+        if (loadingRef.current || !hasMore) return;
+
+        loadingRef.current = true;
+        setFetchingMore(true);
+        const nextPage = page + 1;
+
+        try {
+            // Include filters in the call
+            const params = new URLSearchParams({
+                page: nextPage,
+                limit: limit,
+                vacancyCode: filterCode,
+                position: filterPosition,
+                department: filterDepartment,
+                project: filterProject,
+                vacancies: filterVacancies,
+                filled: filterFilled,
+                remaining: filterRemaining,
+                hiringType: filterHiringType,
+                targetDate: filterTargetDate,
+                status: filterStatus,
+                approval: filterApproval
+            });
+
+            const response = await api.get(`/vacancies?${params.toString()}`);
+            const newData = response.data?.data || [];
+            const total = response.data?.total || 0;
+
+            if (newData.length > 0) {
+                // Prevent duplicates just in case using a functional update for better state stability
+                setVacancies(prev => {
+                    const existingIds = new Set(prev.map(v => v._id || v.id));
+                    const filteredNew = newData.filter(v => !existingIds.has(v._id || v.id));
+                    const updated = [...prev, ...filteredNew];
+                    // Update hasMore based on the newly calculated total list size
+                    setHasMore(updated.length < total);
+                    return updated;
+                });
+                setPage(nextPage);
+                setTotalVacancies(total);
+            } else {
+                setHasMore(false);
+            }
+        } catch (error) {
+            console.error("Error fetching more vacancies:", error);
+            toast.error("Failed to load more vacancies");
+        } finally {
+            setFetchingMore(false);
+            loadingRef.current = false;
+        }
+    }, [page, hasMore, vacancies.length, limit, filterCode, filterPosition, filterDepartment, filterProject, filterVacancies, filterFilled, filterRemaining, filterHiringType, filterTargetDate, filterStatus, filterApproval]);
+
+    // Scroll listener for infinite scroll
+    useEffect(() => {
+        const wrapper = tableWrapperRef.current;
+        if (!wrapper) return;
+
+        const handleScroll = () => {
+            const { scrollTop, scrollHeight, clientHeight } = wrapper;
+            // threshold of 50px from bottom
+            if (scrollHeight - scrollTop - clientHeight < 50) {
+                fetchMoreVacancies();
+            }
+        };
+
+        wrapper.addEventListener('scroll', handleScroll);
+        return () => wrapper.removeEventListener('scroll', handleScroll);
+    }, [fetchMoreVacancies]);
+
+    // Reset page and refetch when filters change (server-side filtering)
+    useEffect(() => {
+        const debounceTimer = setTimeout(() => {
+            // If it's not the initial mount, reload
+            if (!loading) {
+                fetchVacancies(false);
+            }
+        }, 500); // 500ms debounce
+        return () => clearTimeout(debounceTimer);
+    }, [fetchVacancies, loading]);
+
+    // Keep client-side sorting/filtering for immediate UI response if needed, 
+    // but the main data is now server-controlled
+    const filteredVacancies = vacancies;
 
     // Form Initialization Logic - Simplified and direct
     useEffect(() => {
@@ -172,8 +299,8 @@ const Vacancy = () => {
                         requiredDate: new Date().toISOString().split('T')[0],
                         qualification: 'Freshers allowed',
                         preferredEducation: '',
-                        status: 'Draft',
-                        approvalStatus: 'Pending',
+                        status: 'draft',
+                        approvalStatus: 'pending',
                         skills: [],
                         location: ''
                     });
@@ -274,10 +401,6 @@ const Vacancy = () => {
             errors.salaryRangeTo = 'To salary cannot be less than From salary';
         }
 
-        if (formData.status === 'Scheduled' && !formData.scheduleDate) {
-            errors.scheduleDate = 'Schedule date is required for Scheduled status';
-        }
-
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -301,9 +424,8 @@ const Vacancy = () => {
                     salaryRangeFrom: Number(formData.salaryRangeFrom) || 0,
                     salaryRangeTo: Number(formData.salaryRangeTo) || 0,
                     jobDescription: formData.jobDescription,
-                    status: formData.status || 'Draft',
-                    approvalStatus: formData.approvalStatus || 'Pending',
-                    scheduleDate: formData.status === 'Scheduled' ? formData.scheduleDate : null,
+                    status: (formData.status || 'draft').toLowerCase(),
+                    approvalStatus: (formData.approvalStatus || 'pending').toLowerCase(),
                     location: formData.location,
                     skills: Array.isArray(formData.skills) ? formData.skills.join(', ') : formData.skills
                 };
@@ -318,8 +440,8 @@ const Vacancy = () => {
                 if (response.status === 200 || response.status === 201) {
                     toast.success(`Vacancy ${viewMode === 'edit' ? 'updated' : 'created'} successfully!`);
 
-                    // Trigger a background refresh (WITHOUT full loading screen)
-                    loadMasterData(false);
+                    // Refresh vacancies list
+                    fetchVacancies();
 
                     setViewMode('list');
                     setSelectedVacancy(null);
@@ -351,8 +473,8 @@ const Vacancy = () => {
             await api.delete(`/vacancies/${vacancyToDelete._id || vacancyToDelete.id}`);
             toast.success("Vacancy deleted successfully!");
 
-            // Background refresh
-            loadMasterData(false);
+            // Refresh vacancies list
+            fetchVacancies();
 
             setShowDeleteModal(false);
             setVacancyToDelete(null);
@@ -367,7 +489,7 @@ const Vacancy = () => {
 
     const handleApprovalClick = (v) => {
         setVacancyForApproval(v);
-        setNewApprovalStatus(v.approvalStatus || 'Pending');
+        setNewApprovalStatus((v.approvalStatus || 'pending').toLowerCase());
         setShowApprovalModal(true);
     };
 
@@ -381,8 +503,8 @@ const Vacancy = () => {
             });
             toast.success(`Approval status updated to ${newApprovalStatus}!`);
 
-            // Background refresh
-            loadMasterData(false);
+            // Refresh vacancies list
+            fetchVacancies();
 
             setShowApprovalModal(false);
             setVacancyForApproval(null);
@@ -397,7 +519,7 @@ const Vacancy = () => {
 
     const handleStatusClick = (v) => {
         setVacancyForStatus(v);
-        setNewStatus(v.status || 'Draft');
+        setNewStatus((v.status || 'draft').toLowerCase());
         setShowStatusModal(true);
     };
 
@@ -411,8 +533,8 @@ const Vacancy = () => {
             });
             toast.success(`Vacancy status updated to ${newStatus}!`);
 
-            // Background refresh
-            loadMasterData(false);
+            // Refresh vacancies list
+            fetchVacancies();
 
             setShowStatusModal(false);
             setVacancyForStatus(null);
@@ -459,12 +581,11 @@ const Vacancy = () => {
                                 background: '#fcfcfd'
                             }}
                         >
-                            <option value="Draft">Draft</option>
-                            <option value="Open">Open</option>
-                            <option value="Scheduled">Scheduled</option>
-                            <option value="Closed">Closed</option>
-                            <option value="On Hold">On Hold</option>
-                            <option value="Publish">Publish</option>
+                            <option value="draft">Draft</option>
+                            <option value="open">Open</option>
+                            <option value="closed">Closed</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="filled">Filled</option>
                         </select>
                     </div>
                 </div>
@@ -535,9 +656,10 @@ const Vacancy = () => {
                                 background: '#fcfcfd'
                             }}
                         >
-                            <option value="Pending">Pending</option>
-                            <option value="Approved">Approved</option>
-                            <option value="Rejected">Rejected</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="cancelled">Cancelled</option>
                         </select>
                     </div>
                 </div>
@@ -802,37 +924,26 @@ const Vacancy = () => {
                                 <div className="form-group">
                                     <label>Status</label>
                                     <select
-                                        value={formData.status || 'Draft'}
+                                        value={formData.status || 'draft'}
                                         onChange={(e) => handleInputChange('status', e.target.value)}
                                     >
-                                        <option value="Draft">Draft</option>
-                                        <option value="Open">Open</option>
-                                        <option value="Scheduled">Scheduled</option>
-                                        <option value="Closed">Closed</option>
-                                        <option value="On Hold">On Hold</option>
+                                        <option value="draft">Draft</option>
+                                        <option value="open">Open</option>
+                                        <option value="closed">Closed</option>
+                                        <option value="filled">Filled</option>
+                                        <option value="cancelled">Cancelled</option>
                                     </select>
                                 </div>
-                                {formData.status === 'Scheduled' && (
-                                    <div className="form-group">
-                                        <label>Schedule Date</label>
-                                        <input
-                                            type="date"
-                                            value={formData.scheduleDate || ''}
-                                            onChange={(e) => handleInputChange('scheduleDate', e.target.value)}
-                                            className={formErrors.scheduleDate ? 'input-error' : ''}
-                                        />
-                                        {formErrors.scheduleDate && <span className="error-text">{formErrors.scheduleDate}</span>}
-                                    </div>
-                                )}
                                 <div className="form-group">
                                     <label>Approval Status</label>
                                     <select
-                                        value={formData.approvalStatus || 'Pending'}
+                                        value={formData.approvalStatus || 'pending'}
                                         onChange={(e) => handleInputChange('approvalStatus', e.target.value)}
                                     >
-                                        <option value="Pending">Pending</option>
-                                        <option value="Approved">Approved</option>
-                                        <option value="Rejected">Rejected</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="approved">Approved</option>
+                                        <option value="rejected">Rejected</option>
+                                        <option value="cancelled">Cancelled</option>
                                     </select>
                                 </div>
                                 <div className="form-group" style={{ gridColumn: 'span 2' }}>
@@ -1162,28 +1273,7 @@ const Vacancy = () => {
         setFilterApproval('');
     };
 
-    const filteredVacancies = (vacancies || []).filter(v => {
-        const deptName = departments.find(d => d.id === v.departmentId || d.value === v.departmentId)?.label || v.departmentId || 'N/A';
-        const posName = positions.find(p => p.id === v.positionId || p.value === v.positionId)?.label || v.positionId || 'N/A';
-        const remaining = (v.numberOfVacancy || 0) - (v.filledPositions || 0);
-
-        if (filterCode && !String(v.requestNumber || v.id || '').toLowerCase().includes(filterCode.toLowerCase())) return false;
-        if (filterPosition && !posName.toLowerCase().includes(filterPosition.toLowerCase())) return false;
-        if (filterDepartment && !deptName.toLowerCase().includes(filterDepartment.toLowerCase())) return false;
-        if (filterProject && !String(v.project || '-').toLowerCase().includes(filterProject.toLowerCase())) return false;
-        if (filterVacancies && !String(v.numberOfVacancy || 0).includes(filterVacancies)) return false;
-        if (filterFilled && !String(v.filledPositions || 0).includes(filterFilled)) return false;
-        if (filterRemaining && !String(remaining).includes(filterRemaining)) return false;
-        if (filterHiringType && !String(v.employeeType?.name || 'N/A').toLowerCase().includes(filterHiringType.toLowerCase())) return false;
-
-        const dateStr = (v.requiredDate || v.requisitionDate) ? new Date(v.requiredDate || v.requisitionDate).toISOString().split('T')[0] : '';
-        if (filterTargetDate && !dateStr.startsWith(filterTargetDate)) return false;
-
-        if (filterStatus && !String(v.status || 'Draft').toLowerCase().includes(filterStatus.toLowerCase())) return false;
-        if (filterApproval && !String(v.approvalStatus || 'Pending').toLowerCase().includes(filterApproval.toLowerCase())) return false;
-
-        return true;
-    });
+    // Legacy client-side filtering is now handled by the server-side query.
 
     return (
         <div className="employees-page">
@@ -1202,7 +1292,7 @@ const Vacancy = () => {
 
             {/* Table Section */}
             <div className="table-card">
-                <div className="table-wrapper">
+                <div className="table-wrapper" ref={tableWrapperRef}>
                     <table className="employee-table" style={{ minWidth: '1400px' }}>
                         <thead>
                             <tr>
@@ -1238,6 +1328,13 @@ const Vacancy = () => {
                             </tr>
                         </thead>
                         <tbody>
+                            {filteredVacancies.length === 0 && !fetchingMore && (
+                                <tr>
+                                    <td colSpan="12" className="text-center py-8 text-gray-500">
+                                        No vacancies found matching your filters.
+                                    </td>
+                                </tr>
+                            )}
                             {filteredVacancies.map((v) => {
                                 const deptName = departments.find(d => d.id === v.departmentId || d.value === v.departmentId)?.label || v.departmentId || 'N/A';
                                 const posName = positions.find(p => p.id === v.positionId || p.value === v.positionId)?.label || v.positionId || 'N/A';
@@ -1254,24 +1351,24 @@ const Vacancy = () => {
                                         <td className="font-mono text-xs">{(v.requiredDate || v.requisitionDate) ? new Date(v.requiredDate || v.requisitionDate).toISOString().split('T')[0] : 'N/A'}</td>
                                         <td className="text-center">
                                             <span 
-                                                className={`status-badge ${v.status === 'Open' ? 'status-open' :
-                                                    v.status === 'On Hold' ? 'status-on-hold' : 'status-closed'}`}
+                                                className={`status-badge ${v.status?.toLowerCase() === 'open' ? 'status-open' :
+                                                    v.status?.toLowerCase() === 'on hold' ? 'status-on-hold' : 'status-closed'}`}
                                                 onClick={() => handleStatusClick(v)}
                                                 style={{ cursor: 'pointer' }}
                                                 title="Click to update vacancy status"
                                             >
-                                                {v.status || 'Draft'}
+                                                {v.status || 'draft'}
                                             </span>
                                         </td>
                                         <td className="text-center">
                                             <span 
-                                                className={`status-badge ${v.approvalStatus === 'Approved' ? 'status-approved' :
-                                                    v.approvalStatus === 'Pending' ? 'status-pending' : 'status-rejected'}`}
+                                                className={`status-badge ${v.approvalStatus?.toLowerCase() === 'approved' ? 'status-approved' :
+                                                    v.approvalStatus?.toLowerCase() === 'pending' ? 'status-pending' : 'status-rejected'}`}
                                                 onClick={() => handleApprovalClick(v)}
                                                 style={{ cursor: 'pointer' }}
                                                 title="Click to update approval status"
                                             >
-                                                {v.approvalStatus || 'Pending'}
+                                                {v.approvalStatus || 'pending'}
                                             </span>
                                         </td>
                                         <td>
@@ -1290,16 +1387,25 @@ const Vacancy = () => {
                                     </tr>
                                 );
                             })}
+                            {fetchingMore && (
+                                <tr>
+                                    <td colSpan="12" className="text-center py-4">
+                                        <div className="loading-spinner-small" style={{ display: 'inline-block' }}></div>
+                                        <span className="ml-2 text-sm text-gray-500">Loading more vacancies...</span>
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
 
                 <div className="pagination">
-                    <span className="pagination-info">Showing 1 to 2 of 2 entries</span>
+                    <span className="pagination-info">
+                        Showing {vacancies.length} of {totalVacancies} entries
+                        {hasMore && <span className="ml-2 text-xs text-blue-500">(Scroll for more)</span>}
+                    </span>
                     <div className="pagination-controls">
-                        <button className="page-btn disabled">Previous</button>
-                        <button className="page-btn active">1</button>
-                        <button className="page-btn disabled">Next</button>
+                        {!hasMore && vacancies.length > 0 && <span className="text-xs text-gray-400">All vacancies loaded</span>}
                     </div>
                 </div>
             </div>
@@ -1347,6 +1453,19 @@ const Vacancy = () => {
                     background: #0b4e56;
                     transform: translateY(-1px);
                     box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.15);
+                }
+
+                .loading-spinner-small {
+                    width: 20px;
+                    height: 20px;
+                    border: 2px solid rgba(13, 95, 104, 0.1);
+                    border-top-color: #0d5f68;
+                    border-radius: 50%;
+                    animation: spin 0.8s linear infinite;
+                }
+
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
                 }
 
                 /* Table Section */

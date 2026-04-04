@@ -62,7 +62,7 @@ export const EMAIL_TEMPLATES = [
     subject: 'Welcome to {{companyName}}, {{employeeName}}!',
     body: `
       <div style="font-family:Arial,sans-serif; max-width:600px; margin:0 auto;">
-        <h2 style="color:#1e3a3a;">Welcome aboard, {{employeeName}}! 🎉</h2>
+        <h2 style="color:#0d5f68;">Welcome aboard, {{employeeName}}! 🎉</h2>
         <p>We are thrilled to have you join <strong>{{companyName}}</strong> 
         as <strong>{{designation}}</strong>.</p>
         <p><strong>Your Employee ID:</strong> {{employeeId}}</p>

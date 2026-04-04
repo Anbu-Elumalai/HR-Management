@@ -149,7 +149,7 @@ const Candidate = () => {
         execute: executeDelete,
         loading: deleting
     } = useActionLoader({
-        actionFn: async (candidateId: string) => {
+        actionFn: async (candidateId) => {
             const result = await candidateService.deleteCandidate(candidateId);
             return result;
         },
@@ -349,6 +349,8 @@ const Candidate = () => {
                 toast.success('Candidate added successfully');
             }
             setViewMode('list');
+            setFilters({ candidateId: '', name: '', email: '', experience: '', role: '', status: '', noticePeriod: '' });
+            setTableFilters({ candidateId: '', name: '', email: '', experience: '', role: '', status: '', noticePeriod: '' });
             reload();
         } catch (error) {
             console.error("Submit error:", error);
