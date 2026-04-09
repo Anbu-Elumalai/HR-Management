@@ -1,12 +1,83 @@
 import React, { useState, useRef } from 'react';
-import { toast } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import {
-    Plus, Eye, Edit, Trash2, X, RotateCcw,
-    Users, MapPin, Monitor, Clock, Calendar,
-    User, AlertCircle, ChevronLeft, ChevronRight
+    Plus, Search, Eye, Edit, Trash2, X, RotateCcw,
+    Briefcase, Users, CheckCircle, AlertCircle,
+    Calendar, MapPin, ChevronDown, MoreVertical,
+    Filter, Download, Clock, Monitor, XCircle, 
+    CheckCircle2, AlertTriangle, PlayCircle, BarChart2,
+    TrendingUp, ChevronLeft, ChevronRight, User
 } from 'lucide-react';
 import './Recruitment.css';
 import api from '../../api/api';
+
+const StatCard = ({ label, count, icon, color, bg }) => (
+    <div className="stat-card" style={{ '--accent-color': color, '--accent-bg': bg }}>
+        <div className="stat-icon-wrapper">{icon}</div>
+        <div className="stat-info">
+            <span className="stat-label">{label}</span>
+            <span className="stat-count">{count}</span>
+        </div>
+    </div>
+);
+
+const Badge = ({ variant, children, onUpdate }) => {
+    const variants = {
+        scheduled: { bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', label: 'Scheduled' },
+        completed: { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', label: 'Completed' },
+        cancelled: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Cancelled' },
+        rescheduled: { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', label: 'Rescheduled' },
+        pending: { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', label: 'Pending' },
+        passed: { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', label: 'Passed' },
+        failed: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Failed' },
+        'on hold': { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', label: 'On Hold' },
+        'move to offer': { bg: 'rgba(13, 95, 104, 0.1)', color: '#0d5f68', label: 'Move to Offer' },
+    };
+    const style = variants[variant?.toLowerCase()] || variants.pending;
+
+    return (
+        <span
+            className={`badge-pill ${onUpdate ? 'badge-clickable' : ''}`}
+            style={{ backgroundColor: style.bg, color: style.color }}
+            onClick={onUpdate}
+        >
+            <span className="badge-dot" style={{ backgroundColor: style.color }}></span>
+            {style.label || children}
+        </span>
+    );
+};
+
+const EmptyState = ({ onCreate }) => (
+    <div className="empty-state-card">
+        <div className="empty-icon-container">
+            <Calendar size={48} />
+        </div>
+        <h3>No interviews scheduled</h3>
+        <p>Try adjusting your search or schedule a new interview to get started.</p>
+        <button className="btn-primary" onClick={onCreate}>
+            <Plus size={18} />
+            Schedule New Interview
+        </button>
+    </div>
+);
+
+const getAvatarColor = (name) => {
+    const colors = [
+        { bg: '#eff6ff', text: '#2563eb' },
+        { bg: '#f0fdf4', text: '#16a34a' },
+        { bg: '#fff7ed', text: '#ea580c' },
+        { bg: '#fdf4ff', text: '#a21caf' },
+        { bg: '#fff1f2', text: '#e11d48' },
+        { bg: '#f1f5f9', text: '#475569' },
+    ];
+    const charCode = (String(name) || 'A').charCodeAt(0);
+    return colors[charCode % colors.length];
+};
+
+const getInitials = (name) => {
+    if (!name) return '??';
+    return String(name).split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+};
 import { candidateService } from '../../services/candidateService';
 import { employeeService } from '../../services/employeeService';
 import { departmentService } from '../../services/departmentService';
@@ -72,10 +143,10 @@ const PanelMemberCard = ({ index, member, employees, roles, departments, onChang
                 // 1. Auto-fetch and pre-fill the Panel Role based on that interviewer's roleId
                 const empRoleId = emp.roleId || (emp.role && typeof emp.role === 'object' ? emp.role._id : emp.role);
                 const foundRole = roles.find(r => String(r._id) === String(empRoleId));
-                
+
                 if (foundRole) {
                     updated.panelRole = foundRole.name;
-                    
+
                     // 2. Conditional logic: If role is "Employee", fetch and set position
                     if (foundRole.name === "Employee") {
                         fetchInterviewerPositions(value);
@@ -276,6 +347,7 @@ const Interview = () => {
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
 
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
@@ -292,6 +364,7 @@ const Interview = () => {
         feedback: ''
     });
     const [limit] = useState(10);
+    const [selectedRows, setSelectedRows] = useState([]);
 
     // Status Modal State
     const [showStatusModal, setShowStatusModal] = useState(false);
@@ -368,6 +441,15 @@ const Interview = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const toggleRowSelection = (id) => {
+        setSelectedRows(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+    };
+
+    const selectAllRows = (e) => {
+        if (e.target.checked) setSelectedRows(interviews.map(i => i._id || i.id));
+        else setSelectedRows([]);
     };
 
     const handleStatusClick = (interview) => {
@@ -466,7 +548,7 @@ const Interview = () => {
     };
 
     const fetchInitialData = async () => {
-        setLoading(true);
+        setIsInitialLoading(true);
         try {
             const [candRes, vacRes, empRes, deptRes, rolesRes, roundRes] = await Promise.all([
                 candidateService.getAllCandidates(0, 1000).catch(() => ({ data: [] })),
@@ -488,6 +570,7 @@ const Interview = () => {
         } catch (error) {
             console.error('Error fetching background data:', error);
         } finally {
+            setIsInitialLoading(false);
             setLoading(false);
         }
     };
@@ -1197,7 +1280,7 @@ const Interview = () => {
     };
 
     // ── Render ─────────────────────────────────────────────────────────────
-    if (loading && interviews.length === 0) { // Only show page-level spinner if first load
+    if (isInitialLoading) { // Use specific initial loading state to prevent blinking
         return (
             <div className="employees-page" style={{
                 display: 'flex',
@@ -1301,225 +1384,269 @@ const Interview = () => {
             {viewMode === 'view' && renderInterviewDetail()}
             {viewMode === 'delete' && renderDeleteModal()}
 
-            <div className="page-header">
-                <div>
-                    <h1 className="page-title">Interview Management</h1>
-                    <p className="page-description">Track, manage and schedule candidate assessment rounds</p>
+            {/* Header Section */}
+            <div className="dashboard-header animate-entry" style={{ padding: '0 0.5rem' }}>
+                <div className="header-left">
+                    <h1 style={{ color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <Calendar size={24} className="text-slate-700 opacity-80" />
+                        Interview Management
+                    </h1>
                 </div>
-                <button className="btn-primary" onClick={() => { setSelectedInterview(null); setViewMode('create'); }}>
-                    <Plus size={18} strokeWidth={2.5} />
-                    <span>Schedule New Interview</span>
-                </button>
+                <div className="header-actions">
+                    <button className="btn-primary" onClick={() => { setSelectedInterview(null); setViewMode('create'); }}>
+                        <Plus size={18} strokeWidth={2.5} />
+                        <span>Schedule New Interview</span>
+                    </button>
+                </div>
             </div>
 
-            <div className="table-card" style={{ position: 'relative' }}>
-                {loading && interviews.length > 0 && (
+            {/* Stats Section */}
+            <div className="stats-grid" style={{ marginBottom: '1rem' }}>
+                <StatCard label="Total Interviews" count={totalItems} icon={<Calendar size={20} />} color="#0d5f68" bg="rgba(13, 95, 104, 0.1)" />
+                <StatCard label="Today's Rounds" count={interviews.filter(i => {
+                    const today = new Date().toISOString().split('T')[0];
+                    return (i.scheduleDate || i.date)?.includes(today);
+                }).length} icon={<Clock size={20} />} color="#3b82f6" bg="rgba(59, 130, 246, 0.1)" />
+                <StatCard label="Success Rate" count={`${Math.round((interviews.filter(i => i.feedback === 'Passed').length / (interviews.filter(i => i.feedback).length || 1)) * 100)}%`} icon={<TrendingUp size={20} />} color="#10b981" bg="rgba(16, 185, 129, 0.1)" />
+                <StatCard label="Pending Feedback" count={interviews.filter(i => i.status === 'Completed' && !i.feedback).length} icon={<RotateCcw size={20} />} color="#f59e0b" bg="rgba(245, 158, 11, 0.1)" />
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="filter-search-container" style={{ marginBottom: '1rem' }}>
+                <div className="search-wrapper">
+                    <Search className="search-icon" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Search by candidate, position or interviewer..."
+                        value={filters.candidate}
+                        onChange={e => setFilters(prev => ({ ...prev, candidate: e.target.value }))}
+                    />
+                </div>
+                <div className="filter-actions">
+                    <div className="filter-dropdown-group">
+                        <select value={filters.status} onChange={e => setFilters(prev => ({ ...prev, status: e.target.value }))}>
+                            <option value="">Status</option>
+                            <option value="Scheduled">Scheduled</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Rescheduled">Rescheduled</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                        <select value={filters.type} onChange={e => setFilters(prev => ({ ...prev, type: e.target.value }))}>
+                            <option value="">Mode</option>
+                            <option value="Video">Video Call</option>
+                            <option value="Onsite">Onsite</option>
+                            <option value="Telephone">Telephone</option>
+                        </select>
+                        <input
+                            type="date"
+                            className="date-picker-input"
+                            value={filters.date}
+                            onChange={e => setFilters(prev => ({ ...prev, date: e.target.value }))}
+                        />
+                    </div>
+                    <button className="btn-icon-alt" onClick={() => setFilters({
+                        interviewId: '', candidate: '', position: '', round: '', interviewer: '', date: '', type: '', status: '', feedback: ''
+                    })} title="Clear Filters">
+                        <RotateCcw size={18} />
+                    </button>
+                </div>
+            </div>
+
+            <div className="table-container-premium shadow-premium" style={{ flex: 1, minHeight: '600px' }}>
+                {loading && (
                     <div className="loading-overlay" style={{
-                        position: 'absolute',
-                        top: 0, left: 0, right: 0, bottom: 0,
-                        background: 'rgba(255,255,255,0.7)',
-                        zIndex: 100,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backdropFilter: 'blur(2px)',
-                        transition: 'all 0.3s',
-                        borderRadius: '0 0 16px 16px'
+                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(255,255,255,0.7)', zIndex: 100, display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)',
+                        borderRadius: '0 0 12px 12px'
                     }}>
                         <div className="premium-spinner" style={{ width: '40px', height: '40px' }}>
                             <div className="premium-core"></div>
                         </div>
                     </div>
                 )}
-                <div className="table-wrapper">
-                    <table className="employee-table">
-                        <thead>
-                            <tr className="header-row">
-                                <th>Interview ID</th>
-                                <th>Candidate</th>
-                                <th>Applied For</th>
-                                <th>Round</th>
-                                <th>Interviewer</th>
-                                <th>Date & Time</th>
-                                <th className="text-center">Type</th>
-                                <th className="text-center">Status</th>
-                                <th className="text-center">Feedback</th>
-                                <th className="text-center">Actions</th>
-                            </tr>
-                            <tr className="filter-row">
-                                <th><input type="text" className="inline-filter" placeholder="Filter ID" value={filters.interviewId} onChange={e => setFilters(prev => ({ ...prev, interviewId: e.target.value }))} /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Filter Candidate" value={filters.candidate} onChange={e => setFilters(prev => ({ ...prev, candidate: e.target.value }))} /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Filter Position" value={filters.position} onChange={e => setFilters(prev => ({ ...prev, position: e.target.value }))} /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Filter Round" value={filters.round} onChange={e => setFilters(prev => ({ ...prev, round: e.target.value }))} /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Filter Panelist" value={filters.interviewer} onChange={e => setFilters(prev => ({ ...prev, interviewer: e.target.value }))} /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Filter Date" value={filters.date} onChange={e => setFilters(prev => ({ ...prev, date: e.target.value }))} /></th>
-                                <th className="text-center"><input type="text" className="inline-filter text-center" placeholder="Type" value={filters.type} onChange={e => setFilters(prev => ({ ...prev, type: e.target.value }))} /></th>
-                                <th className="text-center"><input type="text" className="inline-filter text-center" placeholder="Status" value={filters.status} onChange={e => setFilters(prev => ({ ...prev, status: e.target.value }))} /></th>
-                                <th className="text-center"><input type="text" className="inline-filter text-center" placeholder="Feedback" value={filters.feedback} onChange={e => setFilters(prev => ({ ...prev, feedback: e.target.value }))} /></th>
-                                <th className="text-center">
-                                    <button
-                                        className="btn-reset-filters-roles"
-                                        title="Clear Filters"
-                                        onClick={() => setFilters({
-                                            interviewId: '',
-                                            candidate: '',
-                                            position: '',
-                                            round: '',
-                                            interviewer: '',
-                                            date: '',
-                                            type: '',
-                                            status: '',
-                                            feedback: ''
-                                        })}
-                                    >
-                                        <RotateCcw size={16} />
-                                    </button>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {interviews.map(interview => (
-                                <tr key={interview.id}>
-                                    <td>
-                                        <span className="emp-id font-mono font-bold text-[#0d5f68]">
-                                            {interview.interviewCode || 'PENDING'}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div className="emp-profile">
-                                            <div className="emp-avatar">
-                                                {String(interview.candidateName || (typeof interview.candidate === 'object' ? interview.candidate?.name : interview.candidate) || 'C').charAt(0)}
-                                            </div>
-                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                <span className="emp-name">
-                                                    {interview.candidateName ||
-                                                        (typeof interview.candidate === 'object' ? interview.candidate?.name : interview.candidate) ||
-                                                        'Unknown'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontWeight: '700', color: '#334155', fontSize: '0.85rem' }}>
-                                                {interview.appliedFor ||
-                                                    interview.vacancyName ||
-                                                    (typeof interview.vacancyId === 'object' ? interview.vacancyId?.positionName : interview.vacancyId) ||
-                                                    'Position N/A'}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontWeight: '700', color: '#334155', fontSize: '0.85rem' }}>
-                                                {typeof interview.round === 'object' ? interview.round?.roundName : interview.round}
-                                            </span>
-                                            <span style={{ fontSize: '10px', fontWeight: '800', color: '#0d5f68', background: '#f0fdfa', padding: '1px 6px', borderRadius: '4px', width: 'fit-content', marginTop: '4px', textTransform: 'uppercase' }}>
-                                                Level: {interview.level || 'L1'}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style={{ display: 'flex', flexDirection: 'column', color: '#475569' }}>
-                                            <span style={{ fontSize: '0.875rem', fontWeight: '500' }} title={interview.interviewers?.join(', ')}>
-                                                {(() => {
-                                                    const list = interview.interviewers || [];
-                                                    if (list.length === 0) {
-                                                        return interview.interviewerName || (typeof interview.interviewer === 'object' ? interview.interviewer?.name : interview.interviewer) || 'Not Assigned';
-                                                    }
-                                                    const names = list.map(i => (i && typeof i === 'object') ? i.interviewerName || i.name : (i || 'Pending'));
-                                                    if (names.length <= 2) return names.join(', ');
-                                                    return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
-                                                })()}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontWeight: '700', color: '#334155', fontSize: '0.85rem' }}>
-                                                {interview.scheduleDate ?
-                                                    (typeof interview.scheduleDate === 'string' && interview.scheduleDate.includes('T') ? interview.scheduleDate.split('T')[0] : interview.scheduleDate) :
-                                                    interview.date || 'TBA'}
-                                            </span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8', fontWeight: '500', marginTop: '2px' }}>
-                                                <Clock size={10} /> {interview.time}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="text-center">
-                                        <span className={`status-badge ${interview.mode?.toLowerCase().includes('video') || interview.mode?.toLowerCase().includes('online') ? 'status-video' : 'status-onsite'}`}>
-                                            {interview.mode?.toLowerCase().includes('video') || interview.mode?.toLowerCase().includes('online') ? <Monitor size={12} strokeWidth={2.5} /> : <MapPin size={12} strokeWidth={2.5} />}
-                                            {interview.mode || 'Online'}
-                                        </span>
-                                    </td>
-                                    <td className="text-center">
-                                        <span
-                                            className={`status-badge ${interview.status === 'Scheduled' ? 'status-scheduled' : interview.status === 'Completed' ? 'status-completed' : interview.status === 'Cancelled' ? 'status-cancelled' : 'status-rescheduled'}`}
-                                            onClick={() => handleStatusClick(interview)}
-                                            style={{ cursor: 'pointer' }}
-                                        >
-                                            {interview.status}
-                                        </span>
-                                    </td>
-                                    <td className="text-center">
-                                        <span
-                                            className={`status-badge ${interview.feedback ? 'status-completed' : 'status-pending'}`}
-                                            onClick={() => handleFeedbackClick(interview)}
-                                            style={{ cursor: 'pointer' }}
-                                        >
-                                            {interview.feedback ? 'View' : 'Pending'}
-                                        </span>
-                                    </td>
-                                    <td className="text-center">
-                                        <div className="actions-wrapper">
-                                            <button className="action-btn view" title="View Details"
-                                                onClick={() => { setSelectedInterview(interview); setViewMode('view'); }}><Eye size={18} /></button>
-                                            <button className="action-btn edit" title="Edit Schedule"
-                                                onClick={() => { setSelectedInterview(interview); setViewMode('edit'); }}><Edit size={18} /></button>
-                                            <button className="action-btn delete" title="Cancel Interview"
-                                                onClick={() => { setSelectedInterview(interview); setViewMode('delete'); }}><Trash2 size={18} /></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {interviews.length === 0 && (
-                                <tr>
-                                    <td colSpan="7" className="text-center py-8 text-slate-400 italic">
-                                        No interview schedules found in the database.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="pagination">
-                    <span className="pagination-info">Showing {interviews.length} of {totalItems} Schedule(s)</span>
-                    <div className="pagination-controls">
-                        <button
-                            className={`page-btn ${page === 0 ? 'disabled' : ''}`}
-                            onClick={() => page > 0 && fetchInterviews(page - 1)}
-                            disabled={page === 0}
-                        >
-                            <ChevronLeft size={14} />
-                        </button>
-                        {Array.from({ length: totalPages }, (_, idx) => (
-                            <button
-                                key={idx}
-                                className={`page-btn ${page === idx ? 'active' : ''}`}
-                                onClick={() => fetchInterviews(idx)}
-                            >
-                                {idx + 1}
-                            </button>
-                        ))}
-                        <button
-                            className={`page-btn ${page >= totalPages - 1 ? 'disabled' : ''}`}
-                            onClick={() => page < totalPages - 1 && fetchInterviews(page + 1)}
-                            disabled={page >= totalPages - 1}
-                        >
-                            <ChevronRight size={14} />
-                        </button>
+                
+                <div className="table-header-info">
+                    <div className="header-info-left">
+                        <h3>Interview Schedules List</h3>
+                        <span className="count-chip">{totalItems} TOTAL</span>
+                    </div>
+                    <div className="header-info-right text-xs text-slate-500 font-medium">
+                        Showing {interviews.length} entries on page {page + 1}
                     </div>
                 </div>
+
+                {interviews.length === 0 ? (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '350px' }}>
+                        <EmptyState onCreate={() => { setSelectedInterview(null); setViewMode('create'); }} />
+                    </div>
+                ) : (
+                    <>
+                        <div className="table-responsive" style={{ flex: 1 }}>
+                            <table className="ats-table">
+                                <thead>
+                                    <tr>
+                                        <th onClick={(e) => e.stopPropagation()}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={selectedRows.length === interviews.length && interviews.length > 0} 
+                                                onChange={selectAllRows}
+                                                style={{ cursor: 'pointer', scale: '1.2' }}
+                                            />
+                                        </th>
+                                        <th>Code</th>
+                                        <th>Candidate & Position</th>
+                                        <th>Round</th>
+                                        <th>Panel Members</th>
+                                        <th>Scheduled</th>
+                                        <th className="text-center">Mode</th>
+                                        <th className="text-center">Status</th>
+                                        <th className="text-center">Feedback</th>
+                                        <th className="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {interviews.map(interview => (
+                                        <tr key={interview._id || interview.id} className={selectedRows.includes(interview._id || interview.id) ? 'row-selected' : ''}>
+                                            <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={selectedRows.includes(interview._id || interview.id)} 
+                                                    onChange={() => toggleRowSelection(interview._id || interview.id)}
+                                                    style={{ cursor: 'pointer', scale: '1.2' }}
+                                                />
+                                            </td>
+                                            <td>
+                                                <span className="code-badge">
+                                                    {interview.interviewCode || 'PENDING'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div className="job-info">
+                                                    <span className="job-title">
+                                                        {interview.candidateName || (typeof interview.candidate === 'object' ? interview.candidate?.name : interview.candidate) || 'Unknown'}
+                                                    </span>
+                                                    <div className="job-sub-info">
+                                                        {interview.appliedFor || interview.vacancyName || (typeof interview.vacancyId === 'object' ? interview.vacancyId?.positionName : interview.vacancyId) || 'Position N/A'}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div className="job-info">
+                                                    <span style={{ fontWeight: '700', color: '#334155', fontSize: '0.85rem' }}>
+                                                        {typeof interview.round === 'object' ? interview.round?.roundName : interview.round}
+                                                    </span>
+                                                    <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>
+                                                        {interview.level || 'Final'} Level
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div className="panel-avatars">
+                                                    {(() => {
+                                                        const list = interview.interviewers || [];
+                                                        if (list.length === 0) {
+                                                            const name = interview.interviewerName || (typeof interview.interviewer === 'object' ? interview.interviewer?.name : interview.interviewer) || 'N/A';
+                                                            const col = getAvatarColor(name);
+                                                            return (
+                                                                <div className="panel-avatar" style={{ backgroundColor: col.bg, color: col.text }} title={name}>
+                                                                    {getInitials(name)}
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return (
+                                                            <>
+                                                                {list.slice(0, 3).map((i, idx) => {
+                                                                    const name = (i && typeof i === 'object') ? i.interviewerName || i.name : (i || 'Pending');
+                                                                    const col = getAvatarColor(name);
+                                                                    return (
+                                                                        <div key={idx} className="panel-avatar" style={{ backgroundColor: col.bg, color: col.text, zIndex: 3 - idx }} title={name}>
+                                                                            {getInitials(name)}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                                {list.length > 3 && (
+                                                                    <div className="panel-avatar" style={{ backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '9px', zIndex: 0 }}>
+                                                                        +{list.length - 3}
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div className="date-info">
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b', fontWeight: '600', fontSize: '0.85rem' }}>
+                                                        <Calendar size={14} className="text-slate-400" />
+                                                        <span>{interview.scheduleDate ? (typeof interview.scheduleDate === 'string' && interview.scheduleDate.includes('T') ? interview.scheduleDate.split('T')[0] : interview.scheduleDate) : interview.date || 'TBA'}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: '#94a3b8', marginLeft: '1px' }}>
+                                                        <Clock size={13} /> {interview.time || '00:00'}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="text-center">
+                                                <span className="mode-badge" title={interview.mode || 'Online'}>
+                                                    {interview.mode?.toLowerCase().includes('video') ? <Monitor size={14} /> : <MapPin size={14} />}
+                                                    {interview.mode || 'Online'}
+                                                </span>
+                                            </td>
+                                            <td className="text-center">
+                                                <Badge variant={interview.status} onUpdate={() => handleStatusClick(interview)} />
+                                            </td>
+                                            <td className="text-center">
+                                                <Badge variant={interview.feedback ? (interview.feedback === 'Passed' ? 'passed' : 'failed') : 'pending'} onUpdate={() => handleFeedbackClick(interview)}>
+                                                    {interview.feedback || 'Pending'}
+                                                </Badge>
+                                            </td>
+                                            <td className="text-right">
+                                                <div className="action-button-group">
+                                                    <button className="row-action view" onClick={() => { setSelectedInterview(interview); setViewMode('view'); }} title="View Details"><Eye size={18} /></button>
+                                                    <button className="row-action edit" onClick={() => { setSelectedInterview(interview); setViewMode('edit'); }} title="Edit"><Edit size={18} /></button>
+                                                    <button className="row-action delete" onClick={() => { setSelectedInterview(interview); setViewMode('delete'); }} title="Delete"><Trash2 size={18} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        {/* Pagination Footer */}
+                        <div className="table-footer-ats">
+                            <div className="footer-left">
+                                Showing <b>{interviews.length}</b> of <b>{totalItems}</b> Schedule(s)
+                            </div>
+                            <div className="footer-right">
+                                <button 
+                                    className={`page-btn ${page === 0 ? 'disabled' : ''}`} 
+                                    onClick={() => page > 0 && fetchInterviews(page - 1)} 
+                                    disabled={page === 0}
+                                >
+                                    Previous
+                                </button>
+                                <div className="page-numbers">
+                                    {Array.from({ length: totalPages }, (_, idx) => (
+                                        <button 
+                                            key={idx} 
+                                            className={`page-num ${page === idx ? 'active' : ''}`}
+                                            onClick={() => fetchInterviews(idx)}
+                                        >
+                                            {idx + 1}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button 
+                                    className={`page-btn ${page >= totalPages - 1 ? 'disabled' : ''}`} 
+                                    onClick={() => page < totalPages - 1 && fetchInterviews(page + 1)} 
+                                    disabled={page >= totalPages - 1}
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
 
             {showStatusModal && (
@@ -1728,78 +1855,137 @@ const Interview = () => {
                 </div>
             )}
             <style>{`
-                .employees-page { padding: 1.5rem; padding-top: 1rem; display: flex; flex-direction: column; gap: 1rem; height: calc(100vh - 60px); overflow: hidden; }
-                .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-                .page-title { font-size: 1.5rem; font-weight: 700; color: white; letter-spacing: -0.02em; }
-                .page-description { font-size: 0.75rem; color: rgba(255,255,255,0.6); font-weight: 500; }
-                .btn-primary { background: #0d5f68; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-                .btn-primary:hover { background: #0b4e56; transform: translateY(-1px); }
-                .table-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden; border-radius: 16px; display: flex; flex-direction: column; flex: 1; min-height: 0; }
-                .table-wrapper { overflow-x: auto; overflow-y: auto; flex: 1; width: 100%; }
-                .employee-table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
-                .employee-table thead { position: sticky; top: 0; z-index: 20; background-color: #f8f9fb; }
-                .employee-table th { padding: 0.75rem 1.25rem; color: #374151; font-weight: 700; font-size: 0.8rem; border-bottom: 1px solid #e5e7eb; text-transform: uppercase; letter-spacing: 0.05em; vertical-align: middle; }
-                .filter-row th { padding: 0.5rem 1.25rem 1rem 1.25rem; background-color: #f8f9fb; border-bottom: 1px solid #e5e7eb; }
-                .inline-filter { width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem; outline: none; background: white; color: #4b5563; transition: border-color 0.2s; }
-                .inline-filter:focus { border-color: #0d5f68; box-shadow: 0 0 0 2px rgba(13,95,104,0.1); }
-                .btn-reset-filters-roles { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: white; border: 1px solid #e5e7eb; border-radius: 6px; color: #64748b; cursor: pointer; transition: all 0.2s; margin: 0 auto; }
-                .employee-table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid #f3f4f6; color: #1f2937; font-size: 0.95rem; vertical-align: middle; }
-                .employee-table tr:hover td { background-color: #f9fafb; }
-                .emp-profile { display: flex; align-items: center; gap: 0.75rem; }
-                .emp-avatar { width: 36px; height: 36px; background-color: #e0e7ff; color: #4f46e5; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; }
-                .emp-name { font-weight: 600; color: #111827; }
-                .status-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; justify-content: center; min-width: 70px; transition: transform 0.2s, background-color 0.2s; }
-                .status-badge:hover { transform: translateY(-1px); }
-                .status-badge:active { transform: translateY(0); }
-                .status-video { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
-                .status-onsite { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; }
-                .status-scheduled { background: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; }
-                .status-completed { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
-                .status-cancelled { background: #fff1f2; color: #e11d48; border: 1px solid #ffe4e6; }
-                .status-rescheduled { background: #fffbeb; color: #d97706; border: 1px solid #fef3c7; }
-                .actions-wrapper { display: flex; gap: 0.5rem; }
-                .action-btn { width: 30px; height: 30px; border-radius: 6px; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; background: transparent; }
-                .action-btn:hover { background-color: #f3f4f6; }
-                .action-btn.view { color: #3b82f6; }
-                .action-btn.edit { color: #10b981; }
-                .action-btn.delete { color: #ef4444; }
-                .pagination { padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #f3f4f6; background: white; }
-                .pagination-info { font-size: 0.85rem; color: #6b7280; font-weight: 500; }
-                .pagination-controls { display: flex; gap: 0.5rem; align-items: center; }
-                .page-btn { min-width: 32px; height: 32px; padding: 0 0.4rem; display: flex; align-items: center; justify-content: center; border: 1px solid #e5e7eb; background: white; border-radius: 6px; font-size: 0.85rem; cursor: pointer; color: #4b5563; transition: all 0.2s; }
-                .page-btn.active { background-color: #0d5f68; color: white; border-color: #0d5f68; font-weight: 500; }
-                .page-btn.disabled { opacity: 0.5; cursor: not-allowed; background-color: #f9fafb; color: #9ca3af; }
-                .table-wrapper::-webkit-scrollbar { width: 6px; height: 6px; }
-                .table-wrapper::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-                .status-badge-premium { padding: 0.4rem 0.75rem; border-radius: 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; justify-content: center; min-width: 90px; border: 1px solid transparent; }
-                .delete-modal-content { max-width: 440px !important; height: auto !important; padding: 0 !important; overflow: hidden !important; }
-                .delete-header-premium { padding: 1.5rem 1.5rem 0.5rem 1.5rem !important; display: flex; justify-content: flex-end; }
-                .delete-body-premium { padding: 0 2.5rem 2rem 2.5rem !important; text-align: center; }
-                .delete-icon-container { width: 80px; height: 80px; background: #fef2f2; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem auto; color: #ef4444; }
-                .delete-title-premium { font-size: 1.5rem; font-weight: 700; color: #0f172a; margin-bottom: 0.75rem; }
-                .delete-message-premium { font-size: 1rem; color: #64748b; line-height: 1.5; margin-bottom: 1.5rem; }
-                .delete-item-badge { display: inline-block; padding: 0.4rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; color: #334155; font-weight: 600; font-size: 0.9rem; }
-                .delete-footer-premium { padding: 1.5rem 2.5rem 2.5rem !important; display: flex !important; gap: 1rem; }
-                .btn-cancel-premium { flex: 1; padding: 0.8rem !important; border-radius: 12px !important; font-weight: 600 !important; background: #f1f5f9 !important; color: #475569 !important; border: 1px solid transparent !important; cursor: pointer; }
-                .btn-delete-premium { flex: 1; padding: 0.8rem !important; border-radius: 12px !important; font-weight: 600 !important; color: white !important; border: none !important; cursor: pointer; }
-                .text-center { text-align: center; }
-                .font-mono { font-family: monospace; }
-                .reason-field { margin-top: 1rem; text-align: left; }
-                .reason-label { font-size: 0.8rem; color: #64748b; font-weight: 800; text-transform: uppercase; margin-bottom: 0.4rem; display: block; }
-                .reason-textarea { width: 100%; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 0.9rem; resize: vertical; min-height: 80px; outline: none; transition: border-color 0.2s; }
-                .reason-textarea:focus { border-color: #0d5f68; }
-                .flex { display: flex; }
-                .items-center { align-items: center; }
-                .justify-center { justify-content: center; }
-                .flex-col { flex-direction: column; }
-                .gap-4 { gap: 1rem; }
-                .h-full { height: 100%; }
-                .w-12 { width: 3rem; }
-                .h-12 { height: 3rem; }
-                .animate-spin { animation: spin 1s linear infinite; }
-                @keyframes spin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
+                .employees-page { padding: 1.5rem; padding-top: 1rem; display: flex; flex-direction: column; gap: 1rem; min-height: calc(100vh - 60px); height: auto; background: #f8fafc; }
+                
+                /* Layout */
+                .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; min-height: 48px; }
+                .dashboard-header h1 { font-size: 1.25rem; font-weight: 700; color: #0f172a; }
+                
+                /* Stats Cards */
+                .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+                .stat-card { background: white; padding: 1rem 1.15rem; border-radius: 12px; display: flex; align-items: center; gap: 0.85rem; border: 1px solid #f1f5f9; box-shadow: 0 1px 2px rgba(0,0,0,0.03); transition: all 0.25s ease; }
+                .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 15px -3px rgba(0,0,0,0.08); border-color: var(--accent-color); }
+                .stat-icon-wrapper { width: 40px; height: 40px; border-radius: 10px; background: var(--accent-bg); color: var(--accent-color); display: flex; align-items: center; justify-content: center; }
+                .stat-info { display: flex; flex-direction: column; gap: 1px; }
+                .stat-count { font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1; letter-spacing: -0.01em; }
+                .stat-label { font-size: 0.725rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+
+                /* Filter Bar */
+                .filter-search-container { background: white; padding: 0.65rem 1.25rem; border-radius: 12px; display: flex; gap: 1rem; align-items: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.03); flex-wrap: wrap; }
+                .search-wrapper { flex: 1; position: relative; display: flex; align-items: center; min-width: 280px; }
+                .search-icon { position: absolute; left: 0.85rem; color: #94a3b8; z-index: 10; }
+                .search-wrapper input { width: 100%; height: 38px; padding: 0 1rem 0 2.5rem; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; font-size: 0.85rem; color: #1e293b; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+                .search-wrapper input:focus { border-color: #0d5f68; background: white; box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.08); }
+                .filter-actions { display: flex; gap: 0.75rem; align-items: center; flex-shrink: 0; }
+                .filter-dropdown-group { display: flex; gap: 0.5rem; align-items: center; }
+                .filter-dropdown-group select, .date-picker-input { height: 38px; padding: 0 1rem; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.825rem; color: #475569; font-weight: 600; outline: none; cursor: pointer; min-width: 130px; }
+                .filter-dropdown-group select:focus, .date-picker-input:focus { border-color: #0d5f68; background: white; }
+                .btn-icon-alt { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+                .btn-icon-alt:hover { background: #f1f5f9; color: #0d5f68; border-color: #cbd5e1; }
+
+                /* Table Premium */
+                /* Table Premium - Fully Redesigned */
+                .table-container-premium { background: white; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); width: 100%; position: relative; margin-top: 0.5rem; }
+                .table-header-info { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: white; flex-wrap: wrap; gap: 0.75rem; }
+                .header-info-left { display: flex; align-items: center; gap: 0.75rem; }
+                .header-info-left h3 { margin: 0; font-size: 1rem; font-weight: 700; color: #1e293b; letter-spacing: -0.0125em; }
+                .count-chip { background: #f1f5f9; color: #64748b; padding: 0.2rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; border: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.025em; }
+                
+                .table-responsive { overflow-x: auto; flex: 1; position: relative; scrollbar-gutter: stable; }
+                .table-responsive::-webkit-scrollbar { height: 6px; width: 6px; }
+                .table-responsive::-webkit-scrollbar-track { background: #f8fafc; }
+                .table-responsive::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid #f8fafc; }
+                .table-responsive::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+                .ats-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1300px; table-layout: fixed; }
+                .ats-table th { background: #f8fafc; padding: 1rem 1.25rem; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; text-align: left; border-bottom: 2px solid #f1f5f9; position: sticky; top: 0; z-index: 20; white-space: nowrap; }
+                .ats-table td { padding: 0.75rem 1.25rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; transition: background-color 0.15s ease; color: #334155; height: 82px; overflow: hidden; }
+                .ats-table tr:hover td { background: #f8fafc; }
+                .ats-table tr.row-selected td { background-color: rgba(13, 95, 104, 0.04) !important; }
+                
+                /* Column Widths & Alignments */
+                .ats-table th:nth-child(1), .ats-table td:nth-child(1) { width: 60px; text-align: center; }
+                .ats-table th:nth-child(2), .ats-table td:nth-child(2) { width: 130px; }
+                .ats-table th:nth-child(3), .ats-table td:nth-child(3) { width: 280px; }
+                .ats-table th:nth-child(4), .ats-table td:nth-child(4) { width: 160px; }
+                .ats-table th:nth-child(5), .ats-table td:nth-child(5) { width: 160px; }
+                .ats-table th:nth-child(6), .ats-table td:nth-child(6) { width: 180px; }
+                .ats-table th:nth-child(7), .ats-table td:nth-child(7) { width: 170px; text-align: center; }
+                .ats-table th:nth-child(8), .ats-table td:nth-child(8) { width: 150px; text-align: center; }
+                .ats-table th:nth-child(9), .ats-table td:nth-child(9) { width: 150px; text-align: center; }
+                .ats-table th:nth-child(10), .ats-table td:nth-child(10) { width: 150px; text-align: right; }
+
+                .code-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; color: #0d5f68; background: rgba(13, 95, 104, 0.06); padding: 0.25rem 0.6rem; border-radius: 6px; border: 1px solid rgba(13, 95, 104, 0.1); letter-spacing: -0.01em; }
+
+                /* Cell Layouts */
+                .job-info { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+                .job-title { font-weight: 700; color: #1e293b; font-size: 0.88rem; line-height: 1.2; }
+                .job-sub-info { font-size: 0.75rem; color: #64748b; font-weight: 500; }
+                
+                .panel-avatars { display: flex; align-items: center; justify-content: flex-start; padding-left: 8px; }
+                .panel-avatar { width: 32px; height: 32px; border-radius: 50%; border: 2px solid white; margin-left: -10px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); cursor: help; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                .panel-avatar:first-child { margin-left: 0; }
+                .panel-avatar:hover { transform: translateY(-4px) scale(1.1); z-index: 100 !important; box-shadow: 0 4px 6px rgba(0,0,0,0.15); }
+
+                .date-info { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+                .mode-badge { display: inline-flex; padding: 0.35rem 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.725rem; font-weight: 700; color: #475569; gap: 6px; align-items: center; white-space: nowrap; max-width: 125px; overflow: hidden; text-overflow: ellipsis; }
+
+                /* Components */
+                .badge-pill { padding: 0.4rem 0.85rem; border-radius: 8px; font-size: 0.725rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.5rem; text-transform: uppercase; letter-spacing: 0.04em; }
+                .badge-dot { width: 6px; height: 6px; border-radius: 50%; }
+                
+                .action-button-group { display: flex; justify-content: flex-end; gap: 0.35rem; }
+                .row-action { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94a3b8; transition: all 0.2s; cursor: pointer; background: #f8fafc; border: 1px solid #f1f5f9; }
+                .row-action:hover { border-color: #e2e8f0; transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+                .row-action.view:hover { color: #3b82f6; background: #eff6ff; border-color: #dbeafe; }
+                .row-action.edit:hover { color: #10b981; background: #f0fdf4; border-color: #dcfce7; }
+                .row-action.delete:hover { color: #ef4444; background: #fef2f2; border-color: #fee2e2; }
+
+                /* Pagination Footer - Fixed Alignment */
+                .table-footer-ats { padding: 1rem 1.25rem; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: white; min-height: 64px; }
+                .footer-left { font-size: 0.85rem; color: #64748b; font-weight: 500; display: flex; align-items: center; }
+                .footer-left b { color: #1e293b; margin: 0 4px; }
+                .footer-right { display: flex; align-items: center; gap: 1rem; }
+                .page-numbers { display: flex; align-items: center; gap: 0.35rem; }
+                .page-btn { height: 36px; padding: 0 1rem; border-radius: 8px; border: 1px solid #e2e8f0; background: white; font-size: 0.8rem; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+                .page-btn:not(.disabled):hover { border-color: #0d5f68; color: #0d5f68; background: #f0f9f9; }
+                .page-btn.disabled { opacity: 0.5; cursor: not-allowed; background: #f8fafc; }
+                .page-num { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; background: white; font-size: 0.8rem; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.2s; }
+                .page-num.active { background: #0d5f68; color: white; border-color: #0d5f68; box-shadow: 0 2px 4px rgba(13, 95, 104, 0.2); }
+                .page-num:not(.active):hover { border-color: #0d5f68; color: #0d5f68; }
+
+                .empty-state-card { padding: 5rem 2rem; text-align: center; display: flex; flex-direction: column; align-items: center; color: #64748b; }
+                .empty-icon-container { width: 88px; height: 88px; border-radius: 24px; background: #f8fafc; color: #cbd5e1; display: flex; align-items: center; justify-content: center; margin-bottom: 2rem; border: 1px solid #f1f5f9; }
+                .empty-state-card h3 { margin: 0; font-size: 1.25rem; color: #1e293b; font-weight: 700; }
+                .empty-state-card p { max-width: 320px; margin: 0.75rem 0 1.5rem; font-size: 0.9rem; line-height: 1.5; }
+
+                .btn-primary { background: #0d5f68; color: white; border: none; padding: 0.7rem 1.5rem; border-radius: 10px; font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; gap: 0.6rem; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 2px 4px rgba(13, 95, 104, 0.1); }
+                .btn-primary:hover { background: #0b4e56; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(13, 95, 104, 0.25); }
+                
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                .animate-entry { animation: fadeIn 0.4s ease-out; }
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+                /* Responsiveness Settings */
+                @media (max-width: 1200px) {
+                    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+                }
+                @media (max-width: 768px) {
+                    .dashboard-header { flex-direction: column; align-items: stretch; gap: 1rem; }
+                    .header-actions .btn-primary { width: 100%; justify-content: center; }
+                    .filter-search-container { padding: 1.25rem; flex-direction: column; align-items: stretch; }
+                    .filter-actions { width: 100%; flex-direction: column; }
+                    .filter-dropdown-group { width: 100%; flex-direction: column; }
+                    .filter-dropdown-group select, .date-picker-input { width: 100%; }
+                    .stats-grid { grid-template-columns: 1fr; }
+                    .employees-page { padding: 1rem; }
+                    .table-header-info { flex-direction: column; align-items: flex-start; }
+                }
+                @media (max-width: 480px) {
+                    .dashboard-header h1 { font-size: 1.1rem; }
+                    .stat-card { padding: 0.75rem; }
+                    .stat-count { font-size: 1.15rem; }
+                    .count-chip { display: none; }
                 }
             `}</style>
         </div>

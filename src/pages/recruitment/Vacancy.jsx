@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-    Plus, Search, Eye, Edit, Trash2, X, RotateCcw, 
-    Briefcase, Users, CheckCircle, AlertCircle, 
-    Calendar, MapPin, ChevronDown, MoreVertical, 
-    Filter, Download, Copy, Archive, Check, 
+    Plus, Search, Eye, Edit, Trash2, X, RotateCcw,
+    Briefcase, Users, CheckCircle, AlertCircle,
+    Calendar, MapPin, ChevronDown, MoreVertical,
+    Filter, Download, Copy, Archive, Check,
     Info, ExternalLink, ArrowRight
 } from 'lucide-react';
 import './Recruitment.css';
@@ -41,10 +41,10 @@ const Badge = ({ variant, children, onUpdate }) => {
         low: { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', label: 'Low' },
     };
     const style = variants[variant?.toLowerCase()] || variants.draft;
-    
+
     return (
-        <span 
-            className={`badge-pill ${onUpdate ? 'badge-clickable' : ''}`} 
+        <span
+            className={`badge-pill ${onUpdate ? 'badge-clickable' : ''}`}
             style={{ backgroundColor: style.bg, color: style.color }}
             onClick={onUpdate}
         >
@@ -201,7 +201,7 @@ const Vacancy = () => {
 
     // Bulk Handlers
     const toggleRowSelection = (id) => {
-        setSelectedRows(prev => 
+        setSelectedRows(prev =>
             prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
         );
     };
@@ -248,7 +248,7 @@ const Vacancy = () => {
     const handleExport = () => {
         const dataToExport = vacancies.length > 0 ? vacancies : [];
         if (dataToExport.length === 0) return toast.error("No data to export");
-        
+
         const headers = ["Code", "Position", "Department", "Openings", "Hiring Type", "Target Date", "Status"];
         const rows = dataToExport.map(v => [
             v.requestNumber || v.id,
@@ -259,11 +259,11 @@ const Vacancy = () => {
             v.requiredDate?.split('T')[0],
             v.status
         ]);
-        
-        const csvContent = "data:text/csv;charset=utf-8," 
+
+        const csvContent = "data:text/csv;charset=utf-8,"
             + headers.join(",") + "\n"
             + rows.map(e => e.join(",")).join("\n");
-            
+
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -274,11 +274,11 @@ const Vacancy = () => {
     };
 
     // Function to fetch initial vacancies or with filters
-    const fetchVacancies = useCallback(async (isInitial = false) => {
+    const fetchVacancies = useCallback(async (isInitial = false, pageNum = 0) => {
         if (isInitial) setLoading(true);
         try {
             const params = new URLSearchParams({
-                page: 0,
+                page: pageNum,
                 limit: limit,
                 vacancyCode: filterCode,
                 position: filterPosition,
@@ -295,11 +295,11 @@ const Vacancy = () => {
 
             const res = await api.get(`/vacancies?${params.toString()}`);
             const resData = res.data || { data: [], total: 0 };
-            
+
             setVacancies(resData.data || []);
             setTotalVacancies(resData.total || 0);
-            setHasMore((resData.data || []).length < (resData.total || 0));
-            setPage(0);
+            setHasMore((resData.data || []).length === limit && (pageNum + 1) * limit < (resData.total || 0));
+            setPage(pageNum);
         } catch (error) {
             console.error("Error fetching vacancies:", error);
             toast.error("Failed to fetch vacancies");
@@ -308,94 +308,25 @@ const Vacancy = () => {
         }
     }, [limit, filterCode, filterPosition, filterDepartment, filterProject, filterVacancies, filterFilled, filterRemaining, filterHiringType, filterTargetDate, filterStatus, filterApproval]);
 
-    // Unified Effect for Data Loading
+    // Removed infinite scroll listener in favor of traditional pagination
     useEffect(() => {
-        // Initial Mount Fetch
+        // Master Data & Initial Load
         loadMasterData();
-        fetchVacancies(true);
+        fetchVacancies(true, 0);
     }, []);
 
-    // Function to fetch more vacancies (infinite scroll)
-    const fetchMoreVacancies = useCallback(async () => {
-        if (loadingRef.current || !hasMore) return;
-
-        loadingRef.current = true;
-        setFetchingMore(true);
-        const nextPage = page + 1;
-
-        try {
-            // Include filters in the call
-            const params = new URLSearchParams({
-                page: nextPage,
-                limit: limit,
-                vacancyCode: filterCode,
-                position: filterPosition,
-                department: filterDepartment,
-                project: filterProject,
-                vacancies: filterVacancies,
-                filled: filterFilled,
-                remaining: filterRemaining,
-                hiringType: filterHiringType,
-                targetDate: filterTargetDate,
-                status: filterStatus,
-                approval: filterApproval
-            });
-
-            const response = await api.get(`/vacancies?${params.toString()}`);
-            const newData = response.data?.data || [];
-            const total = response.data?.total || 0;
-
-            if (newData.length > 0) {
-                // Prevent duplicates just in case using a functional update for better state stability
-                setVacancies(prev => {
-                    const existingIds = new Set(prev.map(v => v._id || v.id));
-                    const filteredNew = newData.filter(v => !existingIds.has(v._id || v.id));
-                    const updated = [...prev, ...filteredNew];
-                    // Update hasMore based on the newly calculated total list size
-                    setHasMore(updated.length < total);
-                    return updated;
-                });
-                setPage(nextPage);
-                setTotalVacancies(total);
-            } else {
-                setHasMore(false);
-            }
-        } catch (error) {
-            console.error("Error fetching more vacancies:", error);
-            toast.error("Failed to load more vacancies");
-        } finally {
-            setFetchingMore(false);
-            loadingRef.current = false;
-        }
-    }, [page, hasMore, vacancies.length, limit, filterCode, filterPosition, filterDepartment, filterProject, filterVacancies, filterFilled, filterRemaining, filterHiringType, filterTargetDate, filterStatus, filterApproval]);
-
-    // Scroll listener for infinite scroll
-    useEffect(() => {
-        const wrapper = tableWrapperRef.current;
-        if (!wrapper) return;
-
-        const handleScroll = () => {
-            const { scrollTop, scrollHeight, clientHeight } = wrapper;
-            // threshold of 50px from bottom
-            if (scrollHeight - scrollTop - clientHeight < 50) {
-                fetchMoreVacancies();
-            }
-        };
-
-        wrapper.addEventListener('scroll', handleScroll);
-        return () => wrapper.removeEventListener('scroll', handleScroll);
-    }, [fetchMoreVacancies]);
-
-    // Reset page and refetch when filters change (server-side filtering)
     useEffect(() => {
         const debounceTimer = setTimeout(() => {
-            // If it's not the initial mount, reload
-            if (!loading) {
-                fetchVacancies(false);
+            if (!loading && viewMode === 'list') {
+                fetchVacancies(false, 0);
             }
-        }, 500); // 500ms debounce
+        }, 500); 
         return () => clearTimeout(debounceTimer);
-    }, [fetchVacancies, loading]);
+    }, [
+        filterCode, filterPosition, filterDepartment, filterProject, 
+        filterVacancies, filterFilled, filterRemaining, filterHiringType, 
+        filterTargetDate, filterStatus, filterApproval
+    ]);
 
     // Keep client-side sorting/filtering for immediate UI response if needed, 
     // but the main data is now server-controlled
@@ -440,14 +371,14 @@ const Vacancy = () => {
                     editData.requisitionDate = safeDate(editData.requisitionDate);
                     editData.requiredDate = safeDate(editData.requiredDate);
                     editData.scheduleDate = safeDate(editData.scheduleDate);
-                    
+
                     // Ensure skills is an array for MultiSelect
                     if (typeof editData.skills === 'string') {
                         editData.skills = editData.skills.split(',').map(s => s.trim()).filter(s => s);
                     } else if (!Array.isArray(editData.skills)) {
                         editData.skills = [];
                     }
-                    
+
                     setFormData(editData);
                 }
             };
@@ -514,11 +445,11 @@ const Vacancy = () => {
                 errors[field] = 'This field is required';
             }
         });
-        
+
         if (Array.isArray(formData.skills) && formData.skills.length === 0) {
             errors.skills = 'Please select at least one skill';
         }
-        
+
         if (!formData.location) {
             errors.location = 'Please select job location';
         }
@@ -689,9 +620,9 @@ const Vacancy = () => {
                 <div className="delete-body-premium" style={{ paddingTop: '0rem' }}>
                     <h2 className="delete-title-premium" style={{ fontSize: '1.25rem' }}>Update Status</h2>
                     <p className="delete-message-premium" style={{ fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                        Updating status for: <br/>
+                        Updating status for: <br />
                         <span className="delete-item-badge" style={{ marginTop: '0.5rem', background: '#f8fafc' }}>
-                           {vacancyForStatus?.requestNumber || vacancyForStatus?.id}
+                            {vacancyForStatus?.requestNumber || vacancyForStatus?.id}
                         </span>
                     </p>
 
@@ -764,9 +695,9 @@ const Vacancy = () => {
                 <div className="delete-body-premium" style={{ paddingTop: '0rem' }}>
                     <h2 className="delete-title-premium" style={{ fontSize: '1.25rem' }}>Update Status</h2>
                     <p className="delete-message-premium" style={{ fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                        Updating approval for: <br/>
+                        Updating approval for: <br />
                         <span className="delete-item-badge" style={{ marginTop: '0.5rem', background: '#f8fafc' }}>
-                           {vacancyForApproval?.requestNumber || vacancyForApproval?.id}
+                            {vacancyForApproval?.requestNumber || vacancyForApproval?.id}
                         </span>
                     </p>
 
@@ -834,7 +765,7 @@ const Vacancy = () => {
                         <X size={18} />
                     </button>
                 </div>
-                
+
                 <div className="delete-body-premium">
                     <div className="delete-icon-container">
                         <Trash2 size={36} />
@@ -849,16 +780,16 @@ const Vacancy = () => {
                 </div>
 
                 <div className="delete-footer-premium">
-                    <button 
-                        className="btn-cancel-premium" 
+                    <button
+                        className="btn-cancel-premium"
                         onClick={() => setShowDeleteModal(false)}
                         disabled={submitting}
                     >
                         Cancel
                     </button>
-                    <button 
-                        className="btn-delete-premium" 
-                        onClick={handleDeleteConfirm} 
+                    <button
+                        className="btn-delete-premium"
+                        onClick={handleDeleteConfirm}
                         disabled={submitting}
                     >
                         {submitting ? 'Deleting...' : 'Yes, Delete'}
@@ -1411,11 +1342,13 @@ const Vacancy = () => {
         { label: 'Draft Jobs', count: vacancies.filter(v => v.status?.toLowerCase() === 'draft').length, icon: <Edit size={20} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' },
         { label: 'Pending Approval', count: vacancies.filter(v => v.approvalStatus?.toLowerCase() === 'pending').length, icon: <RotateCcw size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
         { label: 'Filled Jobs', count: vacancies.filter(v => v.status?.toLowerCase() === 'filled').length, icon: <CheckCircle size={20} />, color: '#2dd4bf', bg: 'rgba(45, 212, 191, 0.1)' },
-        { label: 'Closing Soon', count: vacancies.filter(v => {
-            if (!v.requiredDate) return false;
-            const diff = new Date(v.requiredDate) - new Date();
-            return diff > 0 && diff < 7 * 24 * 60 * 60 * 1000;
-        }).length, icon: <AlertCircle size={20} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' },
+        {
+            label: 'Closing Soon', count: vacancies.filter(v => {
+                if (!v.requiredDate) return false;
+                const diff = new Date(v.requiredDate) - new Date();
+                return diff > 0 && diff < 7 * 24 * 60 * 60 * 1000;
+            }).length, icon: <AlertCircle size={20} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)'
+        },
     ];
 
     return (
@@ -1427,17 +1360,19 @@ const Vacancy = () => {
             {viewMode === 'view' && renderVacancyDetail()}
 
             {/* Header Section */}
-            <div className="dashboard-header">
+            <div className="dashboard-header animate-entry">
                 <div className="header-left">
-                    <h1>Vacancy Management</h1>
-                    <p>Manage job openings, track approvals, and monitor hiring progress in real-time.</p>
+                    <h1>
+                        <Briefcase size={24} className="text-[#0d5f68]" />
+                        Vacancy Management
+                    </h1>
                 </div>
                 <div className="header-actions">
-                    <button className="btn-secondary-outline" onClick={handleExport}>
+                    <button type="button" className="btn-secondary-outline" onClick={handleExport}>
                         <Download size={18} />
                         Export
                     </button>
-                    <button className="btn-primary" onClick={() => { setSelectedVacancy(null); setViewMode('create'); }}>
+                    <button type="button" className="btn-primary" onClick={() => { setSelectedVacancy(null); setViewMode('create'); }}>
                         <Plus size={20} />
                         Add Vacancy
                     </button>
@@ -1455,10 +1390,10 @@ const Vacancy = () => {
             <div className="filter-search-container">
                 <div className="search-wrapper">
                     <Search className="search-icon" size={18} />
-                    <input 
-                        type="text" 
-                        placeholder="Search by code, position, department, recruiter..." 
-                        value={filterPosition} 
+                    <input
+                        type="text"
+                        placeholder="Search by code, position, department, recruiter..."
+                        value={filterPosition}
                         onChange={e => setFilterPosition(e.target.value)}
                     />
                 </div>
@@ -1482,15 +1417,15 @@ const Vacancy = () => {
                             <option value="approved">Approved</option>
                             <option value="rejected">Rejected</option>
                         </select>
-                        <input 
-                            type="date" 
+                        <input
+                            type="date"
                             className="date-picker-input"
-                            value={filterTargetDate} 
+                            value={filterTargetDate}
                             onChange={e => setFilterTargetDate(e.target.value)}
                             placeholder="Target Date"
                         />
                     </div>
-                    <button className="btn-icon-alt" onClick={handleResetFilters} title="Clear Filters">
+                    <button type="button" className="btn-icon-alt" onClick={handleResetFilters} title="Clear Filters">
                         <RotateCcw size={18} />
                     </button>
                 </div>
@@ -1498,7 +1433,7 @@ const Vacancy = () => {
 
             {/* Bulk Toolbar */}
             {selectedRows.length > 0 && (
-                <div className="bulk-toolbar animate-fade-in">
+                <div className="bulk-toolbar animate-toolbar-in">
                     <div className="selection-count">
                         <Check size={16} className="text-white" />
                         <span>{selectedRows.length} items selected</span>
@@ -1514,34 +1449,34 @@ const Vacancy = () => {
             {/* Table Section */}
             <div className="table-container-premium shadow-premium">
                 <div className="table-header-info">
-                   <div className="header-info-left">
-                       <h3>Vacancies List</h3>
-                       <span className="count-chip">{totalVacancies} Total</span>
-                   </div>
-                   <div className="header-info-right text-xs text-slate-500 font-medium">
-                       Showing {vacancies.length} entries
-                   </div>
+                    <div className="header-info-left">
+                        <h3>Vacancies List</h3>
+                        <span className="count-chip">{totalVacancies} Total</span>
+                    </div>
+                    <div className="header-info-right text-xs text-slate-500 font-medium">
+                        Showing {vacancies.length} entries
+                    </div>
                 </div>
-                
+
                 <div className="table-responsive" ref={tableWrapperRef}>
                     <table className="ats-table">
                         <thead>
                             <tr>
                                 <th style={{ width: '40px' }}>
-                                    <input 
-                                        type="checkbox" 
+                                    <input
+                                        type="checkbox"
                                         onChange={selectAllRows}
                                         checked={vacancies.length > 0 && selectedRows.length === vacancies.length}
                                     />
                                 </th>
                                 <th style={{ width: '120px' }}>CODE</th>
                                 <th style={{ width: '250px' }}>JOB TITLE & DEPT</th>
-                                <th>OPENINGS</th>
-                                <th>APPLICANTS</th>
-                                <th>TARGET DATE</th>
-                                <th>APPROVAL</th>
-                                <th>STATUS</th>
-                                <th className="text-right pr-6">ACTIONS</th>
+                                <th style={{ width: '100px' }}>OPENINGS</th>
+                                <th style={{ width: '150px' }}>APPLICANTS</th>
+                                <th style={{ width: '140px' }}>TARGET DATE</th>
+                                <th style={{ width: '120px' }}>APPROVAL</th>
+                                <th style={{ width: '120px' }}>STATUS</th>
+                                <th style={{ width: '120px' }} className="text-right pr-6">ACTIONS</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1556,16 +1491,16 @@ const Vacancy = () => {
                                     const isSelected = selectedRows.includes(v._id || v.id);
                                     const deptName = departments.find(d => d.value === v.departmentId)?.label || v.departmentId || 'N/A';
                                     const posName = positions.find(p => p.value === v.positionId)?.label || v.positionId || 'N/A';
-                                    
+
                                     // Internal Mock Data for Applicants (Redesign requirement)
                                     const applicants = Math.floor(Math.random() * 50) + 5;
                                     const shortlisted = Math.floor(applicants * 0.3);
-                                    
+
                                     return (
                                         <tr key={v._id || v.id} className={isSelected ? 'row-selected' : ''}>
                                             <td>
-                                                <input 
-                                                    type="checkbox" 
+                                                <input
+                                                    type="checkbox"
                                                     checked={isSelected}
                                                     onChange={() => toggleRowSelection(v._id || v.id)}
                                                 />
@@ -1594,8 +1529,8 @@ const Vacancy = () => {
                                                 <div className="applicant-stats">
                                                     <span className="total-app">{applicants} Applied</span>
                                                     <div className="pipeline-mini">
-                                                        <div className="pipe-seg shortlisted" style={{ width: '30%' }} title={`Shortlisted: ${shortlisted}`}></div>
-                                                        <div className="pipe-seg interviewed" style={{ width: '20%' }} title="Interviewing"></div>
+                                                        <div className="pipe-seg shortlisted" style={{ width: `${(shortlisted / applicants) * 100}%` }} title={`Shortlisted: ${shortlisted}`}></div>
+                                                        <div className="pipe-seg interviewed" style={{ width: '15%' }} title="Interviewing"></div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -1611,16 +1546,16 @@ const Vacancy = () => {
                                             <td>
                                                 <Badge variant={v.status} onUpdate={() => handleStatusClick(v)} />
                                             </td>
-                                            <td className="text-right pr-4">
+                                            <td className="text-right">
                                                 <div className="action-button-group">
-                                                    <button className="row-action view" onClick={() => handleViewClick(v)} title="View Details">
+                                                    <button type="button" className="row-action view" onClick={() => handleViewClick(v)} title="View Details">
                                                         <Eye size={18} />
                                                     </button>
-                                                    <button className="row-action edit" onClick={() => handleEditClick(v)} title="Edit Vacancy">
+                                                    <button type="button" className="row-action edit" onClick={() => handleEditClick(v)} title="Edit Vacancy">
                                                         <Edit size={18} />
                                                     </button>
-                                                    <button className="row-action more">
-                                                        <MoreVertical size={18} />
+                                                    <button type="button" className="row-action delete" onClick={() => handleDeleteClick(v)} title="Delete Vacancy">
+                                                        <Trash2 size={18} />
                                                     </button>
                                                 </div>
                                             </td>
@@ -1642,50 +1577,85 @@ const Vacancy = () => {
 
                 <div className="table-footer-ats">
                     <div className="footer-left">
-                        Showing <b>1</b> to <b>{vacancies.length}</b> of <b>{totalVacancies}</b> entries
+                        Showing <b>{totalVacancies > 0 ? page * limit + 1 : 0}</b> to <b>{Math.min((page + 1) * limit, totalVacancies)}</b> of <b>{totalVacancies}</b> entries
                     </div>
                     <div className="footer-right">
-                        <button className={`page-control ${page === 0 ? 'disabled' : ''}`} disabled={page === 0}>Previous</button>
+                        <button 
+                            className={`page-btn ${page === 0 ? 'disabled' : ''}`} 
+                            onClick={() => page > 0 && fetchVacancies(false, page - 1)} 
+                            disabled={page === 0}
+                        >
+                            Previous
+                        </button>
                         <div className="page-numbers">
-                            <span className="page-num active">{page + 1}</span>
+                            {[...Array(Math.min(5, Math.ceil(totalVacancies / limit)))].map((_, i) => (
+                                <button 
+                                    key={i} 
+                                    className={`page-num ${page === i ? 'active' : ''}`}
+                                    onClick={() => fetchVacancies(false, i)}
+                                >
+                                    {i + 1}
+                                </button>
+                            ))}
+                            {Math.ceil(totalVacancies / limit) > 5 && <span className="px-2">...</span>}
                         </div>
-                        <button className={`page-control ${!hasMore ? 'disabled' : ''}`} disabled={!hasMore}>Next</button>
+                        <button 
+                            className={`page-btn ${ (page + 1) * limit >= totalVacancies ? 'disabled' : ''}`} 
+                            onClick={() => (page + 1) * limit < totalVacancies && fetchVacancies(false, page + 1)} 
+                            disabled={(page + 1) * limit >= totalVacancies}
+                        >
+                            Next
+                        </button>
                     </div>
                 </div>
             </div>
 
             <style>{`
                 .vacancy-dashboard {
-                    padding: 1.5rem 2rem;
+                    padding: 1.25rem 1.75rem;
                     display: flex;
                     flex-direction: column;
-                    gap: 1.75rem;
+                    gap: 1.25rem;
                     background: #f8fafc;
                     min-height: calc(100vh - 64px);
-                    overflow-y: auto;
+                    overflow-y: scroll;
+                    scrollbar-gutter: stable;
+                    /* Removed contain: content to allow fixed modals to reference viewport */
+                }
+                .animate-entry {
+                    animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+                }
+                @keyframes slideDown {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
 
                 /* Header */
                 .dashboard-header {
                     display: flex;
                     justify-content: space-between;
-                    align-items: flex-start;
+                    align-items: center;
+                    margin-bottom: -0.25rem;
                 }
                 .header-left h1 {
-                    font-size: 1.85rem;
-                    font-weight: 800;
-                    color: #0d5f68;
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    color: #0f172a;
                     margin: 0;
-                    letter-spacing: -0.025em;
+                    letter-spacing: -0.01em;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
                 }
                 .header-left p {
                     color: #64748b;
-                    margin: 0.25rem 0 0;
-                    font-size: 0.95rem;
+                    margin: 0.1rem 0 0;
+                    font-size: 0.85rem;
+                    font-weight: 500;
                 }
                 .header-actions {
                     display: flex;
-                    gap: 0.75rem;
+                    gap: 0.6rem;
                 }
 
                 /* Buttons */
@@ -1693,99 +1663,108 @@ const Vacancy = () => {
                     background: #0d5f68;
                     color: white;
                     border: none;
-                    padding: 0.75rem 1.5rem;
-                    border-radius: 10px;
+                    padding: 0.6rem 1.25rem;
+                    border-radius: 8px;
                     font-weight: 600;
+                    font-size: 0.85rem;
                     display: flex;
                     align-items: center;
-                    gap: 0.6rem;
+                    gap: 0.5rem;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                    box-shadow: 0 4px 6px -1px rgba(13, 95, 104, 0.2);
+                    box-shadow: 0 2px 4px rgba(13, 95, 104, 0.15);
                     cursor: pointer;
                 }
                 .btn-primary:hover {
                     background: #0b4e56;
-                    transform: translateY(-2px);
-                    box-shadow: 0 10px 15px -3px rgba(13, 95, 104, 0.3);
+                    transform: translateY(-1.5px);
+                    box-shadow: 0 4px 12px rgba(13, 95, 104, 0.2);
                 }
                 .btn-secondary-outline {
                     background: white;
-                    color: #0d5f68;
-                    border: 1.5px solid #e2e8f0;
-                    padding: 0.75rem 1.5rem;
-                    border-radius: 10px;
+                    color: #475569;
+                    border: 1px solid #e2e8f0;
+                    padding: 0.6rem 1.25rem;
+                    border-radius: 8px;
                     font-weight: 600;
+                    font-size: 0.85rem;
                     display: flex;
                     align-items: center;
-                    gap: 0.6rem;
+                    gap: 0.5rem;
                     transition: all 0.2s;
                     cursor: pointer;
                 }
                 .btn-secondary-outline:hover {
                     border-color: #0d5f68;
+                    color: #0d5f68;
                     background: rgba(13, 95, 104, 0.02);
                 }
 
                 /* Stats Cards */
                 .stats-grid {
                     display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                    gap: 1.25rem;
+                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                    gap: 1rem;
                 }
                 .stat-card {
                     background: white;
-                    padding: 1.25rem;
-                    border-radius: 16px;
+                    padding: 1rem 1.15rem;
+                    border-radius: 12px;
                     display: flex;
                     align-items: center;
-                    gap: 1rem;
+                    gap: 0.85rem;
                     border: 1px solid #f1f5f9;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-                    transition: all 0.3s ease;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+                    transition: all 0.25s ease;
                 }
                 .stat-card:hover {
-                    transform: translateY(-4px);
-                    box-shadow: 0 12px 20px -5px rgba(0,0,0,0.1);
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 15px -3px rgba(0,0,0,0.08);
                     border-color: var(--accent-color);
                 }
                 .stat-icon-wrapper {
-                    width: 48px;
-                    height: 48px;
-                    border-radius: 12px;
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 10px;
                     background: var(--accent-bg);
                     color: var(--accent-color);
                     display: flex;
                     align-items: center;
                     justify-content: center;
                 }
+                .stat-icon-wrapper svg {
+                    width: 18px;
+                    height: 18px;
+                }
                 .stat-info {
                     display: flex;
                     flex-direction: column;
+                    gap: 1px;
                 }
                 .stat-count {
-                    font-size: 1.5rem;
+                    font-size: 1.35rem;
                     font-weight: 800;
                     color: #1e293b;
                     line-height: 1;
+                    letter-spacing: -0.01em;
                 }
                 .stat-label {
-                    font-size: 0.8rem;
+                    font-size: 0.725rem;
                     color: #64748b;
                     font-weight: 600;
-                    margin-top: 0.25rem;
                     text-transform: uppercase;
-                    letter-spacing: 0.025em;
+                    letter-spacing: 0.04em;
                 }
 
                 /* Filter Bar */
                 .filter-search-container {
                     background: white;
-                    padding: 1rem;
-                    border-radius: 16px;
+                    padding: 0.65rem 1rem;
+                    border-radius: 12px;
                     display: flex;
-                    gap: 1.5rem;
+                    gap: 0.75rem;
                     align-items: center;
-                    border: 1px solid #f1f5f9;
+                    border: 1px solid #e2e8f0;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
                 }
                 .search-wrapper {
                     flex: 1;
@@ -1795,23 +1774,25 @@ const Vacancy = () => {
                 }
                 .search-icon {
                     position: absolute;
-                    left: 1rem;
+                    left: 0.85rem;
                     color: #94a3b8;
                 }
                 .search-wrapper input {
                     width: 100%;
-                    padding: 0.75rem 1rem 0.75rem 2.75rem;
-                    border: 1.5px solid #f1f5f9;
+                    height: 38px;
+                    padding: 0 1rem 0 2.5rem;
+                    border: 1px solid #e2e8f0;
                     background: #f8fafc;
-                    border-radius: 12px;
-                    font-size: 0.9rem;
+                    border-radius: 8px;
+                    font-size: 0.85rem;
+                    color: #1e293b;
                     outline: none;
-                    transition: all 0.2s;
+                    transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
                 }
                 .search-wrapper input:focus {
                     border-color: #0d5f68;
                     background: white;
-                    box-shadow: 0 0 0 4px rgba(13, 95, 104, 0.05);
+                    box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.08);
                 }
                 .filter-actions {
                     display: flex;
@@ -1823,53 +1804,107 @@ const Vacancy = () => {
                     gap: 0.5rem;
                 }
                 .filter-dropdown-group select, .date-picker-input {
-                    padding: 0.6rem 1rem;
-                    border-radius: 10px;
-                    border: 1.5px solid #f1f5f9;
+                    height: 38px;
+                    padding: 0 1rem;
+                    border-radius: 8px;
+                    border: 1px solid #e2e8f0;
                     background: #f8fafc;
-                    font-size: 0.85rem;
+                    font-size: 0.825rem;
                     color: #475569;
-                    font-weight: 500;
+                    font-weight: 600;
                     outline: none;
+                    cursor: pointer;
+                    transition: border-color 0.2s, background-color 0.2s;
+                }
+                .filter-dropdown-group select:hover, .date-picker-input:hover {
+                    border-color: #cbd5e1;
+                    background: #f1f5f9;
+                }
+                .filter-dropdown-group select:focus, .date-picker-input:focus {
+                    border-color: #0d5f68;
+                    background: white;
+                }
+                .btn-icon-alt {
+                    width: 38px;
+                    height: 38px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 8px;
+                    border: 1px solid #e2e8f0;
+                    background: #f8fafc;
+                    color: #64748b;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .btn-icon-alt:hover {
+                    background: #fee2e2;
+                    color: #ef4444;
+                    border-color: #fca5a5;
                 }
 
-                /* Table Container */
                 .table-container-premium {
                     background: white;
-                    border-radius: 20px;
-                    border: 1px solid #f1f5f9;
+                    border-radius: 12px;
+                    border: 1px solid #e2e8f0;
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+                    width: 100%;
+                }
+                .table-responsive {
+                    overflow-x: auto;
+                    overflow-y: hidden; /* Let container determine height */
+                    max-height: 700px; /* Optional: limit max height */
+                    position: relative;
+                }
+                /* Custom Scrollbar */
+                .table-responsive::-webkit-scrollbar {
+                    width: 5px;
+                    height: 5px;
+                }
+                .table-responsive::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .table-responsive::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 10px;
+                }
+                .table-responsive::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
                 }
                 .shadow-premium {
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.03);
                 }
                 .table-header-info {
-                    padding: 1.25rem 1.5rem;
-                    border-bottom: 1px solid #f1f5f9;
+                    padding: 0.75rem 1.25rem;
+                    border-bottom: 1px solid #e2e8f0;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    background: white;
                 }
                 .header-info-left {
                     display: flex;
                     align-items: center;
-                    gap: 1rem;
+                    gap: 0.6rem;
                 }
                 .header-info-left h3 {
                     margin: 0;
-                    font-size: 1.15rem;
+                    font-size: 0.95rem;
                     font-weight: 700;
-                    color: #1e293b;
+                    color: #0f172a;
                 }
                 .count-chip {
                     background: #f1f5f9;
-                    color: #475569;
-                    padding: 0.25rem 0.75rem;
-                    border-radius: 20px;
-                    font-size: 0.75rem;
+                    color: #64748b;
+                    padding: 0.1rem 0.5rem;
+                    border-radius: 4px;
+                    font-size: 0.65rem;
                     font-weight: 700;
+                    border: 1px solid #e2e8f0;
+                    text-transform: uppercase;
                 }
 
                 /* Table Styling */
@@ -1877,29 +1912,36 @@ const Vacancy = () => {
                     width: 100%;
                     border-collapse: separate;
                     border-spacing: 0;
+                    table-layout: auto;
                 }
                 .ats-table th {
                     background: #f8fafc;
-                    padding: 1rem 1.5rem;
-                    font-size: 0.7rem;
+                    padding: 0.65rem 1.25rem;
+                    font-size: 0.65rem;
                     font-weight: 700;
                     text-transform: uppercase;
-                    color: #64748b;
+                    color: #475569;
                     letter-spacing: 0.05em;
                     text-align: left;
-                    border-bottom: 1px solid #f1f5f9;
+                    border-bottom: 1px solid #e2e8f0;
                     position: sticky;
                     top: 0;
                     z-index: 10;
+                    white-space: nowrap;
                 }
                 .ats-table td {
-                    padding: 1.25rem 1.5rem;
-                    border-bottom: 1px solid #f8fafc;
+                    padding: 0.75rem 1.25rem;
+                    border-bottom: 1px solid #f1f5f9;
                     vertical-align: middle;
-                    transition: all 0.2s;
+                    transition: background-color 0.15s ease;
+                    white-space: nowrap;
                 }
+                .ats-table tr:last-child td { border-bottom: none; }
                 .ats-table tr:hover td {
-                    background: #fcfdfe;
+                    background: #f8fafc;
+                }
+                .ats-table tr:hover {
+                    background: #f8fafc;
                 }
                 .row-selected td {
                     background: rgba(13, 95, 104, 0.02) !important;
@@ -1917,7 +1959,7 @@ const Vacancy = () => {
                     flex-direction: column;
                 }
                 .job-title {
-                    font-size: 1rem;
+                    font-size: 0.925rem;
                     font-weight: 700;
                     color: #1e293b;
                     line-height: 1.2;
@@ -1925,13 +1967,13 @@ const Vacancy = () => {
                 .job-sub-info {
                     display: flex;
                     align-items: center;
-                    gap: 0.5rem;
-                    margin-top: 0.4rem;
+                    gap: 0.4rem;
+                    margin-top: 0.25rem;
                 }
                 .dept-name {
-                    font-size: 0.85rem;
+                    font-size: 0.775rem;
                     color: #64748b;
-                    font-weight: 500;
+                    font-weight: 600;
                 }
                 .dot-sep {
                     width: 3px;
@@ -1940,40 +1982,46 @@ const Vacancy = () => {
                     background: #cbd5e1;
                 }
                 .manager-name {
-                    font-size: 0.85rem;
+                    font-size: 0.775rem;
                     color: #94a3b8;
+                    font-weight: 500;
                 }
 
                 .opening-counter {
-                    display: flex;
+                    display: inline-flex;
                     align-items: center;
+                    justify-content: center;
                     background: #f8fafc;
-                    padding: 0.4rem 0.75rem;
-                    border-radius: 8px;
-                    width: fit-content;
+                    padding: 0.25rem 0.65rem;
+                    border-radius: 6px;
+                    border: 1px solid #e2e8f0;
                     font-weight: 700;
+                    font-size: 0.75rem;
+                    min-width: 52px;
                 }
                 .filled { color: #0d5f68; }
-                .sep { color: #cbd5e1; margin: 0 0.25rem; }
-                .total { color: #94a3b8; }
+                .sep { color: #94a3b8; margin: 0 0.2rem; font-weight: 400; opacity: 0.6; }
+                .total { color: #64748b; }
 
                 .applicant-stats {
                     display: flex;
                     flex-direction: column;
-                    gap: 0.5rem;
-                    min-width: 140px;
+                    gap: 0.35rem;
+                    width: 130px;
                 }
                 .total-app {
-                    font-size: 0.85rem;
+                    font-size: 0.775rem;
                     font-weight: 700;
-                    color: #1e293b;
+                    color: #334155;
+                    margin-bottom: 0.1rem;
                 }
                 .pipeline-mini {
-                    height: 6px;
+                    height: 4px;
                     background: #f1f5f9;
                     border-radius: 10px;
                     display: flex;
                     overflow: hidden;
+                    width: 100%;
                 }
                 .pipe-seg { transition: width 0.3s; }
                 .shortlisted { background: #10b981; }
@@ -1982,33 +2030,36 @@ const Vacancy = () => {
                 .date-info {
                     display: flex;
                     align-items: center;
-                    gap: 0.5rem;
-                    font-size: 0.85rem;
+                    gap: 0.45rem;
+                    font-size: 0.8rem;
                     color: #475569;
-                    font-weight: 500;
+                    font-weight: 650;
                 }
 
                 /* Badges */
                 .badge-pill {
-                    padding: 0.4rem 0.9rem;
-                    border-radius: 100px;
-                    font-size: 0.75rem;
+                    padding: 0.3rem 0.75rem;
+                    border-radius: 6px;
+                    font-size: 0.7rem;
                     font-weight: 700;
                     display: inline-flex;
                     align-items: center;
-                    gap: 0.5rem;
+                    gap: 0.4rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.02em;
                 }
                 .badge-dot {
-                    width: 6px;
-                    height: 6px;
+                    width: 5px;
+                    height: 5px;
                     border-radius: 50%;
                 }
                 .badge-clickable {
                     cursor: pointer;
-                    transition: filter 0.2s;
+                    transition: transform 0.2s, filter 0.2s;
                 }
                 .badge-clickable:hover {
-                    filter: brightness(0.95);
+                    filter: contrast(1.1) brightness(0.98);
+                    transform: translateY(-1px);
                 }
 
                 /* Actions */
@@ -2016,16 +2067,17 @@ const Vacancy = () => {
                     display: flex;
                     justify-content: flex-end;
                     gap: 0.25rem;
+                    padding-right: 0.5rem;
                 }
                 .row-action {
-                    width: 32px;
-                    height: 32px;
-                    border-radius: 8px;
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 6px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    color: #64748b;
-                    transition: all 0.2s;
+                    color: #94a3b8;
+                    transition: color 0.2s, background-color 0.2s;
                     cursor: pointer;
                     background: transparent;
                     border: none;
@@ -2033,10 +2085,26 @@ const Vacancy = () => {
                 .row-action:hover {
                     background: #f1f5f9;
                     color: #0d5f68;
-                    transform: scale(1.1);
                 }
-                .row-action.view:hover { color: #3b82f6; }
-                .row-action.edit:hover { color: #10b981; }
+                .row-action svg {
+                    width: 17px;
+                    height: 17px;
+                }
+                .row-action.view:hover { color: #3b82f6; background: rgba(59, 130, 246, 0.08); }
+                .row-action.edit:hover { color: #10b981; background: rgba(16, 185, 129, 0.08); }
+                .row-action.delete:hover { color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+                .row-action.more:hover { color: #64748b; background: #f1f5f9; }
+
+                /* Premium Hover Effect */
+                .ats-table tr {
+                    transition: background-color 0.1s ease;
+                }
+                .ats-table tr:hover {
+                    background-color: #f8fafc !important;
+                }
+                .ats-table tr:hover td {
+                    background-color: transparent !important;
+                }
 
                 /* Bulk Toolbar */
                 .bulk-toolbar {
@@ -2077,43 +2145,83 @@ const Vacancy = () => {
                 .bulk-btn.approve { background: #10b981; color: white; }
                 .bulk-btn.delete { background: #ef4444; color: white; }
                 .bulk-btn.cancel { background: rgba(255,255,255,0.1); color: white; }
-                
-                /* Footer */
+                              /* Footer */
                 .table-footer-ats {
-                    padding: 1.25rem 1.5rem;
-                    border-top: 1px solid #f1f5f9;
+                    padding: 0.75rem 1.25rem;
+                    border-top: 1px solid #e2e8f0;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    background: #fcfdfe;
+                    background: white;
                 }
                 .footer-left {
-                    font-size: 0.85rem;
+                    font-size: 0.8rem;
                     color: #64748b;
+                    font-weight: 500;
+                }
+                .footer-right {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
                 }
                 .page-numbers {
                     display: flex;
+                    align-items: center;
                     gap: 0.25rem;
                 }
-                .page-control {
-                    padding: 0.5rem 1rem;
-                    border-radius: 8px;
+                .page-btn {
+                    padding: 0.4rem 0.75rem;
+                    border-radius: 6px;
                     border: 1px solid #e2e8f0;
                     background: white;
-                    font-size: 0.85rem;
-                    font-weight: 600;
+                    font-size: 0.8rem;
+                    font-weight: 700;
                     color: #475569;
                     cursor: pointer;
+                    transition: all 0.2s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-width: 80px;
+                }
+                .page-btn:hover:not(.disabled) {
+                    border-color: #0d5f68;
+                    color: #0d5f68;
+                    background: #f0fdfa;
+                }
+                .page-btn.disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                    background: #f8fafc;
+                }
+                .page-num {
+                    width: 32px;
+                    height: 32px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 6px;
+                    border: 1px solid #e2e8f0;
+                    background: white;
+                    font-size: 0.8rem;
+                    font-weight: 700;
+                    color: #475569;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .page-num:hover:not(.active) {
+                    background: #f8fafc;
+                    border-color: #cbd5e1;
                 }
                 .page-num.active {
                     background: #0d5f68;
                     color: white;
                     border-color: #0d5f68;
+                    box-shadow: 0 1px 2px rgba(13, 95, 104, 0.2);
                 }
-
-                /* Empty State */
+                              /* Empty State */
                 .empty-state-card {
-                    padding: 4rem 2rem;
+                    padding: 3rem 2rem;
                     text-align: center;
                     display: flex;
                     flex-direction: column;
@@ -2121,33 +2229,53 @@ const Vacancy = () => {
                     color: #64748b;
                 }
                 .empty-icon-container {
-                    width: 80px;
-                    height: 80px;
-                    border-radius: 20px;
+                    width: 70px;
+                    height: 70px;
+                    border-radius: 16px;
                     background: #f1f5f9;
                     color: #94a3b8;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    margin-bottom: 1.5rem;
+                    margin-bottom: 1.25rem;
                 }
                 .empty-state-card h3 {
                     margin: 0;
-                    font-size: 1.25rem;
+                    font-size: 1.15rem;
                     color: #1e293b;
                     font-weight: 700;
                 }
                 .empty-state-card p {
-                    max-width: 320px;
-                    margin: 0.75rem 0 1.5rem;
+                    max-width: 300px;
+                    margin: 0.5rem 0 1.25rem;
+                    font-size: 0.875rem;
                 }
 
-                .animate-fade-in {
-                    animation: fadeIn 0.3s ease-out;
+                .animate-toolbar-in {
+                    animation: toolbarIn 0.3s ease-out forwards;
                 }
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translate(-50%, 10px); }
+                @keyframes toolbarIn {
+                    from { opacity: 0; transform: translate(-50%, 15px); }
                     to { opacity: 1; transform: translate(-50%, 0); }
+                }
+
+                /* Ensure Modal Centering */
+                .modal-overlay {
+                    position: fixed;
+                    top: 0;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    background: rgba(0,0,0,0.5);
+                    backdrop-filter: blur(4px);
+                    z-index: 9999;
+                }
+                .modal-content {
+                    margin: auto; /* Fallback centering */
+                    position: relative;
                 }
 
                 /* Mobile View */
@@ -2157,7 +2285,7 @@ const Vacancy = () => {
                     .ats-table tr { border-bottom: 1.5px solid #f1f5f9; padding: 1.25rem; }
                     .ats-table td { border-bottom: none; padding: 0.5rem 0; }
                     .stats-grid { grid-template-columns: 1fr 1fr; }
-                    .filter-search-container { flex-direction: column; }
+                    .filter-search-container { flex-direction: column; height: auto; }
                     .filter-dropdown-group { overflow-x: auto; width: 100%; }
                 }
             `}</style>
