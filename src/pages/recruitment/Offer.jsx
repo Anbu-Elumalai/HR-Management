@@ -1,803 +1,433 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-    Plus, Eye, Edit, Trash2, X, RotateCcw,
-    ChevronLeft, ChevronRight, Loader2, Search,
-    FileText, User, Briefcase, IndianRupee, MapPin, 
-    Send, Save, Info, CheckCircle, XCircle, Users,
-    Calendar, Clock, AlertCircle
+    Plus, Search, Edit, Trash2, X, RotateCcw,
+    FileText, Send, CheckCircle, Clock, AlertCircle,
+    Download, DollarSign, Building, Users,
+    Calendar, Loader2, IndianRupee, FileCheck,
+    TrendingUp, TrendingDown, XCircle, File, ChevronRight
 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
 import './Recruitment.css';
 import api from '../../api/api';
 import { candidateService } from '../../services/candidateService';
 import { departmentService } from '../../services/departmentService';
 import { employeeService } from '../../services/employeeService';
+import toast from 'react-hot-toast';
+
+const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => (
+    <div 
+        className={`stat-card-premium ${active ? 'active' : ''}`} 
+        onClick={onClick}
+        style={{ '--accent': color, '--accent-bg': bg }}
+    >
+        <div className="stat-main">
+            <div className="stat-icon-v6">{icon}</div>
+            <div className="stat-content-v6">
+                <span className="stat-label-v6">{label}</span>
+                <div className="stat-value-group">
+                    <span className="stat-count-v6">{count}</span>
+                    {trend && (
+                        <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`}>
+                            {trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                            <span>{Math.abs(trend)}%</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+        <div className="stat-indicator"><ChevronRight size={14} /></div>
+    </div>
+);
+
+const Badge = ({ variant }) => {
+    const variants = {
+        offered: { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', label: 'Offered' },
+        draft: { bg: 'rgba(100, 116, 139, 0.1)', color: '#64748b', label: 'Draft' },
+        sent: { bg: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', label: 'Sent' },
+        accepted: { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', label: 'Accepted' },
+        rejected: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Rejected' },
+        expired: { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', label: 'Expired' },
+        pending: { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', label: 'Pending' },
+        'Pending Approval': { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', label: 'Pending Approval' }
+    };
+    const style = variants[variant] || variants.draft;
+    return (
+        <span className="badge-pill" style={{ backgroundColor: style.bg, color: style.color }}>
+            <span className="badge-dot" style={{ backgroundColor: style.color }}></span>
+            {style.label}
+        </span>
+    );
+};
+
+const EmptyState = ({ onCreate }) => (
+    <div className="empty-state-card shadow-sm animate-fade-in">
+        <div className="empty-icon-with-bg">
+            <FileCheck size={42} strokeWidth={1.5} />
+        </div>
+        <h3>No Offers Found</h3>
+        <p>It looks like you haven't generated any offer letters yet. Start the hiring process by creating one.</p>
+        <button className="btn-primary" onClick={onCreate}>
+            <Plus size={18} />
+            Create Offer
+        </button>
+    </div>
+);
 
 const Offer = () => {
-    const [viewMode, setViewMode] = useState('list'); // 'list', 'create', 'edit', 'view'
+    const [viewMode, setViewMode] = useState('list');
     const [selectedOffer, setSelectedOffer] = useState(null);
     const [offers, setOffers] = useState([]);
-
-    // Lookup data
     const [candidates, setCandidates] = useState([]);
     const [vacancies, setVacancies] = useState([]);
     const [employees, setEmployees] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [locations, setLocations] = useState([]);
-
-    // UI State
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [loadingDetails, setLoadingDetails] = useState(false);
-    const [errors, setErrors] = useState({});
-
-    // Pagination & Filters
-    const [page, setPage] = useState(0);
-    const [totalPages, setTotalPages] = useState(1);
+    const [formTab, setFormTab] = useState('basic');
     const [totalItems, setTotalItems] = useState(0);
-    const [filters, setFilters] = useState({
-        offerCode: '',
-        candidateName: '',
-        vacancyTitle: '',
-        departmentName: '',
-        status: '',
-        joiningDate: ''
-    });
-    const [debouncedFilters, setDebouncedFilters] = useState(filters);
+    const [page, setPage] = useState(0);
+    const [filters, setFilters] = useState({ candidateName: '', status: '', departmentName: '', joiningDate: '' });
 
-    // Form Data
     const [formData, setFormData] = useState({
-        offerCode: '',
-        candidateId: '',
-        candidateName: '',
-        vacancyId: '',
-        appliedFor: '', 
-        department: '',
-        departmentId: '',
-        reportingManager: '',
-        reportingManagerName: '',
-        workLocation: '',
-        workLocationId: '',
-        workMode: 'On-site',
-        joiningDate: '',
-        offerExpiryDate: '',
-        ctc: 0,
-        status: 'Draft',
-        termsAndConditions: '',
-        notes: '',
-        salaryBreakdown: {
-            basic: 0, hra: 0, specialAllowance: 0, pf: 0, gratuity: 0, medicalInsurance: 0
-        }
+        offerCode: '', candidateId: '', candidateName: '', vacancyId: '', departmentId: '', reportingManager: '', workLocationId: '', workMode: 'On-site', joiningDate: '', offerExpiryDate: '', ctc: 0, status: 'Draft', candidateResponse: 'Pending', termsAndConditions: '', notes: '', isActive: 1, isDelete: 0, salaryBreakdown: { basic: 0, hra: 0, specialAllowance: 0, pf_employer: 0, gratuity: 0, medicalInsurance: 0 }
     });
 
-    useEffect(() => {
-        fetchInitialData();
-    }, []);
-
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedFilters(filters);
-        }, 500);
-        return () => clearTimeout(handler);
-    }, [filters]);
-
-    useEffect(() => {
-        setPage(0);
-    }, [debouncedFilters]);
-
-    useEffect(() => {
-        if (viewMode === 'list') {
-            fetchOffers(page);
-        }
-    }, [viewMode, page, debouncedFilters]);
-
-    const fetchInitialData = async () => {
-        setLoading(true);
+    const loadRefData = useCallback(async () => {
         try {
-            const [candRes, vacRes, empRes, deptRes, locRes] = await Promise.all([
-                candidateService.getAllCandidates(0, 1000).catch(() => ({ data: [] })),
-                api.get('/vacancies?limit=1000').catch(() => ({ data: { data: [] } })),
+            const [c, v, e, d, l] = await Promise.all([
+                candidateService.getAllCandidates(0, 500).catch(() => ({ data: [] })),
+                api.get('/vacancies?limit=500').catch(() => ({ data: { data: [] } })),
                 employeeService.getAllEmployees().catch(() => []),
                 departmentService.getAllDepartments().catch(() => []),
                 api.get('/locations?limit=100').catch(() => ({ data: { data: [] } }))
             ]);
+            setCandidates(c.data || []);
+            setVacancies(v.data?.data || []);
+            setEmployees(e || []);
+            setDepartments(d || []);
+            setLocations(l.data?.data || []);
+        } catch (err) { console.error(err); }
+    }, []);
 
-            setCandidates(candRes.data || []);
-            setVacancies(vacRes.data?.data || []);
-            setEmployees(empRes || []);
-            setDepartments(deptRes || []);
-            setLocations(locRes.data?.data || []);
-        } catch (error) {
-            console.error('Error fetching initial data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchOffers = async (pageNum = 0) => {
+    const fetchOffers = useCallback(async (p = 0) => {
         setLoading(true);
         try {
-            const response = await api.get('/offers', {
-                params: { 
-                    page: pageNum, 
-                    limit: 10,
-                    offerCode: debouncedFilters.offerCode,
-                    candidateName: debouncedFilters.candidateName,
-                    vacancyTitle: debouncedFilters.vacancyTitle,
-                    departmentName: debouncedFilters.departmentName,
-                    status: debouncedFilters.status,
-                    joiningDate: debouncedFilters.joiningDate
-                }
-            }).catch(() => null);
+            const q = new URLSearchParams({ page: p, limit: 10, ...filters });
+            const res = await api.get(`/offers?${q.toString()}`);
+            if (res.data) { setOffers(res.data.data || []); setTotalItems(res.data.total || 0); setPage(p); }
+        } catch (err) { console.error(err); } finally { setLoading(false); }
+    }, [filters]);
 
-            if (response && response.data) {
-                const result = response.data;
-                // Based on the user's provided structure:
-                setOffers(result.data || []);
-                setTotalPages(result.totalPages || 1);
-                setTotalItems(result.total || 0);
-            }
-        } catch (error) {
-            console.error('Error fetching offers:', error);
-            toast.error('Failed to load offers');
-        } finally {
-            setLoading(false);
-        }
-    };
+    useEffect(() => { loadRefData(); fetchOffers(0); }, []);
+    useEffect(() => { const t = setTimeout(() => { if (viewMode === 'list') fetchOffers(0); }, 500); return () => clearTimeout(t); }, [filters, viewMode, fetchOffers]);
 
-    const fetchOfferById = async (id) => {
-        try {
-            const response = await api.get(`/offers/${id}`);
-            return response.data?.data || response.data;
-        } catch (error) {
-            console.error('Error fetching offer detail:', error);
-            return null;
-        }
-    };
-
-    const handleCandidateChange = async (candidateId) => {
-        const candidate = candidates.find(c => String(c._id || c.id) === String(candidateId));
-        if (!candidate) return;
-
+    const handleCandidateChange = async (cid) => {
+        const c = candidates.find(x => String(x._id || x.id) === String(cid));
+        if (!c) return;
         setLoadingDetails(true);
         try {
-            const activeOfferRes = await api.get(`/offers/check/${candidateId}`).catch(() => null);
-            if (activeOfferRes?.data?.exists) {
-                toast.error(`A valid offer already exists for ${candidate.name}.`, { duration: 5000 });
-                setFormData(prev => ({ ...prev, candidateId: '' }));
-                return;
-            }
-
-            const candVacId = candidate.vacancyId?._id || candidate.vacancyId || candidate.positionId?._id || candidate.positionId;
-            const vacancy = vacancies.find(v => String(v._id || v.id) === String(candVacId));
-
-            if (vacancy) {
-                const deptObj = vacancy.departmentId || vacancy.department || candidate.departmentId || candidate.department;
-                let deptName = typeof deptObj === 'object' ? deptObj.name || deptObj.title || '' : String(deptObj || '');
-                
-                if (/^[0-9a-fA-F]{24}$/.test(deptName) || !deptName) {
-                    const deptId = String(deptObj?._id || deptObj?.id || deptObj || '');
-                    const found = departments.find(d => String(d._id || d.id) === deptId);
-                    if (found) deptName = found.name;
-                }
-
-                setFormData(prev => ({
-                    ...prev,
-                    candidateId: candidateId,
-                    candidateName: candidate.name,
-                    vacancyId: String(vacancy._id || vacancy.id),
-                    appliedFor: vacancy.jobTitle || vacancy.role || candidate.appliedFor || '',
-                    departmentId: vacancy.departmentId?._id || vacancy.departmentId || candidate.departmentId || '',
-                    department: deptName,
-                    workLocation: vacancy.locationId?.name || vacancy.location || '',
-                    workLocationId: vacancy.locationId?._id || vacancy.locationId || '',
-                    workMode: 'On-site'
-                }));
-            } else {
-                const deptObj = candidate.departmentId || candidate.department;
-                let deptName = typeof deptObj === 'object' ? deptObj.name || deptObj.title || '' : String(deptObj || '');
-
-                if (/^[0-9a-fA-F]{24}$/.test(deptName) || !deptName) {
-                    const deptId = String(deptObj?._id || deptObj?.id || deptObj || '');
-                    const found = departments.find(d => String(d._id || d.id) === deptId);
-                    if (found) deptName = found.name;
-                }
-
-                setFormData(prev => ({
-                    ...prev,
-                    candidateId: candidateId,
-                    candidateName: candidate.name,
-                    vacancyId: candVacId || '',
-                    appliedFor: candidate.appliedFor || candidate.role || '',
-                    department: deptName
-                }));
-            }
-        } catch (error) {
-            console.error('Error processing candidate selection:', error);
-        } finally {
-            setLoadingDetails(false);
-        }
+            const vid = c.vacancyId?._id || c.vacancyId || c.positionId?._id || c.positionId;
+            const v = vacancies.find(x => String(x._id || x.id) === String(vid));
+            setFormData(p => ({
+                ...p, candidateId: cid, candidateName: c.name, vacancyId: v ? String(v._id || v.id) : '',
+                departmentId: (v?.departmentId?._id || v?.departmentId) || (c.departmentId?._id || c.departmentId) || '',
+                workLocationId: (v?.locationId?._id || v?.locationId) || (c.locationId?._id || c.locationId) || '',
+                reportingManager: (v?.hiringManagerId?._id || v?.hiringManagerId) || ''
+            }));
+        } finally { setLoadingDetails(false); }
     };
 
-    const handleSalaryCalculation = (totalCtc) => {
-        const ctc = parseFloat(totalCtc) || 0;
-        const basic = Math.round((ctc * 0.45) / 12);
-        const hra = Math.round(basic * 0.4);
-        const pf = Math.round(Math.min(basic * 0.12, 1800));
-        const insurance = 1500;
-        const gratuity = Math.round((basic * 4.81) / 100);
-        const special = Math.round((ctc / 12) - (basic + hra + pf + gratuity + insurance));
-
-        setFormData(prev => ({
-            ...prev,
-            ctc: totalCtc,
-            salaryBreakdown: {
-                basic, hra, pf, gratuity, medicalInsurance: insurance,
-                specialAllowance: Math.max(0, special)
-            }
-        }));
+    const handleSalaryCalc = (ctc) => {
+        const val = parseFloat(ctc) || 0;
+        const b = Math.round((val * 0.4) / 12);
+        const h = Math.round(b * 0.4);
+        const p = Math.round(Math.min(b * 0.12, 1800));
+        const i = 1500;
+        const g = Math.round((b * 4.81) / 100);
+        const s = Math.round((val / 12) - (b + h + p + g + i));
+        setFormData(prev => ({ ...prev, ctc: val, salaryBreakdown: { ...prev.salaryBreakdown, basic: b, hra: h, pf_employer: p, gratuity: g, medicalInsurance: i, specialAllowance: Math.max(0, s) } }));
     };
 
-    const validateForm = () => {
-        const newErrors = {};
-        if (!formData.candidateId) newErrors.candidateId = "Required";
-        if (!formData.vacancyId) newErrors.vacancyId = "Required";
-        if (!formData.joiningDate) newErrors.joiningDate = "Required";
-        if (!formData.ctc || formData.ctc <= 0) newErrors.ctc = "Valid CTC required";
-        
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
-
-    const handleSave = async (isDraft = true) => {
-        if (!validateForm()) {
-            toast.error("Please fill mandatory fields.");
-            return;
-        }
-
+    const onSave = async (isDraft) => {
         setSubmitting(true);
         try {
-            const dataToSubmit = {
-                ...formData,
-                status: isDraft ? 'Draft' : 'Pending Approval'
-            };
-
-            if (viewMode === 'edit' && selectedOffer) {
-                await api.put(`/offers/${selectedOffer._id || selectedOffer.id}`, dataToSubmit);
-                toast.success('Offer updated successfully');
-            } else {
-                await api.post('/offers', dataToSubmit);
-                toast.success(isDraft ? 'Draft saved successfully' : 'Offer submitted for approval');
-            }
-            setViewMode('list');
-            fetchOffers(page);
-        } catch (error) {
-            console.error('Error saving offer:', error);
-            toast.error(error.response?.data?.message || 'Failed to save offer');
-        } finally {
-            setSubmitting(false);
-        }
+            const payload = { ...formData, status: isDraft ? 'Draft' : 'Pending Approval' };
+            if (viewMode === 'edit') await api.put(`/offers/${selectedOffer._id}`, payload);
+            else await api.post('/offers', payload);
+            toast.success(isDraft ? 'Draft Saved' : 'Offer Issued');
+            setViewMode('list'); fetchOffers(0);
+        } catch (err) { toast.error('Check required fields'); } finally { setSubmitting(false); }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure you want to cancel this offer? This will delete the record.')) return;
-        setSubmitting(true);
-        try {
-            await api.delete(`/offers/${id}`);
-            toast.success('Offer cancelled successfully');
-            fetchOffers(page);
-        } catch (error) {
-            console.error('Error deleting offer:', error);
-            toast.error('Failed to cancel offer');
-        } finally {
-            setSubmitting(false);
-        }
-    };
+    const renderPrice = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
 
-    const renderPrice = (amount) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency', currency: 'INR', maximumFractionDigits: 0
-        }).format(amount || 0);
-    };
-
-    const generateOfferCode = async () => {
-        try {
-            const resp = await api.get('/offers/code/generate').catch(() => null);
-            return resp?.data?.data || `OFF-${new Date().getFullYear()}-000`;
-        } catch (e) { return `OFF-${new Date().getFullYear()}-000`; }
-    };
-
-    useEffect(() => {
-        const prepare = async () => {
-            if (viewMode === 'create') {
-                const code = await generateOfferCode();
-                setFormData({
-                    offerCode: code,
-                    candidateId: '',
-                    candidateName: '',
-                    vacancyId: '',
-                    appliedFor: '', 
-                    department: '',
-                    departmentId: '',
-                    reportingManager: '',
-                    reportingManagerName: '',
-                    workLocation: '',
-                    workLocationId: '',
-                    workMode: 'On-site',
-                    joiningDate: '',
-                    offerExpiryDate: '',
-                    ctc: 0,
-                    status: 'Draft',
-                    termsAndConditions: '',
-                    notes: '',
-                    salaryBreakdown: { 
-                        basic: 0, hra: 0, specialAllowance: 0, pf: 0, gratuity: 0, medicalInsurance: 0 
-                    }
-                });
-            } else if ((viewMode === 'edit' || viewMode === 'view') && selectedOffer) {
-                setLoadingDetails(true);
-                try {
-                    const detailed = await fetchOfferById(selectedOffer._id || selectedOffer.id);
-                    if (detailed) setFormData(detailed);
-                } finally { setLoadingDetails(false); }
-            }
-        };
-        if (viewMode === 'create' || viewMode === 'edit' || viewMode === 'view') prepare();
-    }, [viewMode, selectedOffer]);
-
-    const renderOfferForm = () => {
-        const isEdit = viewMode === 'edit';
-        const inputErrorStyle = (field) => errors[field] ? { borderColor: '#ef4444', backgroundColor: '#fef2f2' } : {};
-
-        return (
-            <div className="modal-overlay" onClick={() => setViewMode('list')}>
-                <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '1000px', height: '90vh' }}>
-                    <div className="form-header">
-                        <h2 className="text-xl font-bold text-white">
-                            {isEdit ? 'Edit Offer Letter' : 'Generate New Offer Letter'}
-                        </h2>
-                        <button className="icon-btn" onClick={() => setViewMode('list')}><X size={20} /></button>
+    const Modal = () => (
+        <div className="premium-modal-overlay" onClick={() => setViewMode('list')}>
+            <div className="premium-modal-card animate-slide-up" onClick={e => e.stopPropagation()}>
+                <div className="premium-modal-header">
+                    <div className="mh-title-group">
+                        <div className="mh-icon-v2"><FileText /></div>
+                        <div>
+                            <h3>{viewMode === 'edit' ? 'Update Offer Package' : 'Generate New Offer'}</h3>
+                            <p>Complete the compensation and contract details</p>
+                        </div>
                     </div>
+                    <button className="mh-close-v2" onClick={() => setViewMode('list')}><X size={22} /></button>
+                </div>
+                
+                <div className="premium-modal-tabs">
+                    <button className={`p-tab ${formTab === 'basic' ? 'active' : ''}`} onClick={() => setFormTab('basic')}><Building size={16} /> Basic Details</button>
+                    <button className={`p-tab ${formTab === 'salary' ? 'active' : ''}`} onClick={() => setFormTab('salary')}><DollarSign size={16} /> Salary & CTC</button>
+                    <button className={`p-tab ${formTab === 'terms' ? 'active' : ''}`} onClick={() => setFormTab('terms')}><FileText size={16} /> Terms & Notes</button>
+                </div>
 
-                    <div className="form-body" style={{ position: 'relative' }}>
-                        {(loadingDetails || submitting) && (
-                            <div className="loading-overlay" style={{
-                                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                                backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                zIndex: 1000, borderRadius: '12px'
-                            }}>
-                                <div className="flex flex-col items-center gap-4">
-                                    <div className="premium-spinner" style={{ width: '60px', height: '60px' }}>
-                                        <div className="premium-core"></div>
+                <div className="premium-modal-body">
+                    {loadingDetails && <div className="p-loader-overlay"><Loader2 className="animate-spin" /><span>Fetching data...</span></div>}
+                    <div className="p-form-grid">
+                        {formTab === 'basic' && (
+                            <>
+                                <div className="p-form-card">
+                                    <div className="p-card-header"><Users size={14} /> Candidate Selection</div>
+                                    <div className="p-field-row">
+                                        <div className="p-field"><label>Candidate</label><select value={formData.candidateId} onChange={e => handleCandidateChange(e.target.value)}><option value="">Select Candidate</option>{candidates.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}</select></div>
+                                        <div className="p-field"><label>Vacancy</label><select value={formData.vacancyId} onChange={e => setFormData({ ...formData, vacancyId: e.target.value })}><option value="">Select Vacancy</option>{vacancies.map(v => <option key={v._id} value={v._id}>{v.jobTitle}</option>)}</select></div>
                                     </div>
-                                    <p className="premium-text" style={{ color: '#0d5f68', fontSize: '0.9rem' }}>
-                                        {submitting ? 'Generating Offer...' : 'Preparing Candidate Profile...'}
-                                    </p>
+                                </div>
+                                <div className="p-form-card">
+                                    <div className="p-card-header"><Building size={14} /> Organization</div>
+                                    <div className="p-field-row">
+                                        <div className="p-field"><label>Department</label><select value={formData.departmentId} onChange={e => setFormData({ ...formData, departmentId: e.target.value })}><option value="">Select Dept</option>{departments.map(d => <option key={d._id} value={d._id}>{d.label}</option>)}</select></div>
+                                        <div className="p-field"><label>Manager</label><select value={formData.reportingManager} onChange={e => setFormData({ ...formData, reportingManager: e.target.value })}><option value="">Select Manager</option>{employees.map(e => <option key={e._id} value={e._id}>{e.firstName} {e.lastName}</option>)}</select></div>
+                                    </div>
+                                    <div className="p-field-row">
+                                        <div className="p-field"><label>Location</label><select value={formData.workLocationId} onChange={e => setFormData({ ...formData, workLocationId: e.target.value })}><option value="">Select Location</option>{locations.map(l => <option key={l._id} value={l._id}>{l.name}</option>)}</select></div>
+                                        <div className="p-field"><label>Work Mode</label><select value={formData.workMode} onChange={e => setFormData({ ...formData, workMode: e.target.value })}><option value="On-site">On-site</option><option value="Remote">Remote</option><option value="Hybrid">Hybrid</option></select></div>
+                                    </div>
+                                </div>
+                                <div className="p-form-card">
+                                    <div className="p-card-header"><Calendar size={14} /> Timeline</div>
+                                    <div className="p-field-row">
+                                        <div className="p-field"><label>Joining Date</label><input type="date" value={formData.joiningDate ? formData.joiningDate.split('T')[0] : ''} onChange={e => setFormData({ ...formData, joiningDate: e.target.value })} /></div>
+                                        <div className="p-field"><label>Expiry Date</label><input type="date" value={formData.offerExpiryDate ? formData.offerExpiryDate.split('T')[0] : ''} onChange={e => setFormData({ ...formData, offerExpiryDate: e.target.value })} /></div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                        {formTab === 'salary' && (
+                            <div className="p-salary-section">
+                                <div className="p-field full-w"><label>Annual CTC Amount</label><div className="p-ctc-input"><IndianRupee size={20}/><input type="number" placeholder="0.00" value={formData.ctc} onChange={e => handleSalaryCalc(e.target.value)} /></div></div>
+                                <div className="p-breakdown">
+                                    <div className="pb-row"><span>Basic Pay (40%)</span><b>{renderPrice(formData.salaryBreakdown.basic)}</b></div>
+                                    <div className="pb-row"><span>HRA</span><b>{renderPrice(formData.salaryBreakdown.hra)}</b></div>
+                                    <div className="pb-row"><span>Employer PF</span><b>{renderPrice(formData.salaryBreakdown.pf_employer)}</b></div>
+                                    <div className="pb-row total"><span>Monthly Net Take-home</span><b>{renderPrice(formData.salaryBreakdown.basic + formData.salaryBreakdown.hra + formData.salaryBreakdown.specialAllowance)}</b></div>
                                 </div>
                             </div>
                         )}
-
-                        <div className="form-card">
-                            <div className="form-card-title">Basic Information</div>
-                            <div className="modal-info-grid">
-                                <div className="form-group">
-                                    <label>Offer ID</label>
-                                    <input type="text" placeholder="Auto-generated" value={formData.offerCode || ''} readOnly className="font-mono bg-gray-50" />
-                                </div>
-                                <div className="form-group">
-                                    <label>Candidate Name <span className="text-red-500">*</span></label>
-                                    <select
-                                        style={inputErrorStyle('candidateId')}
-                                        value={formData.candidateId} 
-                                        onChange={e => handleCandidateChange(e.target.value)}
-                                    >
-                                        <option value="" disabled>Select Candidate</option>
-                                        {candidates.filter(c => c.status === 'Move to Offer').map(c => (
-                                            <option key={c._id || c.id} value={c._id || c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
-                                    {errors.candidateId && <span className="error-text">{errors.candidateId}</span>}
-                                </div>
-                                <div className="form-group">
-                                    <label>Vacancy / Role <span className="text-red-500">*</span></label>
-                                    <select
-                                        style={inputErrorStyle('vacancyId')}
-                                        value={formData.vacancyId}
-                                        onChange={e => {
-                                            const v = vacancies.find(v => String(v._id || v.id) === String(e.target.value));
-                                            setFormData({ ...formData, vacancyId: e.target.value, appliedFor: v?.positionId?.name || v?.jobTitle || v?.role || '' });
-                                        }}
-                                    >
-                                        <option value="" disabled>Select Vacancy</option>
-                                        {vacancies.map(v => (
-                                            <option key={v._id || v.id} value={v._id || v.id}>
-                                                {v.requestNumber ? v.requestNumber + ' - ' : ''}
-                                                {v.positionId?.name || v.position?.name || v.positionName || v.jobTitle || v.role || v.designation || 'Position'}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {errors.vacancyId && <span className="error-text">{errors.vacancyId}</span>}
-                                </div>
-                                <div className="form-group">
-                                    <label>Department</label>
-                                    <input 
-                                        type="text" 
-                                        readOnly 
-                                        placeholder="Auto-fetched" 
-                                        value={formData.department || ''} 
-                                        style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b' }}
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Reporting Manager</label>
-                                    <select 
-                                        value={formData.reportingManager} 
-                                        onChange={e => setFormData({ ...formData, reportingManager: e.target.value, reportingManagerName: employees.find(emp => (emp._id || emp.id) === e.target.value)?.name || '' })}
-                                    >
-                                        <option value="">Select Manager</option>
-                                        {employees.map(emp => (
-                                            <option key={emp._id || emp.id} value={emp._id || emp.id}>
-                                                {emp.employeeId ? emp.employeeId + ' - ' : ''}{emp.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                        {formTab === 'terms' && (
+                            <div className="p-text-fields">
+                                <div className="p-field"><label>Offer Terms & Conditions</label><textarea rows={6} value={formData.termsAndConditions} onChange={e => setFormData({ ...formData, termsAndConditions: e.target.value })} placeholder="Enter terms..."></textarea></div>
+                                <div className="p-field"><label>Additional Internal Notes</label><textarea rows={4} value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} placeholder="Add notes..."></textarea></div>
                             </div>
-                        </div>
-
-                        <div className="form-card">
-                            <div className="form-card-title">Offer Conditions & Work Arrangement</div>
-                            <div className="modal-info-grid">
-                                <div className="form-group">
-                                    <label>Expected Joining Date <span className="text-red-500">*</span></label>
-                                    <input 
-                                        type="date" 
-                                        style={inputErrorStyle('joiningDate')}
-                                        value={formData.joiningDate} 
-                                        onChange={e => setFormData({ ...formData, joiningDate: e.target.value })} 
-                                    />
-                                    {errors.joiningDate && <span className="error-text">{errors.joiningDate}</span>}
-                                </div>
-                                <div className="form-group">
-                                    <label>Offer Expiry Date</label>
-                                    <input 
-                                        type="date" 
-                                        value={formData.offerExpiryDate} 
-                                        onChange={e => setFormData({ ...formData, offerExpiryDate: e.target.value })} 
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Work Mode</label>
-                                    <select value={formData.workMode} onChange={e => setFormData({ ...formData, workMode: e.target.value })}>
-                                        <option value="On-site">On-site (Work from Office)</option>
-                                        <option value="Remote">Remote (Work from Home)</option>
-                                        <option value="Hybrid">Hybrid</option>
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label>Work Location</label>
-                                    <select 
-                                        value={formData.workLocationId} 
-                                        onChange={e => {
-                                            const loc = locations.find(l => (l._id || l.id) === e.target.value);
-                                            setFormData({ ...formData, workLocationId: e.target.value, workLocation: loc?.name || '' });
-                                        }}
-                                    >
-                                        <option value="">Select Location</option>
-                                        {locations.map(loc => (
-                                            <option key={loc._id || loc.id} value={loc._id || loc.id}>{loc.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="form-card">
-                            <div className="form-card-title">Compensation (Gross CTC)</div>
-                            <div className="modal-info-grid">
-                                <div className="form-group col-span-2">
-                                    <label>Annual CTC (INR) <span className="text-red-500">*</span></label>
-                                    <div style={{ position: 'relative' }}>
-                                        <IndianRupee size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                        <input 
-                                            type="number" 
-                                            style={{ ...inputErrorStyle('ctc'), paddingLeft: '35px' }}
-                                            value={formData.ctc} 
-                                            onChange={e => handleSalaryCalculation(e.target.value)} 
-                                            placeholder="e.g. 1200000"
-                                        />
-                                    </div>
-                                    {errors.ctc && <span className="error-text">{errors.ctc}</span>}
-                                </div>
-                                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                        <div>
-                                            <div className="reason-label" style={{ fontSize: '10px', color: '#0d5f68', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>Monthly Earnings</div>
-                                            <div className="flex flex-col gap-2.5">
-                                                <div className="flex justify-between text-sm"><span>Basic Pay:</span> <b>{renderPrice(formData.salaryBreakdown.basic)}</b></div>
-                                                <div className="flex justify-between text-sm"><span>HRA:</span> <b>{renderPrice(formData.salaryBreakdown.hra)}</b></div>
-                                                <div className="flex justify-between text-sm"><span>Special:</span> <b>{renderPrice(formData.salaryBreakdown.specialAllowance)}</b></div>
-                                            </div>
-                                        </div>
-                                        <div style={{ borderLeft: '1px solid #f1f5f9', paddingLeft: '20px' }}>
-                                            <div className="reason-label" style={{ fontSize: '10px', color: '#0d5f68', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>Monthly Benefits</div>
-                                            <div className="flex flex-col gap-2.5">
-                                                <div className="flex justify-between text-sm"><span>PF:</span> <b>{renderPrice(formData.salaryBreakdown.pf)}</b></div>
-                                                <div className="flex justify-between text-sm"><span>Gratuity:</span> <b>{renderPrice(formData.salaryBreakdown.gratuity)}</b></div>
-                                                <div className="flex justify-between text-sm"><span>Insurance:</span> <b>{renderPrice(formData.salaryBreakdown.medicalInsurance)}</b></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="form-card">
-                            <div className="form-card-title">Letter Terms & Notes</div>
-                            <div className="form-group">
-                                <label>Specific Terms & Conditions</label>
-                                <textarea rows="3" value={formData.termsAndConditions} onChange={e => setFormData({ ...formData, termsAndConditions: e.target.value })} />
-                            </div>
-                        </div>
+                        )}
                     </div>
+                </div>
 
-                    <div className="form-footer">
-                        <button className="btn-cancel-premium" style={{ width: '150px' }} onClick={() => setViewMode('list')} disabled={submitting}>Cancel</button>
-                        <div className="flex gap-3">
-                            <button className="btn-cancel-premium" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }} onClick={() => handleSave(true)} disabled={submitting}>
-                                <Save size={16} /> <span>Save Draft</span>
-                            </button>
-                            <button className="btn-primary" onClick={() => handleSave(false)} disabled={submitting}>
-                                {submitting ? 'Processing...' : (isEdit ? 'Save Changes' : 'Generate & Issue Offer')}
-                            </button>
-                        </div>
+                <div className="premium-modal-footer">
+                    <div className="pm-footer-info">{formData.candidateName && <span>Draft for: <b>{formData.candidateName}</b></span>}</div>
+                    <div className="pm-footer-actions">
+                        <button className="btn-cancel-v5" onClick={() => setViewMode('list')}>Cancel</button>
+                        <button className="btn-draft" onClick={() => onSave(true)} disabled={submitting}>Save Draft</button>
+                        <button className="btn-issue" onClick={() => onSave(false)} disabled={submitting}>{submitting ? 'Issuing...' : 'Issue Offer'}</button>
                     </div>
                 </div>
             </div>
-        );
-    };
+        </div>
+    );
 
-    const renderOfferDetail = () => {
-        const o = selectedOffer || {};
-        return (
-            <div className="modal-overlay" onClick={() => { setViewMode('list'); setSelectedOffer(null); }}>
-                <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '1000px', height: '90vh' }}>
-                    <div className="form-header">
-                        <h2 className="text-xl font-bold text-white flex items-center gap-2"><FileText size={20} /> Offer Details</h2>
-                        <button className="icon-btn" onClick={() => { setViewMode('list'); setSelectedOffer(null); }}><X size={20} /></button>
-                    </div>
-                    <div className="form-body">
-                        <div className="form-card">
-                            <div className="modal-info-grid">
-                                <div><label className="reason-label">Candidate</label><div className="font-bold">{o.candidateName}</div></div>
-                                <div><label className="reason-label">Position</label><div className="font-bold">{o.appliedFor}</div></div>
-                                <div><label className="reason-label">Department</label><div className="font-bold">{o.department}</div></div>
-                                <div><label className="reason-label">CTC</label><div className="font-bold">{renderPrice(o.ctc)}</div></div>
-                                <div><label className="reason-label">Status</label><div className="font-bold uppercase text-teal-600">{o.status}</div></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="form-footer">
-                        <button className="btn-cancel-premium" style={{ flex: 1 }} onClick={() => { setViewMode('list'); setSelectedOffer(null); }}>Close</button>
-                    </div>
-                </div>
-            </div>
-        );
-    };
+    const statConfig = [
+        { label: 'Total Offers', status: '', icon: <FileText size={20} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', trend: 8 },
+        { label: 'Draft', status: 'Draft', icon: <File size={20} />, color: '#64748b', bg: 'rgba(100, 116, 139, 0.1)', trend: 2 },
+        { label: 'Pending Approval', status: 'Pending Approval', icon: <Clock size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: 12 },
+        { label: 'Sent', status: 'Sent', icon: <Send size={20} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)', trend: -4 },
+        { label: 'Accepted', status: 'Accepted', icon: <CheckCircle size={20} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', trend: 15 },
+        { label: 'Rejected', status: 'Rejected', icon: <XCircle size={20} />, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.1)', trend: -2 },
+        { label: 'Expired', status: 'Expired', icon: <AlertCircle size={20} />, color: '#b45309', bg: 'rgba(180, 83, 9, 0.1)', trend: 1 }
+    ];
 
     return (
-        <div className="employees-page">
-            {viewMode === 'create' || viewMode === 'edit' ? renderOfferForm() : null}
-            {viewMode === 'view' ? renderOfferDetail() : null}
-
-            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                <div className="flex flex-col">
-                    <h1 className="page-title">Offer Letter Management</h1>
-                    <p className="page-description">Track, manage and schedule candidate offer letters across recruitment lifecycle</p>
+        <div className="vacancy-dashboard animate-entry" style={{ padding: '1.25rem 1.5rem', background: '#f8fafc', overflow: 'hidden', height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
+            {(viewMode === 'create' || viewMode === 'edit') && <Modal />}
+            
+            <header className="dashboard-header" style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="header-left"><h1><FileText size={24} className="text-[#0d5f68]" /> Offer Letters</h1></div>
+                <div className="header-actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    <button className="btn-secondary-outline" onClick={() => toast.success('Export initiated...')}><Download size={18} /> Export</button>
+                    <button className="btn-primary" onClick={() => { setFormData({ offerCode: '', candidateId: '', candidateName: '', vacancyId: '', departmentId: '', reportingManager: '', workLocationId: '', workMode: 'On-site', joiningDate: '', offerExpiryDate: '', ctc: 0, status: 'Draft', candidateResponse: 'Pending', termsAndConditions: '', notes: '', isActive: 1, isDelete: 0, salaryBreakdown: { basic: 0, hra: 0, specialAllowance: 0, pf_employer: 0, gratuity: 0, medicalInsurance: 0 } }); setViewMode('create'); }}><Plus size={20} /> Create Offer</button>
                 </div>
-                <button className="btn-primary" onClick={() => setViewMode('create')}>
-                    <Plus size={20} />
-                    <span>Create Offer</span>
-                </button>
+            </header>
+
+            <div className="stats-scroller-v6" style={{ marginBottom: '1.5rem' }}>
+                <div className="stats-container-v6">
+                    {statConfig.map((s, idx) => (
+                        <StatCard 
+                            key={idx}
+                            {...s}
+                            count={s.status === '' ? totalItems : offers.filter(o => o.status === s.status).length}
+                            active={filters.status === s.status}
+                            onClick={() => setFilters({ ...filters, status: s.status })}
+                        />
+                    ))}
+                </div>
             </div>
 
-            <div className="table-card">
-                <div className="table-wrapper">
-                    <table className="employee-table">
-                        <thead>
-                            <tr className="header-titles-row">
-                                <th>OFFER CODE</th>
-                                <th>CANDIDATE NAME</th>
-                                <th>APPLIED FOR / VACANCY</th>
-                                <th>DEPARTMENT</th>
-                                <th className="text-center">ANNUAL CTC</th>
-                                <th className="text-center">OFFER DATE</th>
-                                <th className="text-center">JOINING DATE</th>
-                                <th className="text-center">OFFER EXPIRY</th>
-                                <th className="text-center">CANDIDATE RESPONSE</th>
-                                <th className="text-center">STATUS</th>
-                                <th className="text-center">ACTIONS</th>
-                            </tr>
-                            <tr className="filter-row">
-                                <th><input type="text" className="inline-filter" placeholder="Code" value={filters.offerCode} onChange={e => setFilters({...filters, offerCode: e.target.value})} /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Name" value={filters.candidateName} onChange={e => setFilters({...filters, candidateName: e.target.value})} /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Vacancy" value={filters.vacancyTitle} onChange={e => setFilters({...filters, vacancyTitle: e.target.value})} /></th>
-                                <th><input type="text" className="inline-filter" placeholder="Dept" value={filters.departmentName} onChange={e => setFilters({...filters, departmentName: e.target.value})} /></th>
-                                <th><input type="text" className="inline-filter text-center" /></th>
-                                <th><input type="text" className="inline-filter text-center" /></th>
-                                <th><input type="date" className="inline-filter text-center" value={filters.joiningDate} onChange={e => setFilters({...filters, joiningDate: e.target.value})} /></th>
-                                <th><input type="text" className="inline-filter text-center" /></th>
-                                <th><input type="text" className="inline-filter text-center" /></th>
-                                <th>
-                                    <select className="inline-filter text-center" value={filters.status} onChange={e => setFilters({...filters, status: e.target.value})}>
-                                        <option value="">All Status</option>
-                                        <option value="Draft">Draft</option>
-                                        <option value="Pending Approval">Pending Approval</option>
-                                        <option value="Issued">Issued</option>
-                                        <option value="Cancelled">Cancelled</option>
-                                    </select>
-                                </th>
-                                <th className="text-center">
-                                    <button className="btn-reset-filters-roles" onClick={() => { setFilters({offerCode:'', candidateName:'', vacancyTitle:'', departmentName:'', status:'', joiningDate:''}); setPage(0); }}>
-                                        <RotateCcw size={16} />
-                                    </button>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                <tr>
-                                    <td colSpan="11" style={{ height: '320px' }}>
-                                        <div className="flex flex-col items-center justify-center gap-4 h-full">
-                                            <div className="premium-spinner">
-                                                <div className="premium-core"></div>
-                                            </div>
-                                            <p className="premium-text" style={{ color: '#0d5f68', fontSize: '0.9rem', fontWeight: 600 }}>Syncing recruitment data...</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : (
-                                (offers || []).map(offer => {
-                                const parseDate = (d) => d ? (String(d).includes('T') ? String(d).split('T')[0] : d) : 'N/A';
-                                const offerDate = parseDate(offer.createdAt || offer.offerDate);
-                                const joiningDate = parseDate(offer.joiningDate);
-                                const expiryDate = parseDate(offer.offerExpiryDate);
-                                
-                                const getResponseClass = (resp) => {
-                                    if (!resp || resp === 'Pending') return 'status-rescheduled'; // Orange
-                                    if (resp === 'Accepted') return 'status-scheduled'; // Green
-                                    if (resp === 'Expired') return 'status-expired'; // Gray
-                                    if (resp === 'Rejected' || resp === 'Declined') return 'status-cancelled'; // Red
-                                    return 'status-rescheduled';
-                                };
-
-                                return (
-                                    <tr key={offer._id || offer.id}>
-                                        <td>
-                                            <span 
-                                                className="offer-code-badge" 
-                                                style={{ background: '#f0fdfa', color: '#0d9488', border: '1px solid #ccfbf1', cursor: 'pointer' }}
-                                                onClick={() => { setSelectedOffer(offer); setViewMode('view'); }}
-                                            >
-                                                {offer.offerCode || 'N/A'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div className="emp-profile">
-                                                <div className="emp-avatar">{(offer.candidateName || 'C').charAt(0)}</div>
-                                                <span className="emp-name">{offer.candidateName || 'N/A'}</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span className="text-teal-700 font-bold" style={{ fontSize: '0.85rem' }}>
-                                                {offer.vacancyTitle || 'N/A'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className="text-blue-700 font-semibold" style={{ fontSize: '0.85rem' }}>
-                                                {offer.departmentName || 'N/A'}
-                                            </span>
-                                        </td>
-                                        <td className="text-center font-bold text-teal-800">{renderPrice(offer.ctc)}</td>
-                                        <td className="text-center text-slate-600">{offerDate}</td>
-                                        <td className="text-center text-slate-600">{joiningDate}</td>
-                                        <td className="text-center text-slate-600">{expiryDate}</td>
-                                        <td className="text-center">
-                                            <span className={`status-badge ${getResponseClass(offer.candidateResponse)}`}>
-                                                {offer.candidateResponse || 'Pending'}
-                                            </span>
-                                        </td>
-                                        <td className="text-center">
-                                            <span className={`status-badge ${offer.status === 'Draft' ? 'status-rescheduled' : 'status-scheduled'}`}>{offer.status}</span>
-                                        </td>
-                                        <td className="text-center">
-                                            <div className="actions-wrapper">
-                                                <button className="action-btn view" onClick={() => { setSelectedOffer(offer); setViewMode('view'); }}><Eye size={18} /></button>
-                                                <button className="action-btn edit" onClick={() => { setSelectedOffer(offer); setViewMode('edit'); }}><Edit size={18} /></button>
-                                                <button className="action-btn delete" onClick={() => handleDelete(offer._id || offer.id)} style={{ color: '#ef4444' }}><Trash2 size={18} /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            }))}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div className="pagination">
-                    <span className="pagination-info">Showing {page * 10 + 1} to {Math.min((page + 1) * 10, totalItems)} of {totalItems} Schedule(s)</span>
-                    <div className="pagination-controls">
-                        <button className={`page-btn ${page === 0 ? 'disabled' : ''}`} onClick={() => page > 0 && setPage(page - 1)} disabled={page === 0}>Previous</button>
-                        <button className="page-btn active">{page + 1}</button>
-                        <button className={`page-btn ${page >= totalPages - 1 ? 'disabled' : ''}`} onClick={() => page < totalPages - 1 && setPage(page + 1)} disabled={page >= totalPages - 1}>Next</button>
+            <div className="filter-search-container" style={{ marginBottom: '1rem' }}>
+                <div className="search-wrapper"><Search size={18} className="search-icon" /><input type="text" placeholder="Search by candidate name..." value={filters.candidateName} onChange={e => setFilters({ ...filters, candidateName: e.target.value })} /></div>
+                <div className="filter-actions">
+                    <div className="filter-dropdown-group">
+                        <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })}><option value="">All Statuses</option><option value="Draft">Draft</option><option value="Pending Approval">Pending Approval</option><option value="Sent">Sent</option><option value="Accepted">Accepted</option><option value="Rejected">Rejected</option><option value="Expired">Expired</option></select>
+                        <button className="btn-icon-alt" onClick={() => setFilters({ candidateName: '', status: '', departmentName: '', joiningDate: '' })}><RotateCcw size={18} /></button>
                     </div>
                 </div>
+            </div>
+
+            <div className="table-container-premium shadow-premium">
+                <div className="table-header-info">
+                    <div className="header-info-left"><h3>Offers List</h3><span className="count-chip">{totalItems} TOTAL</span></div>
+                    <div className="header-info-right text-xs text-slate-500 font-medium">Showing {offers.length} entries</div>
+                </div>
+                
+                <div className="table-responsive">
+                    {loading ? <div className="p-list-loader"><Loader2 className="animate-spin" size={32} /><span>Fetching data...</span></div> : offers.length === 0 ? <div style={{height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}><EmptyState onCreate={() => setViewMode('create')} /></div> : (
+                        <table className="ats-table">
+                            <thead><tr><th style={{ width: '40px' }}><input type="checkbox" /></th><th style={{width: '120px'}}>CODE</th><th>CANDIDATE</th><th>ROLE / VACANCY</th><th style={{width: '180px'}}>DEPARTMENT</th><th className="text-right" style={{width: '140px'}}>CTC</th><th className="text-center" style={{width: '150px'}}>STATUS</th><th className="text-right pr-6" style={{width: '120px'}}>ACTIONS</th></tr></thead>
+                            <tbody>
+                                {offers.map(o => (
+                                    <tr key={o._id}>
+                                        <td><input type="checkbox" /></td>
+                                        <td><span className="code-badge">{o.offerCode}</span></td>
+                                        <td><div className="job-info"><span className="job-title">{o.candidateName}</span></div></td>
+                                        <td><span className="dept-name">{o.appliedFor || o.vacancyTitle}</span></td>
+                                        <td><span className="manager-name">{o.departmentName}</span></td>
+                                        <td className="text-right font-bold text-[#0d5f68]">{renderPrice(o.ctc)}</td>
+                                        <td className="text-center"><Badge variant={o.status} /></td>
+                                        <td className="text-right pr-4"><div className="action-button-group"><button className="row-action edit" onClick={() => { setSelectedOffer(o); setFormData({ ...o }); setViewMode('edit'); }}><Edit size={16} /></button><button className="row-action delete" onClick={() => { if(window.confirm('Delete?')) api.delete(`/offers/${o._id}`).then(() => fetchOffers(page))}}><Trash2 size={16} /></button></div></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                {offers.length > 0 && (
+                    <div className="table-footer-ats">
+                        <div className="footer-left">Showing <b>{page * 10 + 1}</b> to <b>{Math.min((page + 1) * 10, totalItems)}</b> of <b>{totalItems}</b></div>
+                        <div className="footer-right"><button className={`page-btn ${page === 0 ? 'disabled' : ''}`} disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button><button className={`page-btn ${(page + 1) * 10 >= totalItems ? 'disabled' : ''}`} disabled={(page + 1) * 10 >= totalItems} onClick={() => setPage(page + 1)}>Next</button></div>
+                    </div>
+                )}
             </div>
 
             <style>{`
-                .employees-page { padding: 1.5rem; display: flex; flex-direction: column; gap: 0rem; height: calc(100vh - 60px); overflow: hidden; }
-                .page-title { font-size: 1.5rem; font-weight: 700; color: white; letter-spacing: -0.02em; margin: 0; }
-                .page-description { font-size: 0.75rem; color: rgba(255,255,255,0.6); font-weight: 500; margin: 0; margin-top: 2px; }
+                .vacancy-dashboard { height: calc(100vh - 64px); display: flex; flex-direction: column; overflow: hidden; }
+                .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0; }
+                .dashboard-header h1 { display: flex; align-items: center; gap: 0.75rem; margin: 0; font-size: 1.4rem; color: #1e293b; font-weight: 700; }
                 
-                .table-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); border-radius: 16px; display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
-                .table-wrapper { overflow-x: auto; overflow-y: auto; flex: 1; width: 100%; }
+                .btn-primary { background: #0d5f68; color: white !important; border: none; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(13, 95, 104, 0.2); }
+                .btn-primary:hover { background: #084d54; transform: translateY(-1px); box-shadow: 0 10px 15px -3px rgba(13, 95, 104, 0.3); }
                 
-                .employee-table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
-                .employee-table thead { position: sticky; top: 0; z-index: 20; background-color: #f8f9fb; }
-                .employee-table th { padding: 0.75rem 1.25rem; color: #374151; font-weight: 700; font-size: 0.8rem; border-bottom: 1px solid #e5e7eb; text-transform: uppercase; letter-spacing: 0.05em; vertical-align: middle; }
-                .filter-row th { padding: 0.5rem 1.25rem 1rem 1.25rem; background-color: #f8f9fb; border-bottom: 1px solid #e5e7eb; }
+                .btn-secondary-outline { background: white; color: #475569; border: 1px solid #e2e8f0; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+                .btn-secondary-outline:hover { border-color: #0d5f68; color: #0d5f68; background: #f8fafc; }
                 
-                .inline-filter { width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem; outline: none; background: white; color: #4b5563; transition: border-color 0.2s; }
-                .inline-filter:focus { border-color: #0d5f68; box-shadow: 0 0 0 2px rgba(13,95,104,0.1); }
+                .stats-scroller-v6 { overflow-x: auto; padding: 0.5rem 0.5rem 1.25rem 0.5rem; margin: 0 -0.5rem; flex-shrink: 0; }
+                .stats-scroller-v6::-webkit-scrollbar { height: 4px; }
+                .stats-scroller-v6::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
                 
-                .employee-table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid #f3f4f6; color: #1f2937; font-size: 0.95rem; vertical-align: middle; }
-                .employee-table tr:hover td { background-color: #f9fafb; }
+                .stats-container-v6 { display: flex; gap: 1rem; min-width: max-content; }
                 
-                .emp-profile { display: flex; align-items: center; gap: 0.75rem; }
-                .emp-avatar { width: 36px; height: 36px; background-color: #e0e7ff; color: #4f46e5; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; border: 2px solid white; box-shadow: 0 0 0 1.5px #eef2ff; }
-                .emp-name { font-weight: 600; color: #111827; }
+                .stat-card-premium { background: white; padding: 1rem 1.25rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; min-width: 220px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+                .stat-card-premium:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-2px); }
+                .stat-card-premium.active::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); }
                 
-                .status-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; justify-content: center; min-width: 100px; transition: transform 0.2s; text-transform: uppercase; }
-                .status-scheduled { background: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; }
-                .status-rescheduled { background: #fffbeb; color: #d97706; border: 1px solid #fef3c7; }
-                .status-cancelled { background: #fff1f2; color: #e11d48; border: 1px solid #ffe4e6; }
-                .status-expired { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+                .stat-main { display: flex; align-items: center; gap: 0.85rem; }
+                .stat-icon-v6 { width: 42px; height: 42px; border-radius: 12px; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+                .stat-content-v6 { display: flex; flex-direction: column; gap: 2px; }
+                .stat-label-v6 { font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+                .stat-value-group { display: flex; align-items: baseline; gap: 0.6rem; }
+                .stat-count-v6 { font-size: 1.5rem; font-weight: 800; color: #1e293b; line-height: 1; }
                 
-                .actions-wrapper { display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
-                .action-btn { width: 30px; height: 30px; border-radius: 6px; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; background: transparent; }
-                .action-btn:hover { background-color: #f3f4f6; }
-                .action-btn.view { color: #3b82f6; }
-                .action-btn.edit { color: #10b981; }
-                .action-btn.delete { color: #ef4444; }
+                .stat-trend { display: flex; align-items: center; gap: 2px; font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 20px; }
+                .stat-trend.up { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+                .stat-trend.down { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
                 
-                .pagination { padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #f3f4f6; background: white; }
-                .pagination-info { font-size: 0.85rem; color: #6b7280; font-weight: 500; }
-                .pagination-controls { display: flex; gap: 0.5rem; align-items: center; }
-                .page-btn { min-width: 32px; height: 32px; padding: 0 0.4rem; display: flex; align-items: center; justify-content: center; border: 1px solid #e5e7eb; background: white; border-radius: 6px; font-size: 0.85rem; cursor: pointer; color: #4b5563; transition: all 0.2s; }
-                .page-btn.active { background-color: #0d5f68; color: white; border-color: #0d5f68; font-weight: 500; }
-                .page-btn.disabled { opacity: 0.5; cursor: not-allowed; background-color: #f9fafb; color: #9ca3af; }
-                
-                .offer-code-badge { padding: 0.4rem 0.8rem; border-radius: 6px; font-family: monospace; font-weight: 700; font-size: 0.75rem; }
-                .btn-primary { background: #0d5f68; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-size: 13px; }
-                .reason-label { font-size: 0.8rem; color: #64748b; font-weight: 800; text-transform: uppercase; margin-bottom: 0.4rem; display: block; }
-                .error-text { color: #ef4444; font-size: 11px; margin-top: 4px; font-weight: 600; }
-                .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); display: flex; justify-content: center; align-items: center; z-index: 50; backdrop-filter: blur(4px); }
-                .modal-content { background: white; width: 95%; max-width: 1000px; height: 85vh; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; }
-                .form-header { background: #0d4d4d; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; color: white; }
-                .form-body { flex: 1; padding: 1.5rem; overflow-y: auto; background-color: #f8fafc; display: flex; flex-direction: column; gap: 1.5rem; }
-                .form-card { background: white; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; }
-                .form-card-title { font-size: 0.9rem; font-weight: 700; color: #0f172a; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #f1f5f9; text-transform: uppercase; letter-spacing: 0.03em; }
-                .modal-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.25rem; }
-                .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
-                .form-group label { font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 0.25rem; }
-                .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.6rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.9rem; color: #1e293b; background: #fff; }
-                .form-footer { padding: 1rem 1.5rem; background: white; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 0.75rem; }
-                .btn-cancel-premium { padding: 0.6rem 1.2rem; border-radius: 8px; font-size: 0.9rem; font-weight: 600; color: #64748b; background: white; border: 1px solid #e2e8f0; cursor: pointer; }
-                .premium-spinner { position: relative; width: 60px; height: 60px; }
-                .premium-core { width: 100%; height: 100%; border: 4px solid #f1f5f9; border-top: 4px solid #0d5f68; border-radius: 50%; animation: spin 1s linear infinite; }
-                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-                .col-span-2 { grid-column: span 2 / span 2; }
+                .stat-indicator { color: #cbd5e1; transition: transform 0.2s; }
+                .stat-card-premium:hover .stat-indicator { transform: translateX(3px); color: var(--accent); }
+
+                .filter-search-container { background: white; padding: 0.65rem 1rem; border-radius: 12px; display: flex; gap: 0.75rem; align-items: center; border: 1px solid #e2e8f0; }
+                .search-wrapper { flex: 1; position: relative; display: flex; align-items: center; }
+                .search-icon { position: absolute; left: 0.85rem; color: #94a3b8; }
+                .search-wrapper input { width: 100%; height: 38px; padding: 0 1rem 0 2.5rem; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; font-size: 0.85rem; outline: none; }
+                .filter-dropdown-group { display: flex; gap: 0.5rem; }
+                .filter-dropdown-group select { height: 38px; padding: 0 1rem; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.825rem; font-weight: 600; cursor: pointer; }
+                .btn-icon-alt { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer; }
+
+                .table-container-premium { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+                .table-header-info { padding: 0.85rem 1.25rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: white; }
+                .header-info-left { display: flex; align-items: center; gap: 0.75rem; }
+                .header-info-left h3 { margin: 0; font-size: 1rem; color: #1e293b; font-weight: 700; }
+                .count-chip { background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.65rem; }
+
+                .ats-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+                .ats-table th { background: #f8fafc; padding: 0.65rem 1.25rem; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #475569; border-bottom: 1px solid #e2e8f0; text-align: left; }
+                .ats-table td { padding: 0.75rem 1.25rem; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; }
+                .code-badge { font-family: monospace; font-size: 0.8rem; font-weight: 700; color: #0d5f68; }
+                .job-title { font-size: 0.925rem; font-weight: 700; color: #1e293b; }
+                .dept-name { font-size: 0.775rem; color: #64748b; font-weight: 600; }
+                .manager-name { font-size: 0.775rem; color: #94a3b8; font-weight: 500; }
+
+                .table-footer-ats { padding: 0.75rem 1.25rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: white; }
+                .page-btn { padding: 0.4rem 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0; background: white; font-size: 0.8rem; font-weight: 700; color: #475569; cursor: pointer; min-width: 80px; }
+                .page-btn.disabled { opacity: 0.5; cursor: not-allowed; background: #f8fafc; }
+
+                .premium-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+                .premium-modal-card { background: white; width: 950px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
+                .premium-modal-header { background: #0d4d4d; color: white; padding: 1.25rem 1.75rem; display: flex; justify-content: space-between; align-items: center; }
+                .mh-title-group { display: flex; gap: 1rem; align-items: center; }
+                .mh-icon-v2 { width: 40px; height: 40px; background: rgba(255,255,255,0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+                .mh-title-group h3 { margin: 0; font-size: 1.2rem; }
+                .mh-title-group p { margin: 0; font-size: 0.8rem; opacity: 0.7; }
+                .mh-close-v2 { background: none; border: none; color: white; cursor: pointer; }
+
+                .premium-modal-tabs { background: white; border-bottom: 1px solid #f1f5f9; padding: 0 1.75rem; display: flex; gap: 1.75rem; }
+                .p-tab { background: none; border: none; padding: 1rem 0; font-weight: 700; font-size: 0.8rem; color: #94a3b8; cursor: pointer; border-bottom: 3px solid transparent; text-transform: uppercase; display: flex; align-items: center; gap: 0.5rem; transition: 0.2s; }
+                .p-tab.active { color: #0d5f68; border-bottom-color: #0d5f68; }
+
+                .premium-modal-body { padding: 1.5rem; background: #f8fafc; overflow-y: auto; flex: 1; }
+                .p-form-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 1.25rem; margin-bottom: 1rem; }
+                .p-card-header { font-size: 0.65rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+                .p-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+                .p-field label { display: block; font-size: 0.7rem; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 0.4rem; }
+                .p-field select, .p-field input, .p-field textarea { width: 100%; height: 38px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 0.85rem; font-size: 0.85rem; background: white; outline: none; }
+                .p-field textarea { height: auto; padding: 0.75rem 0.85rem; }
+
+                .p-ctc-input { position: relative; display: flex; align-items: center; }
+                .p-ctc-input svg { position: absolute; left: 1rem; color: #94a3b8; }
+                .p-ctc-input input { padding-left: 2.75rem !important; height: 50px !important; font-size: 1.4rem !important; font-weight: 800 !important; color: #0d5f68 !important; }
+                .p-breakdown { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+                .pb-row { display: flex; justify-content: space-between; padding: 0.75rem 1.25rem; background: #f1f5f9; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
+                .pb-row.total { background: #0d4d4d; color: white; }
+
+                .premium-modal-footer { background: white; padding: 1rem 1.75rem; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+                .pm-footer-actions { display: flex; gap: 0.75rem; }
+                .btn-cancel-v5 { background: none; border: none; font-weight: 700; color: #64748b; cursor: pointer; }
+                .btn-draft { background: #f1f5f9; color: #1e293b; border: none; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 700; cursor: pointer; }
+                .btn-issue { background: #0d5f68; color: white; border: none; padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(13, 95, 104, 0.2); }
+
+                .empty-state-card { padding: 3rem 2rem; display: flex; flex-direction: column; align-items: center; text-align: center; background: white; border-radius: 12px; }
+                .empty-icon-with-bg { width: 80px; height: 80px; background: #f8fafc; border-radius: 20px; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem; color: #94a3b8; }
+                .empty-state-card h3 { font-size: 1.3rem; font-weight: 800; color: #1e293b; margin: 0 0 0.5rem; }
+                .empty-state-card p { font-size: 0.9rem; color: #64748b; max-width: 400px; line-height: 1.6; margin-bottom: 2rem; }
             `}</style>
         </div>
     );

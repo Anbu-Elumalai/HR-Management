@@ -6,18 +6,33 @@ import {
     Calendar, MapPin, ChevronDown, MoreVertical,
     Filter, Download, Clock, Monitor, XCircle, 
     CheckCircle2, AlertTriangle, PlayCircle, BarChart2,
-    TrendingUp, ChevronLeft, ChevronRight, User
+    TrendingUp, TrendingDown, ChevronLeft, ChevronRight, User
 } from 'lucide-react';
 import './Recruitment.css';
 import api from '../../api/api';
 
-const StatCard = ({ label, count, icon, color, bg }) => (
-    <div className="stat-card" style={{ '--accent-color': color, '--accent-bg': bg }}>
-        <div className="stat-icon-wrapper">{icon}</div>
-        <div className="stat-info">
-            <span className="stat-label">{label}</span>
-            <span className="stat-count">{count}</span>
+const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => (
+    <div 
+        className={`stat-card-premium ${active ? 'active' : ''}`} 
+        onClick={onClick}
+        style={{ '--accent': color, '--accent-bg': bg }}
+    >
+        <div className="stat-main">
+            <div className="stat-icon-v6">{icon}</div>
+            <div className="stat-content-v6">
+                <span className="stat-label-v6">{label}</span>
+                <div className="stat-value-group">
+                    <span className="stat-count-v6">{count}</span>
+                    {trend && (
+                        <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`}>
+                            {trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                            <span>{Math.abs(trend)}%</span>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
+        <div className="stat-indicator"><ChevronRight size={14} /></div>
     </div>
 );
 
@@ -827,7 +842,9 @@ const Interview = () => {
                                         style={inputErrorStyle('candidateId')}
                                         value={formData.candidateId} onChange={handleCandidateChange}>
                                         <option value="" disabled>Select Candidate</option>
-                                        {Array.isArray(candidates) && candidates.map(c => (
+                                        {Array.isArray(candidates) && candidates
+                                            .filter(c => c.status !== 'Move to Offer')
+                                            .map(c => (
                                             <option key={c._id || c.id} value={c._id || c.id}>
                                                 {c.candidateId ? `${c.candidateId} - ` : ''}{c.name}
                                             </option>
@@ -1401,14 +1418,35 @@ const Interview = () => {
             </div>
 
             {/* Stats Section */}
-            <div className="stats-grid" style={{ marginBottom: '1rem' }}>
-                <StatCard label="Total Interviews" count={totalItems} icon={<Calendar size={20} />} color="#0d5f68" bg="rgba(13, 95, 104, 0.1)" />
-                <StatCard label="Today's Rounds" count={interviews.filter(i => {
-                    const today = new Date().toISOString().split('T')[0];
-                    return (i.scheduleDate || i.date)?.includes(today);
-                }).length} icon={<Clock size={20} />} color="#3b82f6" bg="rgba(59, 130, 246, 0.1)" />
-                <StatCard label="Success Rate" count={`${Math.round((interviews.filter(i => i.feedback === 'Passed').length / (interviews.filter(i => i.feedback).length || 1)) * 100)}%`} icon={<TrendingUp size={20} />} color="#10b981" bg="rgba(16, 185, 129, 0.1)" />
-                <StatCard label="Pending Feedback" count={interviews.filter(i => i.status === 'Completed' && !i.feedback).length} icon={<RotateCcw size={20} />} color="#f59e0b" bg="rgba(245, 158, 11, 0.1)" />
+            <div className="stats-scroller-v6" style={{ marginBottom: '1.25rem' }}>
+                <div className="stats-container-v6">
+                    {[
+                        { label: 'Total Interviews', status: '', icon: <Calendar size={18} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', trend: 12 },
+                        { label: 'Scheduled', status: 'Scheduled', icon: <Clock size={18} />, color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)', trend: 5 },
+                        { label: 'Completed', status: 'Completed', icon: <CheckCircle2 size={18} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', trend: 8 },
+                        { label: 'Rescheduled', status: 'Rescheduled', icon: <RotateCcw size={18} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: -2 },
+                        { label: 'Cancelled', status: 'Cancelled', icon: <XCircle size={18} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', trend: -1 },
+                        { label: 'Pending Feedback', status: 'PendingFeedback', icon: <AlertTriangle size={18} />, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', trend: 3 },
+                    ].map((s, i) => (
+                        <StatCard 
+                            key={i} 
+                            {...s} 
+                            count={
+                                s.status === '' ? totalItems : 
+                                s.status === 'PendingFeedback' ? interviews.filter(inv => inv.status === 'Completed' && !inv.feedback).length :
+                                interviews.filter(inv => inv.status === s.status).length
+                            }
+                            active={s.status === 'PendingFeedback' ? (filters.status === 'Completed' && filters.feedback === 'Pending') : filters.status === s.status}
+                            onClick={() => {
+                                if (s.status === 'PendingFeedback') {
+                                    setFilters(prev => ({ ...prev, status: 'Completed', feedback: 'Pending' }));
+                                } else {
+                                    setFilters(prev => ({ ...prev, status: s.status, feedback: '' }));
+                                }
+                            }}
+                        />
+                    ))}
+                </div>
             </div>
 
             {/* Filter & Search Bar */}
@@ -1596,8 +1634,8 @@ const Interview = () => {
                                                 <Badge variant={interview.status} onUpdate={() => handleStatusClick(interview)} />
                                             </td>
                                             <td className="text-center">
-                                                <Badge variant={interview.feedback ? (interview.feedback === 'Passed' ? 'passed' : 'failed') : 'pending'} onUpdate={() => handleFeedbackClick(interview)}>
-                                                    {interview.feedback || 'Pending'}
+                                                <Badge variant={interview.interviewResult || 'pending'} onUpdate={() => handleFeedbackClick(interview)}>
+                                                    {interview.interviewResult || 'Pending'}
                                                 </Badge>
                                             </td>
                                             <td className="text-right">
@@ -1651,76 +1689,73 @@ const Interview = () => {
 
             {showStatusModal && (
                 <div className="modal-overlay" onClick={() => setShowStatusModal(false)}>
-                    <div className="modal-content delete-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-                        <div className="delete-header-premium">
-                            <button className="icon-btn" onClick={() => setShowStatusModal(false)}><X size={18} /></button>
+                    <div className="modal-content status-modal-premium" onClick={e => e.stopPropagation()}>
+                        <div className="status-header-premium">
+                            <h2 className="status-header-title-premium">Update Status</h2>
+                            <button className="icon-btn-close" onClick={() => setShowStatusModal(false)}><X size={20} /></button>
                         </div>
-                        <div className="delete-body-premium" style={{ paddingTop: '0rem', position: 'relative' }}>
-                            {updatingStatus && (
-                                <div className="loading-overlay" style={{
-                                    position: 'absolute', top: -50, left: -40, right: -40, bottom: -40,
-                                    backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    zIndex: 1000, borderRadius: '12px'
-                                }}>
-                                    <div className="flex flex-col items-center gap-4">
-                                        <div className="premium-spinner" style={{ width: '50px', height: '50px' }}>
-                                            <div className="premium-core"></div>
-                                        </div>
-                                        <p className="premium-text" style={{ color: '#0d5f68', fontSize: '0.85rem' }}>Updating Status...</p>
+                        <div className="status-body-premium">
+                            {submittingStatus && (
+                                <div className="loading-overlay-premium">
+                                    <div className="premium-spinner-container">
+                                        <div className="premium-spinner-v2"></div>
+                                        <p>Saving Status...</p>
                                     </div>
                                 </div>
                             )}
-                            <h2 className="delete-title-premium" style={{ fontSize: '1.25rem' }}>Update Status</h2>
-                            <p className="delete-message-premium" style={{ fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                                Updating status for: <br />
-                                <span className="delete-item-badge" style={{ marginTop: '0.5rem', background: '#f8fafc' }}>
+
+                            <div className="status-target-info-premium">
+                                <span>Updating interview:</span>
+                                <span className="status-target-badge-premium">
                                     {statusInterview?.interviewCode || statusInterview?.id}
                                 </span>
-                            </p>
-                            <div className="form-group" style={{ textAlign: 'left', marginBottom: '0.5rem' }}>
-                                <label className="reason-label">Select Interview Status</label>
-                                <select
-                                    value={newStatus}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        setNewStatus(val);
-                                        setStatusModalErrors({}); // Reset errors when switching status
-                                        if (val !== 'Rescheduled' && val !== 'Cancelled') setStatusReason('');
-                                    }}
-                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid #e2e8f0', marginTop: '0.4rem', fontSize: '0.9rem', fontWeight: '600', background: '#fcfcfd' }}
-                                >
-                                    <option value="Scheduled">Scheduled</option>
-                                    <option value="Completed">Completed</option>
-                                    <option value="Rescheduled">Rescheduled</option>
-                                    <option value="Cancelled">Cancelled</option>
-                                    <option value="Move to Offer">Move to Offer</option>
-                                </select>
                             </div>
 
+                            <div className="status-form-group-premium">
+                                <label className="status-label-premium">Interview Status</label>
+                                <div className="verdict-select-wrapper">
+                                    <select
+                                        value={newStatus}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewStatus(val);
+                                            setStatusModalErrors({});
+                                            if (val !== 'Rescheduled' && val !== 'Cancelled') setStatusReason('');
+                                        }}
+                                    >
+                                        <option value="Scheduled">Scheduled</option>
+                                        <option value="Completed">Completed</option>
+                                        <option value="Rescheduled">Rescheduled</option>
+                                        <option value="Cancelled">Cancelled</option>
+                                        <option value="Move to Offer">Move to Offer</option>
+                                    </select>
+                                    <ChevronDown className="select-icon-premium" size={16} />
+                                </div>
+                            </div>
+
+
                             {(newStatus === 'Rescheduled' || newStatus === 'Cancelled') && (
-                                <div className="reason-field">
-                                    <label className="reason-label">
+                                <div className="status-form-group-premium">
+                                    <label className="status-label-premium">
                                         {newStatus === 'Rescheduled' ? 'Reason for Reschedule' : 'Reason for Cancellation'}
                                     </label>
                                     <textarea
-                                        className="reason-textarea"
-                                        placeholder={`Please enter why this interview is being ${newStatus.toLowerCase()}...`}
+                                        className={`status-textarea-premium ${statusModalErrors.reason ? 'error' : ''}`}
+                                        placeholder={`Enter details for ${newStatus.toLowerCase()} status...`}
                                         value={statusReason}
                                         onChange={(e) => {
                                             setStatusReason(e.target.value);
                                             if (e.target.value.trim()) setStatusModalErrors(prev => ({ ...prev, reason: false }));
                                         }}
-                                        style={{ borderColor: statusModalErrors.reason ? '#ef4444' : '#e2e8f0' }}
                                     />
-                                    {statusModalErrors.reason && <p style={{ color: '#ef4444', fontSize: '10px', marginTop: '4px', fontWeight: 'bold' }}>Reason is required</p>}
+                                    {statusModalErrors.reason && <p className="status-error-msg-premium">Reason is required</p>}
                                 </div>
                             )}
 
                             {newStatus === 'Rescheduled' && (
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '1rem', textAlign: 'left' }}>
-                                    <div className="form-group" style={{ margin: 0 }}>
-                                        <label className="reason-label" style={{ color: statusModalErrors.date ? '#ef4444' : '' }}>New Date</label>
+                                <div className="status-form-row-premium">
+                                    <div className="status-form-group-premium">
+                                        <label className={`status-label-premium ${statusModalErrors.date ? 'error' : ''}`}>New Date</label>
                                         <input
                                             type="date"
                                             value={statusDate}
@@ -1728,12 +1763,12 @@ const Interview = () => {
                                                 setStatusDate(e.target.value);
                                                 if (e.target.value) setStatusModalErrors(prev => ({ ...prev, date: false }));
                                             }}
-                                            style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid', borderColor: statusModalErrors.date ? '#ef4444' : '#e2e8f0', fontSize: '0.85rem' }}
+                                            className={statusModalErrors.date ? 'error' : ''}
                                         />
-                                        {statusModalErrors.date && <p style={{ color: '#ef4444', fontSize: '10px', marginTop: '4px', fontWeight: 'bold' }}>Choose Date</p>}
+                                        {statusModalErrors.date && <p className="status-error-msg-premium">Required</p>}
                                     </div>
-                                    <div className="form-group" style={{ margin: 0 }}>
-                                        <label className="reason-label" style={{ color: statusModalErrors.time ? '#ef4444' : '' }}>New Time</label>
+                                    <div className="status-form-group-premium">
+                                        <label className={`status-label-premium ${statusModalErrors.time ? 'error' : ''}`}>New Time</label>
                                         <input
                                             type="time"
                                             value={statusTime}
@@ -1741,22 +1776,21 @@ const Interview = () => {
                                                 setStatusTime(e.target.value);
                                                 if (e.target.value) setStatusModalErrors(prev => ({ ...prev, time: false }));
                                             }}
-                                            style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid', borderColor: statusModalErrors.time ? '#ef4444' : '#e2e8f0', fontSize: '0.85rem' }}
+                                            className={statusModalErrors.time ? 'error' : ''}
                                         />
-                                        {statusModalErrors.time && <p style={{ color: '#ef4444', fontSize: '10px', marginTop: '4px', fontWeight: 'bold' }}>Choose Time</p>}
+                                        {statusModalErrors.time && <p className="status-error-msg-premium">Required</p>}
                                     </div>
                                 </div>
                             )}
                         </div>
-                        <div className="delete-footer-premium" style={{ borderTop: 'none', paddingBottom: '2.5rem' }}>
-                            <button className="btn-cancel-premium" onClick={() => setShowStatusModal(false)} disabled={updatingStatus}>Cancel</button>
+                        <div className="status-footer-premium">
+                            <button className="btn-secondary-premium" onClick={() => setShowStatusModal(false)} disabled={submittingStatus}>Cancel</button>
                             <button
-                                className="btn-primary"
+                                className="btn-submit-premium"
                                 onClick={handleStatusConfirm}
-                                disabled={updatingStatus}
-                                style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', justifyContent: 'center', background: '#0d5f68', boxShadow: '0 4px 12px rgba(13, 95, 104, 0.2)', border: 'none', color: 'white', fontWeight: '600', cursor: 'pointer', opacity: updatingStatus ? 0.7 : 1 }}
+                                disabled={submittingStatus}
                             >
-                                {submittingStatus ? 'Updating...' : 'Save Change'}
+                                {submittingStatus ? 'Wait...' : 'Update Status'}
                             </button>
                         </div>
                     </div>
@@ -1765,100 +1799,102 @@ const Interview = () => {
 
             {showFeedbackModal && (
                 <div className="modal-overlay" onClick={() => setShowFeedbackModal(false)}>
-                    <div className="modal-content delete-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
-                        <div className="delete-header-premium">
-                            <button className="icon-btn" onClick={() => setShowFeedbackModal(false)}><X size={18} /></button>
+                    <div className="modal-content feedback-modal-premium" onClick={e => e.stopPropagation()}>
+                        <div className="feedback-header-premium">
+                            <h2 className="feedback-title-premium">Interview Evaluation</h2>
+                            <button className="icon-btn-close" onClick={() => setShowFeedbackModal(false)}><X size={20} /></button>
                         </div>
-                        <div className="delete-body-premium" style={{ paddingTop: '0rem', position: 'relative' }}>
+                        
+                        <div className="feedback-body-premium">
                             {submittingFeedback && (
-                                <div className="loading-overlay" style={{
-                                    position: 'absolute', top: -50, left: -40, right: -40, bottom: -40,
-                                    backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    zIndex: 1000, borderRadius: '12px'
-                                }}>
-                                    <div className="flex flex-col items-center gap-4">
-                                        <div className="premium-spinner" style={{ width: '50px', height: '50px' }}>
-                                            <div className="premium-core"></div>
-                                        </div>
-                                        <p className="premium-text" style={{ color: '#0d5f68', fontSize: '0.85rem' }}>Saving Feedback...</p>
+                                <div className="loading-overlay-premium">
+                                    <div className="premium-spinner-container">
+                                        <div className="premium-spinner-v2"></div>
+                                        <p>Processing Evaluation...</p>
                                     </div>
                                 </div>
                             )}
-                            <div className="delete-icon-container" style={{ background: '#f0f9ff', color: '#0ea5e9', width: '60px', height: '60px', marginBottom: '1rem' }}>
-                                <AlertCircle size={32} />
+
+                            {/* Candidate Info Card */}
+                            <div className="candidate-info-card-premium">
+                                <div className="candidate-avatar-large">
+                                    {getInitials(feedbackInterview?.candidateName)}
+                                </div>
+                                <div className="candidate-details-stack">
+                                    <h3>{feedbackInterview?.candidateName}</h3>
+                                    <div className="round-badge-premium">
+                                        <Clock size={12} />
+                                        <span>{typeof feedbackInterview?.round === 'object' ? feedbackInterview.round?.roundName : feedbackInterview?.round}</span>
+                                    </div>
+                                    <p className="position-text-small">{feedbackInterview?.appliedFor || feedbackInterview?.vacancyName || 'Software Engineer'}</p>
+                                </div>
                             </div>
-                            <h2 className="delete-title-premium" style={{ fontSize: '1.25rem' }}>Interview Feedback</h2>
-                            <p className="delete-message-premium" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
-                                Candidate: <strong>{feedbackInterview?.candidateName}</strong><br />
-                                Round: <strong>{typeof feedbackInterview?.round === 'object' ? feedbackInterview.round?.roundName : feedbackInterview?.round}</strong>
+
+                            <div className="feedback-form-grid-premium">
+                                <div className="form-group-premium">
+                                    <label>Overall Verdict <span className="required-star">*</span></label>
+                                    <div className="verdict-select-wrapper">
+                                        <select
+                                            value={interviewResult}
+                                            onChange={(e) => {
+                                                setInterviewResult(e.target.value);
+                                                if (e.target.value) setFeedbackErrors(prev => ({ ...prev, interviewResult: false }));
+                                            }}
+                                            className={feedbackErrors.interviewResult ? 'error' : ''}
+                                        >
+                                            <option value="" disabled>Choose final result</option>
+                                            <option value="Passed">Passed</option>
+                                            <option value="Failed">Failed</option>
+                                            <option value="On Hold">On Hold</option>
+                                            <option value="Move to Offer">Move to Offer</option>
+                                            <option value="Pending">Pending</option>
+                                        </select>
+                                        <ChevronDown className="select-icon-premium" size={16} />
+                                    </div>
+                                    {feedbackErrors.interviewResult && <span className="error-message-alt">Please select a result</span>}
+                                </div>
+
+                                <div className="form-group-premium full-width">
+                                    <label>Detailed Evaluation Notes <span className="required-star">*</span></label>
+                                    <textarea
+                                        placeholder="Type your assessment notes, technical strengths, and areas for improvement..."
+                                        value={feedbackText}
+                                        onChange={(e) => {
+                                            setFeedbackText(e.target.value);
+                                            if (e.target.value.trim()) setFeedbackErrors(prev => ({ ...prev, feedback: false }));
+                                        }}
+                                        className={feedbackErrors.feedback ? 'error' : ''}
+                                    />
+                                    {feedbackErrors.feedback && <span className="error-message-alt">Evaluation notes are required</span>}
+                                </div>
+                            </div>
+                            
+                            <p className="feedback-footer-note">
+                                <AlertTriangle size={14} />
+                                This evaluation is final and will influence the recruitment decision.
                             </p>
-
-                            <div className="reason-field" style={{ marginBottom: '1rem' }}>
-                                <label className="reason-label" style={{ color: feedbackErrors.interviewResult ? '#ef4444' : '' }}>Interview Result *</label>
-                                <select
-                                    value={interviewResult}
-                                    onChange={(e) => {
-                                        setInterviewResult(e.target.value);
-                                        if (e.target.value) setFeedbackErrors(prev => ({ ...prev, interviewResult: false }));
-                                    }}
-                                    style={{
-                                        width: '100%',
-                                        padding: '0.8rem',
-                                        borderRadius: '10px',
-                                        border: '1px solid',
-                                        borderColor: feedbackErrors.interviewResult ? '#ef4444' : '#e2e8f0',
-                                        fontSize: '0.9rem',
-                                        outline: 'none',
-                                        backgroundColor: 'white'
-                                    }}
-                                >
-                                    <option value="" disabled>Select Result</option>
-                                    <option value="Pending">Pending</option>
-                                    <option value="Passed">Passed</option>
-                                    <option value="Failed">Failed</option>
-                                    <option value="On Hold">On Hold</option>
-                                    <option value="Move to Offer">Move to Offer</option>
-                                </select>
-                                {feedbackErrors.interviewResult && <p style={{ color: '#ef4444', fontSize: '10px', marginTop: '4px', textAlign: 'left', fontWeight: 'bold' }}>Please select a result</p>}
-                            </div>
-
-                            <div className="reason-field" style={{ marginTop: '0' }}>
-                                <label className="reason-label" style={{ color: feedbackErrors.feedback ? '#ef4444' : '' }}>Evaluation Notes *</label>
-                                <textarea
-                                    className="reason-textarea"
-                                    placeholder="Enter your detailed feedback here..."
-                                    value={feedbackText}
-                                    onChange={(e) => setFeedbackText(e.target.value)}
-                                    style={{
-                                        minHeight: '150px',
-                                        borderColor: feedbackErrors.feedback ? '#ef4444' : '#e2e8f0'
-                                    }}
-                                />
-                                <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px', fontStyle: 'italic' }}>
-                                    This feedback will be stored and used for the final selection process.
-                                </p>
-                            </div>
                         </div>
-                        <div className="delete-footer-premium" style={{ borderTop: 'none', paddingTop: '0.5rem' }}>
-                            <button className="btn-cancel-premium" onClick={() => setShowFeedbackModal(false)} disabled={submittingFeedback}>Close</button>
+
+                        <div className="feedback-footer-premium">
+                            <button className="btn-secondary-premium" onClick={() => setShowFeedbackModal(false)} disabled={submittingFeedback}>
+                                Discard
+                            </button>
                             <button
-                                className="btn-primary"
+                                className="btn-submit-premium"
                                 onClick={handleFeedbackConfirm}
                                 disabled={submittingFeedback}
-                                style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', justifyContent: 'center', background: '#0d5f68', border: 'none', color: 'white', fontWeight: '600', cursor: 'pointer' }}
                             >
-                                {submittingFeedback ? 'Saving...' : 'Save Feedback'}
+                                {submittingFeedback ? 'Submitting...' : 'Save Evaluation'}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
             <style>{`
-                .employees-page { padding: 1.5rem; padding-top: 1rem; display: flex; flex-direction: column; gap: 1rem; min-height: calc(100vh - 60px); height: auto; background: #f8fafc; }
+                .employees-page { padding: 1.5rem; padding-top: 1rem; display: flex; flex-direction: column; gap: 1rem; height: calc(100vh - 64px); background: #f8fafc; overflow: hidden; }
                 
                 /* Layout */
-                .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; min-height: 48px; }
+                .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; min-height: 48px; flex-shrink: 0; }
                 .dashboard-header h1 { font-size: 1.25rem; font-weight: 700; color: #0f172a; }
                 
                 /* Stats Cards */
@@ -1870,8 +1906,35 @@ const Interview = () => {
                 .stat-count { font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1; letter-spacing: -0.01em; }
                 .stat-label { font-size: 0.725rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 
+                /* New Premium Stats */
+                .stats-scroller-v6 { overflow-x: auto; padding: 0.5rem 0.5rem 1.25rem 0.5rem; margin: 0 -0.5rem; flex-shrink: 0; }
+                .stats-scroller-v6::-webkit-scrollbar { height: 4px; }
+                .stats-scroller-v6::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                
+                .stats-container-v6 { display: flex; gap: 1rem; min-width: max-content; }
+                
+                .stat-card-premium { background: white; padding: 0.85rem 1.15rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; min-width: 210px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+                .stat-card-premium:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-2px); }
+                .stat-card-premium.active::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); }
+                
+                .stat-main { display: flex; align-items: center; gap: 0.75rem; }
+                .stat-icon-v6 { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+                .stat-icon-v6 svg { width: 18px; height: 18px; }
+                .stat-content-v6 { display: flex; flex-direction: column; gap: 1px; }
+                .stat-label-v6 { font-size: 0.625rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+                .stat-value-group { display: flex; align-items: baseline; gap: 0.5rem; }
+                .stat-count-v6 { font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1; }
+                
+                .stat-trend { display: flex; align-items: center; gap: 2px; font-size: 0.6rem; font-weight: 700; padding: 1px 5px; border-radius: 20px; }
+                .stat-trend.up { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+                .stat-trend.down { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+                
+                .stat-indicator { color: #cbd5e1; transition: transform 0.2s; }
+                .stat-card-premium:hover .stat-indicator { transform: translateX(3px); color: var(--accent); }
+
                 /* Filter Bar */
-                .filter-search-container { background: white; padding: 0.65rem 1.25rem; border-radius: 12px; display: flex; gap: 1rem; align-items: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.03); flex-wrap: wrap; }
+                .filter-search-container { background: white; padding: 0.65rem 1.25rem; border-radius: 12px; display: flex; gap: 1rem; align-items: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.03); flex-wrap: wrap; flex-shrink: 0; }
                 .search-wrapper { flex: 1; position: relative; display: flex; align-items: center; min-width: 280px; }
                 .search-icon { position: absolute; left: 0.85rem; color: #94a3b8; z-index: 10; }
                 .search-wrapper input { width: 100%; height: 38px; padding: 0 1rem 0 2.5rem; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; font-size: 0.85rem; color: #1e293b; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
@@ -1885,13 +1948,13 @@ const Interview = () => {
 
                 /* Table Premium */
                 /* Table Premium - Fully Redesigned */
-                .table-container-premium { background: white; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); width: 100%; position: relative; margin-top: 0.5rem; }
+                .table-container-premium { background: white; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; flex: 1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); width: 100%; position: relative; margin-top: 0.5rem; }
                 .table-header-info { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: white; flex-wrap: wrap; gap: 0.75rem; }
                 .header-info-left { display: flex; align-items: center; gap: 0.75rem; }
                 .header-info-left h3 { margin: 0; font-size: 1rem; font-weight: 700; color: #1e293b; letter-spacing: -0.0125em; }
                 .count-chip { background: #f1f5f9; color: #64748b; padding: 0.2rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; border: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.025em; }
                 
-                .table-responsive { overflow-x: auto; flex: 1; position: relative; scrollbar-gutter: stable; }
+                .table-responsive { overflow-x: auto; overflow-y: auto; flex: 1; position: relative; scrollbar-gutter: stable; }
                 .table-responsive::-webkit-scrollbar { height: 6px; width: 6px; }
                 .table-responsive::-webkit-scrollbar-track { background: #f8fafc; }
                 .table-responsive::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid #f8fafc; }
@@ -1986,6 +2049,369 @@ const Interview = () => {
                     .stat-card { padding: 0.75rem; }
                     .stat-count { font-size: 1.15rem; }
                     .count-chip { display: none; }
+                }
+
+                /* Feedback Modal Premium Styles */
+                .feedback-modal-premium {
+                    max-width: 440px !important;
+                    height: auto !important;
+                    background: white !important;
+                    border-radius: 16px !important;
+                    box-shadow: 0 25px 50px -12px rgba(13, 95, 104, 0.25) !important;
+                    border: 1px solid rgba(13, 95, 104, 0.1) !important;
+                }
+                .feedback-header-premium {
+                    padding: 1.25rem 1.5rem;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 1px solid #f1f5f9;
+                }
+                .feedback-title-premium {
+                    font-size: 1.15rem;
+                    font-weight: 800;
+                    color: #0d5f68;
+                    margin: 0;
+                    letter-spacing: -0.01em;
+                }
+                .icon-btn-close {
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 10px;
+                    background: #f8fafc;
+                    border: none;
+                    color: #64748b;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .icon-btn-close:hover {
+                    background: #fee2e2;
+                    color: #ef4444;
+                    transform: rotate(90deg);
+                }
+                .feedback-body-premium {
+                    padding: 1.25rem 1.5rem;
+                    position: relative;
+                }
+                .candidate-info-card-premium {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                    padding: 1rem;
+                    background: #f0fdfa;
+                    border-radius: 12px;
+                    border: 1px solid #ccfbf1;
+                    margin-bottom: 1.25rem;
+                }
+                .candidate-avatar-large {
+                    width: 44px;
+                    height: 44px;
+                    background: #0d5f68;
+                    color: white;
+                    border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.1rem;
+                    font-weight: 800;
+                    box-shadow: 0 4px 10px rgba(13, 95, 104, 0.2);
+                }
+                .candidate-details-stack h3 {
+                    margin: 0 0 0.25rem 0;
+                    font-size: 1.1rem;
+                    font-weight: 700;
+                    color: #1e293b;
+                }
+                .round-badge-premium {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    padding: 0.2rem 0.6rem;
+                    background: white;
+                    border: 1px solid #0d5f68;
+                    color: #0d5f68;
+                    border-radius: 6px;
+                    font-size: 0.7rem;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                }
+                .position-text-small {
+                    margin: 0.4rem 0 0 0;
+                    font-size: 0.75rem;
+                    color: #64748b;
+                    font-weight: 500;
+                }
+                .feedback-form-grid-premium {
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: 1rem;
+                }
+                .form-group-premium label {
+                    display: block;
+                    font-size: 0.85rem;
+                    font-weight: 700;
+                    color: #334155;
+                    margin-bottom: 0.6rem;
+                }
+                .required-star { color: #ef4444; }
+                .verdict-select-wrapper {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    width: 100%;
+                }
+                .form-group-premium select, .form-group-premium textarea {
+                    width: 100%;
+                    padding: 0.75rem 0.9rem;
+                    border-radius: 10px;
+                    border: 1.5px solid #e2e8f0;
+                    font-size: 0.9rem;
+                    color: #1e293b;
+                    background: white;
+                    transition: all 0.2s;
+                    appearance: none;
+                }
+                .form-group-premium select:focus, .form-group-premium textarea:focus {
+                    outline: none;
+                    border-color: #0d5f68;
+                    box-shadow: 0 0 0 4px rgba(13, 95, 104, 0.1);
+                }
+                .form-group-premium select.error, .form-group-premium textarea.error {
+                    border-color: #ef4444;
+                    background: #fef2f2;
+                }
+                .select-icon-premium {
+                    position: absolute;
+                    right: 1rem;
+                    pointer-events: none;
+                    color: #64748b;
+                }
+                .form-group-premium textarea {
+                    min-height: 100px;
+                    resize: vertical;
+                    line-height: 1.5;
+                }
+                .error-message-alt {
+                    font-size: 0.75rem;
+                    color: #ef4444;
+                    font-weight: 600;
+                    margin-top: 0.5rem;
+                    display: block;
+                }
+                .feedback-footer-note {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 0.75rem;
+                    margin-top: 1.5rem;
+                    padding: 1rem;
+                    background: #fffbeb;
+                    border-radius: 12px;
+                    border: 1px solid #fef3c7;
+                    color: #92400e;
+                    font-size: 0.8rem;
+                    line-height: 1.4;
+                    font-weight: 600;
+                }
+                .feedback-footer-premium {
+                    padding: 0.75rem 1.5rem 1.75rem 1.5rem;
+                    display: flex;
+                    gap: 0.75rem;
+                }
+                .btn-secondary-premium {
+                    flex: 1;
+                    padding: 0.75rem;
+                    border-radius: 12px;
+                    background: #f1f5f9;
+                    border: 1.5px solid #e2e8f0;
+                    color: #475569;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    font-size: 0.85rem;
+                }
+                .btn-secondary-premium:hover {
+                    background: #e2e8f0;
+                    color: #1e293b;
+                }
+                .btn-submit-premium {
+                    flex: 2;
+                    padding: 0.75rem;
+                    border-radius: 12px;
+                    background: #0d5f68;
+                    border: none;
+                    color: white;
+                    font-weight: 700;
+                    font-size: 0.85rem;
+                    box-shadow: 0 8px 16px -6px rgba(13, 95, 104, 0.4);
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .btn-submit-premium:hover {
+                    background: #0b4e56;
+                    transform: translateY(-1px);
+                    box-shadow: 0 10px 20px -8px rgba(13, 95, 104, 0.5);
+                }
+                .btn-submit-premium:disabled {
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                    transform: none;
+                }
+                .loading-overlay-premium {
+                    position: absolute;
+                    inset: 0;
+                    background: rgba(255, 255, 255, 0.8);
+                    backdrop-filter: blur(4px);
+                    z-index: 50;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 16px;
+                }
+                .premium-spinner-container {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 1rem;
+                }
+                .premium-spinner-container p {
+                    font-size: 0.9rem;
+                    font-weight: 700;
+                    color: #0d5f68;
+                    margin: 0;
+                }
+                .premium-spinner-v2 {
+                    width: 48px;
+                    height: 48px;
+                    border: 4px solid #f1f5f9;
+                    border-top-color: #0d5f68;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                }
+
+                /* Status Modal Premium Styles */
+                .status-modal-premium {
+                    max-width: 440px !important;
+                    height: auto !important;
+                    background: white !important;
+                    border-radius: 16px !important;
+                    box-shadow: 0 25px 50px -12px rgba(13, 95, 104, 0.25) !important;
+                }
+                .status-header-premium {
+                    padding: 1.25rem 1.5rem;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 1px solid #f1f5f9;
+                }
+                .status-header-title-premium {
+                    font-size: 1.15rem;
+                    font-weight: 800;
+                    color: #0d5f68;
+                    margin: 0;
+                    letter-spacing: -0.0125em;
+                }
+                .status-body-premium {
+                    padding: 1.5rem;
+                    position: relative;
+                }
+                .status-target-info-premium {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 0.5rem;
+                    margin-bottom: 1.5rem;
+                    color: #64748b;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                }
+                .status-target-badge-premium {
+                    padding: 0.4rem 1rem;
+                    background: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 8px;
+                    color: #1e293b;
+                    font-weight: 700;
+                    font-family: 'JetBrains Mono', monospace;
+                }
+                .status-form-group-premium {
+                    margin-bottom: 1rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                }
+                .status-form-row-premium {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 1rem;
+                    margin-top: 0.5rem;
+                }
+                .status-label-premium {
+                    font-size: 0.8rem;
+                    font-weight: 700;
+                    color: #0d5f68;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }
+                .status-label-premium.error { color: #ef4444; }
+                .status-textarea-premium {
+                    width: 100%;
+                    min-height: 80px;
+                    padding: 0.75rem;
+                    border-radius: 10px;
+                    border: 1.5px solid #e2e8f0;
+                    font-size: 0.9rem;
+                    color: #1e293b;
+                    resize: vertical;
+                    outline: none;
+                    transition: all 0.2s;
+                }
+                .status-textarea-premium:focus {
+                    border-color: #0d5f68;
+                    box-shadow: 0 0 0 4px rgba(13, 95, 104, 0.1);
+                }
+                .status-textarea-premium.error {
+                    border-color: #ef4444;
+                    background: #fef2f2;
+                }
+                .status-form-group-premium input, .status-form-group-premium select {
+                    width: 100%;
+                    padding: 0.75rem;
+                    border-radius: 10px;
+                    border: 1.5px solid #e2e8f0;
+                    font-size: 0.9rem;
+                    outline: none;
+                    transition: all 0.2s;
+                    background: white;
+                }
+                .status-form-group-premium select {
+                    appearance: none;
+                    -webkit-appearance: none;
+                    padding-right: 2.5rem;
+                    cursor: pointer;
+                    color: #1e293b;
+                    font-weight: 600;
+                }
+                .status-form-group-premium input:focus, .status-form-group-premium select:focus {
+                    border-color: #0d5f68;
+                    box-shadow: 0 0 0 4px rgba(13, 95, 104, 0.1);
+                }
+                .status-form-group-premium input.error, .status-form-group-premium select.error {
+                    border-color: #ef4444;
+                    background: #fef2f2;
+                }
+                .status-error-msg-premium {
+                    font-size: 0.7rem;
+                    color: #ef4444;
+                    font-weight: 700;
+                    margin-top: 0.25rem;
+                }
+                .status-footer-premium {
+                    padding: 0 1.5rem 2.25rem 1.5rem;
+                    display: flex;
+                    gap: 1rem;
                 }
             `}</style>
         </div>

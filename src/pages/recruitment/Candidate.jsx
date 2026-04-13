@@ -7,7 +7,7 @@ import {
     Link, Globe, Github, Linkedin, Award,
     User, CheckCircle, Clock, X, Eye, RotateCcw,
     ChevronDown, ChevronRight, Upload, FileText,
-    Copy, Loader2, Download, AlertCircle, TrendingUp, Check, ExternalLink
+    Copy, Loader2, Download, AlertCircle, TrendingUp, TrendingDown, Check, ExternalLink, XCircle
 } from 'lucide-react';
 import './Recruitment.css';
 import api from '../../api/api';
@@ -18,6 +18,31 @@ import { departmentService } from '../../services/departmentService';
 import { positionService } from '../../services/positionService';
 import { locationService } from '../../services/locationService';
 import { candidateService } from '../../services/candidateService';
+
+const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => (
+    <div 
+        className={`stat-card-premium ${active ? 'active' : ''}`} 
+        onClick={onClick}
+        style={{ '--accent': color, '--accent-bg': bg }}
+    >
+        <div className="stat-main">
+            <div className="stat-icon-v6">{icon}</div>
+            <div className="stat-content-v6">
+                <span className="stat-label-v6">{label}</span>
+                <div className="stat-value-group">
+                    <span className="stat-count-v6">{count}</span>
+                    {trend && (
+                        <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`}>
+                            {trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                            <span>{Math.abs(trend)}%</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+        <div className="stat-indicator"><ChevronRight size={14} /></div>
+    </div>
+);
 
 const Candidate = () => {
     const [viewMode, setViewMode] = useState('list');
@@ -293,12 +318,14 @@ const Candidate = () => {
     };
 
     const stats = useMemo(() => [
-        { label: 'Total Candidates', count: totalEntries, icon: <Users size={20} />, color: '#0d5f68', bg: '#f0fdfa' },
-        { label: 'New Applicants', count: candidates.filter(c => String(c.status || '').toLowerCase() === 'new').length, icon: <Clock size={20} />, color: '#2563eb', bg: '#eff6ff' },
-        { label: 'Shortlisted', count: candidates.filter(c => String(c.status || '').toLowerCase() === 'shortlisted').length, icon: <CheckCircle size={20} />, color: '#10b981', bg: '#f0fdf4' },
-        { label: 'Interviewing', count: candidates.filter(c => String(c.status || '').toLowerCase() === 'interview').length, icon: <Calendar size={20} />, color: '#ea580c', bg: '#fff7ed' },
-        { label: 'Hired', count: candidates.filter(c => String(c.status || '').toLowerCase() === 'hired').length, icon: <TrendingUp size={20} />, color: '#059669', bg: '#ecfdf5' },
-    ], [totalEntries, candidates]);
+        { label: 'Total Candidates', status: '', icon: <Users size={20} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', trend: 12 },
+        { label: 'New Applicants', status: 'new', icon: <Clock size={20} />, color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)', trend: 5 },
+        { label: 'Shortlisted', status: 'shortlisted', icon: <CheckCircle size={20} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', trend: 8 },
+        { label: 'Interviewing', status: 'interview', icon: <Calendar size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: 15 },
+        { label: 'Offered', status: 'offered', icon: <FileText size={20} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)', trend: -2 },
+        { label: 'Hired', status: 'hired', icon: <TrendingUp size={20} />, color: '#059669', bg: 'rgba(5, 150, 105, 0.1)', trend: 10 },
+        { label: 'Rejected', status: 'rejected', icon: <XCircle size={20} />, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.1)', trend: -1 },
+    ], [totalEntries]);
 
     const selectAllRows = (e) => {
         if (e.target.checked) setSelectedRows(candidates.map(c => c._id || c.id));
@@ -312,25 +339,27 @@ const Candidate = () => {
     return (
         <div className="candidate-page-premium">
             {/* Header */}
-            <header className="premium-header">
+            <header className="premium-header animate-entry">
                 <h1><Users size={24} /> Candidate Management</h1>
-                <div className="header-btns">
-                    <button className="export-btn"><Download size={18} /> Export List</button>
-                    <button className="add-btn" onClick={handleAddClick}><Plus size={18} /> Add Candidate</button>
+                <div className="header-btns" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    <button className="btn-secondary-outline" onClick={() => toast.success('Export initiated...')}><Download size={18} /> Export List</button>
+                    <button className="btn-primary" onClick={handleAddClick}><Plus size={18} /> Add Candidate</button>
                 </div>
             </header>
 
             {/* Stats Grid */}
-            <div className="stats-row">
-                {stats.map((s, i) => (
-                    <div key={i} className="stat-card-mini">
-                        <div className="stat-icon" style={{ backgroundColor: s.bg, color: s.color }}>{s.icon}</div>
-                        <div className="stat-info">
-                            <span className="sc-val">{s.count}</span>
-                            <span className="sc-label">{s.label}</span>
-                        </div>
-                    </div>
-                ))}
+            <div className="stats-scroller-v6" style={{ marginBottom: '1.25rem' }}>
+                <div className="stats-container-v6">
+                    {stats.map((s, i) => (
+                        <StatCard 
+                            key={i} 
+                            {...s} 
+                            count={s.status === '' ? totalEntries : candidates.filter(c => String(c.status || '').toLowerCase().includes(s.status)).length}
+                            active={filters.status?.toLowerCase() === s.status}
+                            onClick={() => handleFilterChange('status', s.status === '' ? '' : s.status.charAt(0).toUpperCase() + s.status.slice(1))}
+                        />
+                    ))}
+                </div>
             </div>
 
             {/* Filter Bar */}
@@ -359,18 +388,18 @@ const Candidate = () => {
             </div>
 
             {/* Candidate List Table Section */}
-            <div className="table-container-premium shadow-premium" style={{ background: 'white', borderRadius: '16px', border: '1px solid #f1f5f9', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.04), 0 8px 10px -6px rgba(0,0,0,0.04)' }}>
-                <div className="table-header-info" style={{ padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9' }}>
-                    <div className="header-info-left" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>Candidates List</h3>
-                        <span className="count-chip" style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.7rem', fontWeight: '700', padding: '0.2rem 0.6rem', borderRadius: '6px', textTransform: 'uppercase' }}>{totalEntries} Total</span>
+            <div className="table-container-premium shadow-premium">
+                <div className="table-header-info">
+                    <div className="header-info-left">
+                        <h3>Candidates List</h3>
+                        <span className="count-chip">{totalEntries} Total</span>
                     </div>
-                    <div className="header-info-right" style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>
+                    <div className="header-info-right text-xs text-slate-500 font-medium">
                         Showing {candidates.length} entries
                     </div>
                 </div>
 
-                <div className="table-responsive" style={{ width: '100%', overflowX: 'auto' }}>
+                <div className="table-responsive">
                     <table className="ats-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1100px' }}>
                         <thead>
                             <tr>
@@ -777,12 +806,15 @@ const Candidate = () => {
             )}
 
             <style>{`
-                .candidate-page-premium { padding: 2rem; background: #f8fafc; min-height: 100vh; font-family: 'Inter', sans-serif; }
-                .premium-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+                .candidate-page-premium { padding: 1.5rem 2rem; background: #f8fafc; height: calc(100vh - 64px); overflow: hidden; display: flex; flex-direction: column; font-family: 'Inter', sans-serif; gap: 0.5rem; }
+                .premium-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0; }
                 .premium-header h1 { font-size: 1.6rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 0.75rem; }
-                .header-btns { display: flex; gap: 1rem; }
-                .add-btn { background: #0d5f68; color: white; border: none; padding: 0.7rem 1.4rem; border-radius: 10px; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(13, 95, 104, 0.2); }
-                .export-btn { background: white; color: #64748b; border: 1px solid #e2e8f0; padding: 0.7rem 1.4rem; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; }
+                
+                .btn-primary { background: #0d5f68; color: white !important; border: none; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(13, 95, 104, 0.2); }
+                .btn-primary:hover { background: #084d54; transform: translateY(-1px); box-shadow: 0 10px 15px -3px rgba(13, 95, 104, 0.3); }
+                
+                .btn-secondary-outline { background: white; color: #475569; border: 1px solid #e2e8f0; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+                .btn-secondary-outline:hover { border-color: #0d5f68; color: #0d5f68; background: #f8fafc; }
                 
                 .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
                 .stat-card-mini { background: white; padding: 1.25rem; border-radius: 16px; display: flex; align-items: center; gap: 1rem; border: 1px solid #f1f5f9; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.25s ease; cursor: default; }
@@ -792,6 +824,33 @@ const Candidate = () => {
                 .sc-val { font-size: 1.4rem; font-weight: 800; color: #1e293b; }
                 .sc-label { font-size: 0.75rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
 
+                /* New Premium Stats */
+                .stats-scroller-v6 { overflow-x: auto; padding: 0.5rem 0.5rem 1.25rem 0.5rem; margin: 0 -0.5rem; flex-shrink: 0; }
+                .stats-scroller-v6::-webkit-scrollbar { height: 4px; }
+                .stats-scroller-v6::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                
+                .stats-container-v6 { display: flex; gap: 1rem; min-width: max-content; }
+                
+                .stat-card-premium { background: white; padding: 0.85rem 1.15rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; min-width: 210px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+                .stat-card-premium:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-2px); }
+                .stat-card-premium.active::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); }
+                
+                .stat-main { display: flex; align-items: center; gap: 0.75rem; }
+                .stat-icon-v6 { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+                .stat-icon-v6 svg { width: 18px; height: 18px; }
+                .stat-content-v6 { display: flex; flex-direction: column; gap: 1px; }
+                .stat-label-v6 { font-size: 0.625rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+                .stat-value-group { display: flex; align-items: baseline; gap: 0.5rem; }
+                .stat-count-v6 { font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1; }
+                
+                .stat-trend { display: flex; align-items: center; gap: 2px; font-size: 0.6rem; font-weight: 700; padding: 1px 5px; border-radius: 20px; }
+                .stat-trend.up { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+                .stat-trend.down { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+                
+                .stat-indicator { color: #cbd5e1; transition: transform 0.2s; }
+                .stat-card-premium:hover .stat-indicator { transform: translateX(3px); color: var(--accent); }
+
                 .filter-row-premium { background: white; padding: 1rem; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border: 1px solid #f1f5f9; }
                 .search-wrap { display: flex; align-items: center; gap: 0.75rem; background: #f1f5f9; padding: 0 1rem; height: 44px; border-radius: 8px; flex: 1; max-width: 400px; }
                 .search-wrap input { background: transparent; border: none; outline: none; flex: 1; font-size: 0.9rem; color: #334155; }
@@ -799,12 +858,13 @@ const Candidate = () => {
                 .filter-selects select { height: 44px; padding: 0 1rem; border-radius: 8px; border: 1px solid #e2e8f0; font-weight: 600; outline: none; color: #475569; min-width: 140px; }
                 .reset-btn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #e2e8f0; background: white; border-radius: 8px; color: #94a3b8; cursor: pointer; }
 
-                .table-card { background: white; border-radius: 16px; border: 1px solid #f1f5f9; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-                .card-header { padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; }
-                .card-header h3 { font-size: 1.1rem; font-weight: 700; color: #1e293b; margin: 0; }
-                .total-badge { background: #f1f5f9; color: #64748b; padding: 0.2rem 0.6rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; }
+                .table-container-premium { background: white; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; flex: 1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); width: 100%; position: relative; margin-top: 0.5rem; }
+                .table-header-info { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: white; flex-wrap: wrap; gap: 0.75rem; flex-shrink: 0; }
+                .header-info-left { display: flex; align-items: center; gap: 0.75rem; }
+                .header-info-left h3 { margin: 0; font-size: 1rem; font-weight: 700; color: #1e293b; letter-spacing: -0.0125em; }
+                .count-chip { background: #f1f5f9; color: #64748b; padding: 0.2rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; border: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.025em; }
                 
-                .tbl-responsive { width: 100%; overflow-x: auto; }
+                .table-responsive { overflow-x: auto; overflow-y: auto; flex: 1; position: relative; }
                 .cand-table { width: 100%; border-collapse: collapse; min-width: 1000px; table-layout: auto; }
                 .cand-table th, .ats-table th { background: #f8fafc; padding: 1.1rem 1.25rem; text-align: left; font-size: 0.72rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #f1f5f9; }
                 .cand-table td, .ats-table td { padding: 1.1rem 1.25rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; transition: all 0.2s; }

@@ -4,7 +4,7 @@ import {
     Briefcase, Users, CheckCircle, AlertCircle,
     Calendar, MapPin, ChevronDown, MoreVertical,
     Filter, Download, Copy, Archive, Check,
-    Info, ExternalLink, ArrowRight
+    Info, ExternalLink, ArrowRight, TrendingUp, TrendingDown, ChevronRight, File, XCircle
 } from 'lucide-react';
 import './Recruitment.css';
 import SearchableSelect from '../../components/common/SearchableSelect';
@@ -16,13 +16,28 @@ import api from '../../api/api';
 import toast from 'react-hot-toast';
 import MultiSelect from '../../components/common/MultiSelect';
 
-const StatCard = ({ label, count, icon, color, bg }) => (
-    <div className="stat-card" style={{ '--accent-color': color, '--accent-bg': bg }}>
-        <div className="stat-icon-wrapper">{icon}</div>
-        <div className="stat-info">
-            <span className="stat-label">{label}</span>
-            <span className="stat-count">{count}</span>
+const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => (
+    <div 
+        className={`stat-card-premium ${active ? 'active' : ''}`} 
+        onClick={onClick}
+        style={{ '--accent': color, '--accent-bg': bg }}
+    >
+        <div className="stat-main">
+            <div className="stat-icon-v6">{icon}</div>
+            <div className="stat-content-v6">
+                <span className="stat-label-v6">{label}</span>
+                <div className="stat-value-group">
+                    <span className="stat-count-v6">{count}</span>
+                    {trend && (
+                        <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`}>
+                            {trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                            <span>{Math.abs(trend)}%</span>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
+        <div className="stat-indicator"><ChevronRight size={14} /></div>
     </div>
 );
 
@@ -1337,18 +1352,12 @@ const Vacancy = () => {
     // Legacy client-side filtering is now handled by the server-side query.
 
     const stats = [
-        { label: 'Total Vacancies', count: totalVacancies, icon: <Briefcase size={20} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)' },
-        { label: 'Open Positions', count: vacancies.filter(v => v.status?.toLowerCase() === 'open').length, icon: <Users size={20} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
-        { label: 'Draft Jobs', count: vacancies.filter(v => v.status?.toLowerCase() === 'draft').length, icon: <Edit size={20} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' },
-        { label: 'Pending Approval', count: vacancies.filter(v => v.approvalStatus?.toLowerCase() === 'pending').length, icon: <RotateCcw size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
-        { label: 'Filled Jobs', count: vacancies.filter(v => v.status?.toLowerCase() === 'filled').length, icon: <CheckCircle size={20} />, color: '#2dd4bf', bg: 'rgba(45, 212, 191, 0.1)' },
-        {
-            label: 'Closing Soon', count: vacancies.filter(v => {
-                if (!v.requiredDate) return false;
-                const diff = new Date(v.requiredDate) - new Date();
-                return diff > 0 && diff < 7 * 24 * 60 * 60 * 1000;
-            }).length, icon: <AlertCircle size={20} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)'
-        },
+        { label: 'Total Vacancies', status: '', icon: <Briefcase size={20} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', trend: 12 },
+        { label: 'Open Positions', status: 'open', icon: <Users size={20} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', trend: 5 },
+        { label: 'Draft Jobs', status: 'draft', icon: <File size={20} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)', trend: -2 },
+        { label: 'Pending Approval', status: 'pending', filterType: 'approval', icon: <RotateCcw size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: 8 },
+        { label: 'Filled Jobs', status: 'filled', icon: <CheckCircle size={20} />, color: '#2dd4bf', bg: 'rgba(45, 212, 191, 0.1)', trend: 15 },
+        { label: 'Cancelled', status: 'cancelled', icon: <XCircle size={20} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', trend: -1 }
     ];
 
     return (
@@ -1380,10 +1389,28 @@ const Vacancy = () => {
             </div>
 
             {/* Stats Section */}
-            <div className="stats-grid">
-                {stats.map((s, i) => (
-                    <StatCard key={i} {...s} />
-                ))}
+            <div className="stats-scroller-v6" style={{ marginBottom: '1.25rem' }}>
+                <div className="stats-container-v6">
+                    {stats.map((s, i) => (
+                        <StatCard 
+                            key={i} 
+                            {...s} 
+                            count={s.status === '' ? totalVacancies : 
+                                   s.filterType === 'approval' ? vacancies.filter(v => v.approvalStatus?.toLowerCase() === s.status).length :
+                                   vacancies.filter(v => v.status?.toLowerCase() === s.status).length}
+                            active={s.filterType === 'approval' ? filterApproval === s.status : filterStatus === s.status}
+                            onClick={() => {
+                                if (s.filterType === 'approval') {
+                                    setFilterApproval(s.status);
+                                    setFilterStatus('');
+                                } else {
+                                    setFilterStatus(s.status);
+                                    setFilterApproval('');
+                                }
+                            }}
+                        />
+                    ))}
+                </div>
             </div>
 
             {/* Filter & Search Bar */}
@@ -1493,8 +1520,8 @@ const Vacancy = () => {
                                     const posName = positions.find(p => p.value === v.positionId)?.label || v.positionId || 'N/A';
 
                                     // Internal Mock Data for Applicants (Redesign requirement)
-                                    const applicants = Math.floor(Math.random() * 50) + 5;
-                                    const shortlisted = Math.floor(applicants * 0.3);
+                                    const applicants = v.appliedApplicants || 0;
+                                    const shortlisted = v.shortlistedCount || 0;
 
                                     return (
                                         <tr key={v._id || v.id} className={isSelected ? 'row-selected' : ''}>
@@ -1529,8 +1556,8 @@ const Vacancy = () => {
                                                 <div className="applicant-stats">
                                                     <span className="total-app">{applicants} Applied</span>
                                                     <div className="pipeline-mini">
-                                                        <div className="pipe-seg shortlisted" style={{ width: `${(shortlisted / applicants) * 100}%` }} title={`Shortlisted: ${shortlisted}`}></div>
-                                                        <div className="pipe-seg interviewed" style={{ width: '15%' }} title="Interviewing"></div>
+                                                        <div className="pipe-seg shortlisted" style={{ width: applicants > 0 ? `${(shortlisted / applicants) * 100}%` : '0%' }} title={`Shortlisted: ${shortlisted}`}></div>
+                                                        <div className="pipe-seg interviewed" style={{ width: applicants > 0 ? '15%' : '0%' }} title="Interviewing"></div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -1617,9 +1644,8 @@ const Vacancy = () => {
                     flex-direction: column;
                     gap: 1.25rem;
                     background: #f8fafc;
-                    min-height: calc(100vh - 64px);
-                    overflow-y: scroll;
-                    scrollbar-gutter: stable;
+                    height: calc(100vh - 64px);
+                    overflow: hidden;
                     /* Removed contain: content to allow fixed modals to reference viewport */
                 }
                 .animate-entry {
@@ -1635,7 +1661,8 @@ const Vacancy = () => {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    margin-bottom: -0.25rem;
+                    margin-bottom: 0.5rem;
+                    flex-shrink: 0;
                 }
                 .header-left h1 {
                     font-size: 1.5rem;
@@ -1755,6 +1782,33 @@ const Vacancy = () => {
                     letter-spacing: 0.04em;
                 }
 
+                /* New Premium Stats */
+                .stats-scroller-v6 { overflow-x: auto; padding: 0.5rem 0.5rem 1.25rem 0.5rem; margin: 0 -0.5rem; flex-shrink: 0; }
+                .stats-scroller-v6::-webkit-scrollbar { height: 4px; }
+                .stats-scroller-v6::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                
+                .stats-container-v6 { display: flex; gap: 1rem; min-width: max-content; }
+                
+                .stat-card-premium { background: white; padding: 0.85rem 1.15rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; min-width: 210px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+                .stat-card-premium:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-2px); }
+                .stat-card-premium.active::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); }
+                
+                .stat-main { display: flex; align-items: center; gap: 0.75rem; }
+                .stat-icon-v6 { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+                .stat-icon-v6 svg { width: 18px; height: 18px; }
+                .stat-content-v6 { display: flex; flex-direction: column; gap: 1px; }
+                .stat-label-v6 { font-size: 0.625rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+                .stat-value-group { display: flex; align-items: baseline; gap: 0.5rem; }
+                .stat-count-v6 { font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1; }
+                
+                .stat-trend { display: flex; align-items: center; gap: 2px; font-size: 0.6rem; font-weight: 700; padding: 1px 5px; border-radius: 20px; }
+                .stat-trend.up { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+                .stat-trend.down { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+                
+                .stat-indicator { color: #cbd5e1; transition: transform 0.2s; }
+                .stat-card-premium:hover .stat-indicator { transform: translateX(3px); color: var(--accent); }
+
                 /* Filter Bar */
                 .filter-search-container {
                     background: white;
@@ -1765,6 +1819,7 @@ const Vacancy = () => {
                     align-items: center;
                     border: 1px solid #e2e8f0;
                     box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+                    flex-shrink: 0;
                 }
                 .search-wrapper {
                     flex: 1;
@@ -1850,13 +1905,14 @@ const Vacancy = () => {
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
+                    flex: 1;
                     box-shadow: 0 1px 3px rgba(0,0,0,0.02);
                     width: 100%;
                 }
                 .table-responsive {
                     overflow-x: auto;
-                    overflow-y: hidden; /* Let container determine height */
-                    max-height: 700px; /* Optional: limit max height */
+                    overflow-y: auto;
+                    flex: 1;
                     position: relative;
                 }
                 /* Custom Scrollbar */
