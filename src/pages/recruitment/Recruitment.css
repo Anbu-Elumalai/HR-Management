@@ -399,8 +399,8 @@ tr:hover td {
 .info-item label,
 .form-group label {
     font-size: 0.75rem;
-    font-weight: 600;
-    color: #64748b;
+    font-weight: 700;
+    color: #334155;
     text-transform: uppercase;
     letter-spacing: 0.02em;
     margin-bottom: 0.25rem;
@@ -408,8 +408,8 @@ tr:hover td {
 
 .info-item div {
     font-size: 0.95rem;
-    color: #1e293b;
-    font-weight: 500;
+    color: #0f172a;
+    font-weight: 600;
 }
 
 .form-group input,
@@ -420,9 +420,10 @@ tr:hover td {
     border: 1px solid #e2e8f0;
     border-radius: 6px;
     font-size: 0.9rem;
-    color: #1e293b;
+    color: #0f172a;
     transition: all 0.2s;
     background: #fff;
+    font-weight: 500;
 }
 
 .form-group input:focus,
@@ -998,4 +999,48 @@ textarea.font-serif {
     font-size: 1rem;
     line-height: 1.6;
     padding: 1.25rem;
+}
+
+/* Empty State Component */
+.empty-state-card {
+    padding: 3rem 2rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #64748b;
+    background: white;
+    border-radius: 16px;
+    width: 100%;
+}
+
+.empty-icon-container {
+    width: 70px;
+    height: 70px;
+    border-radius: 16px;
+    background: #f1f5f9;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.25rem;
+}
+
+.empty-state-card h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    color: #1e293b;
+    font-weight: 700;
+}
+
+.empty-state-card p {
+    max-width: 300px;
+    margin: 0.5rem 0 1.25rem;
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.empty-state-card .btn-primary {
+    min-width: 140px;
+    justify-content: center;
 }

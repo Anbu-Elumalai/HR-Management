@@ -4,35 +4,32 @@ import {
     Plus, Search, Eye, Edit, Trash2, X, RotateCcw,
     Briefcase, Users, CheckCircle, AlertCircle,
     Calendar, MapPin, ChevronDown, MoreVertical,
-    Filter, Download, Clock, Monitor, XCircle, 
+    Filter, Download, Clock, Monitor, XCircle,
     CheckCircle2, AlertTriangle, PlayCircle, BarChart2,
     TrendingUp, TrendingDown, ChevronLeft, ChevronRight, User
 } from 'lucide-react';
 import './Recruitment.css';
+import EmptyState from '../../components/common/EmptyState';
 import api from '../../api/api';
 
 const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => (
-    <div 
-        className={`stat-card-premium ${active ? 'active' : ''}`} 
+    <div
+        className={`stat-card-premium ${active ? 'active' : ''}`}
         onClick={onClick}
         style={{ '--accent': color, '--accent-bg': bg }}
     >
-        <div className="stat-main">
+        <div className="stat-top-v2" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="stat-icon-v6">{icon}</div>
-            <div className="stat-content-v6">
-                <span className="stat-label-v6">{label}</span>
-                <div className="stat-value-group">
-                    <span className="stat-count-v6">{count}</span>
-                    {trend && (
-                        <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`}>
-                            {trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                            <span>{Math.abs(trend)}%</span>
-                        </div>
-                    )}
-                </div>
-            </div>
+            <div className="stat-count-v6" style={{ fontSize: '1.5rem', fontWeight: '900', color: '#0f172a' }}>{count}</div>
         </div>
-        <div className="stat-indicator"><ChevronRight size={14} /></div>
+        <div className="stat-bottom-v2" style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="stat-label-v6" style={{ fontSize: '0.65rem', fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: '1.2' }}>{label}</div>
+            {trend && (
+                <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`} style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.65rem', fontWeight: '800', padding: '2px 6px', borderRadius: '20px', backgroundColor: trend > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: trend > 0 ? '#10b981' : '#ef4444' }}>
+                    {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
+                </div>
+            )}
+        </div>
     </div>
 );
 
@@ -62,19 +59,7 @@ const Badge = ({ variant, children, onUpdate }) => {
     );
 };
 
-const EmptyState = ({ onCreate }) => (
-    <div className="empty-state-card">
-        <div className="empty-icon-container">
-            <Calendar size={48} />
-        </div>
-        <h3>No interviews scheduled</h3>
-        <p>Try adjusting your search or schedule a new interview to get started.</p>
-        <button className="btn-primary" onClick={onCreate}>
-            <Plus size={18} />
-            Schedule New Interview
-        </button>
-    </div>
-);
+
 
 const getAvatarColor = (name) => {
     const colors = [
@@ -363,13 +348,14 @@ const Interview = () => {
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
     const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [hasLoaded, setHasLoaded] = useState(false);
 
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
     const [filters, setFilters] = useState({
         interviewId: '',
-        candidate: '',
+        search: '',
         position: '',
         round: '',
         interviewer: '',
@@ -587,6 +573,7 @@ const Interview = () => {
         } finally {
             setIsInitialLoading(false);
             setLoading(false);
+            setHasLoaded(true);
         }
     };
 
@@ -845,10 +832,10 @@ const Interview = () => {
                                         {Array.isArray(candidates) && candidates
                                             .filter(c => c.status !== 'Move to Offer')
                                             .map(c => (
-                                            <option key={c._id || c.id} value={c._id || c.id}>
-                                                {c.candidateId ? `${c.candidateId} - ` : ''}{c.name}
-                                            </option>
-                                        ))}
+                                                <option key={c._id || c.id} value={c._id || c.id}>
+                                                    {c.candidateId ? `${c.candidateId} - ` : ''}{c.name}
+                                                </option>
+                                            ))}
                                     </select>
                                     {errors.candidateId && <span className="error-text">{errors.candidateId}</span>}
                                 </div>
@@ -1297,599 +1284,8 @@ const Interview = () => {
     };
 
     // ── Render ─────────────────────────────────────────────────────────────
-    if (isInitialLoading) { // Use specific initial loading state to prevent blinking
-        return (
-            <div className="employees-page" style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                minHeight: '80vh',
-                background: 'transparent'
-            }}>
-                <style>
-                    {`
-                    .spinner-container {
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        gap: 2rem;
-                    }
-                    .premium-spinner {
-                        position: relative;
-                        width: 80px;
-                        height: 80px;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                    }
-                    .premium-spinner::before,
-                    .premium-spinner::after {
-                        content: '';
-                        position: absolute;
-                        border-radius: 50%;
-                    }
-                    .premium-spinner::before {
-                        width: 100%;
-                        height: 100%;
-                        border: 3px solid transparent;
-                        border-top-color: #2dd4bf;
-                        border-bottom-color: #0d9488;
-                        animation: spin 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
-                        box-shadow: 0 0 15px rgba(45, 212, 191, 0.2);
-                    }
-                    .premium-spinner::after {
-                        width: 70%;
-                        height: 70%;
-                        border: 3px solid transparent;
-                        border-left-color: #0d9488;
-                        border-right-color: #2dd4bf;
-                        animation: spin-reverse 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
-                    }
-                    .premium-core {
-                        width: 30%;
-                        height: 30%;
-                        background: radial-gradient(circle, #2dd4bf 0%, #0d9488 100%);
-                        border-radius: 50%;
-                        box-shadow: 0 0 20px #2dd4bf;
-                        animation: pulse-core 2s ease-in-out infinite;
-                    }
-                    .premium-text {
-                        color: #f8fafc;
-                        font-size: 1.05rem;
-                        font-weight: 600;
-                        letter-spacing: 0.1em;
-                        text-transform: uppercase;
-                        opacity: 0;
-                        animation: fade-up 0.5s ease-out 0.2s forwards, soft-pulse 2s ease-in-out infinite alternate 0.7s;
-                        text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-                    }
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                    @keyframes spin-reverse {
-                        0% { transform: rotate(360deg); }
-                        100% { transform: rotate(0deg); }
-                    }
-                    @keyframes pulse-core {
-                        0%, 100% { transform: scale(0.8); opacity: 0.8; }
-                        50% { transform: scale(1.2); opacity: 1; }
-                    }
-                    @keyframes fade-up {
-                        from { transform: translateY(10px); opacity: 0; }
-                        to { transform: translateY(0); opacity: 0.9; }
-                    }
-                    @keyframes soft-pulse {
-                        from { opacity: 0.7; }
-                        to { opacity: 1; }
-                    }
-                    `}
-                </style>
-                <div className="spinner-container">
-                    <div className="premium-spinner">
-                        <div className="premium-core"></div>
-                    </div>
-                    <p className="premium-text" style={{ color: '#0d5f68' }}>Loading Interview Data</p>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="employees-page">
-            {(viewMode === 'create' || viewMode === 'edit') && renderInterviewForm()}
-            {viewMode === 'view' && renderInterviewDetail()}
-            {viewMode === 'delete' && renderDeleteModal()}
-
-            {/* Header Section */}
-            <div className="dashboard-header animate-entry" style={{ padding: '0 0.5rem' }}>
-                <div className="header-left">
-                    <h1 style={{ color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <Calendar size={24} className="text-slate-700 opacity-80" />
-                        Interview Management
-                    </h1>
-                </div>
-                <div className="header-actions">
-                    <button className="btn-primary" onClick={() => { setSelectedInterview(null); setViewMode('create'); }}>
-                        <Plus size={18} strokeWidth={2.5} />
-                        <span>Schedule New Interview</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Stats Section */}
-            <div className="stats-scroller-v6" style={{ marginBottom: '1.25rem' }}>
-                <div className="stats-container-v6">
-                    {[
-                        { label: 'Total Interviews', status: '', icon: <Calendar size={18} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', trend: 12 },
-                        { label: 'Scheduled', status: 'Scheduled', icon: <Clock size={18} />, color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)', trend: 5 },
-                        { label: 'Completed', status: 'Completed', icon: <CheckCircle2 size={18} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', trend: 8 },
-                        { label: 'Rescheduled', status: 'Rescheduled', icon: <RotateCcw size={18} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: -2 },
-                        { label: 'Cancelled', status: 'Cancelled', icon: <XCircle size={18} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', trend: -1 },
-                        { label: 'Pending Feedback', status: 'PendingFeedback', icon: <AlertTriangle size={18} />, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', trend: 3 },
-                    ].map((s, i) => (
-                        <StatCard 
-                            key={i} 
-                            {...s} 
-                            count={
-                                s.status === '' ? totalItems : 
-                                s.status === 'PendingFeedback' ? interviews.filter(inv => inv.status === 'Completed' && !inv.feedback).length :
-                                interviews.filter(inv => inv.status === s.status).length
-                            }
-                            active={s.status === 'PendingFeedback' ? (filters.status === 'Completed' && filters.feedback === 'Pending') : filters.status === s.status}
-                            onClick={() => {
-                                if (s.status === 'PendingFeedback') {
-                                    setFilters(prev => ({ ...prev, status: 'Completed', feedback: 'Pending' }));
-                                } else {
-                                    setFilters(prev => ({ ...prev, status: s.status, feedback: '' }));
-                                }
-                            }}
-                        />
-                    ))}
-                </div>
-            </div>
-
-            {/* Filter & Search Bar */}
-            <div className="filter-search-container" style={{ marginBottom: '1rem' }}>
-                <div className="search-wrapper">
-                    <Search className="search-icon" size={18} />
-                    <input
-                        type="text"
-                        placeholder="Search by candidate, position or interviewer..."
-                        value={filters.candidate}
-                        onChange={e => setFilters(prev => ({ ...prev, candidate: e.target.value }))}
-                    />
-                </div>
-                <div className="filter-actions">
-                    <div className="filter-dropdown-group">
-                        <select value={filters.status} onChange={e => setFilters(prev => ({ ...prev, status: e.target.value }))}>
-                            <option value="">Status</option>
-                            <option value="Scheduled">Scheduled</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Rescheduled">Rescheduled</option>
-                            <option value="Cancelled">Cancelled</option>
-                        </select>
-                        <select value={filters.type} onChange={e => setFilters(prev => ({ ...prev, type: e.target.value }))}>
-                            <option value="">Mode</option>
-                            <option value="Video">Video Call</option>
-                            <option value="Onsite">Onsite</option>
-                            <option value="Telephone">Telephone</option>
-                        </select>
-                        <input
-                            type="date"
-                            className="date-picker-input"
-                            value={filters.date}
-                            onChange={e => setFilters(prev => ({ ...prev, date: e.target.value }))}
-                        />
-                    </div>
-                    <button className="btn-icon-alt" onClick={() => setFilters({
-                        interviewId: '', candidate: '', position: '', round: '', interviewer: '', date: '', type: '', status: '', feedback: ''
-                    })} title="Clear Filters">
-                        <RotateCcw size={18} />
-                    </button>
-                </div>
-            </div>
-
-            <div className="table-container-premium shadow-premium" style={{ flex: 1, minHeight: '600px' }}>
-                {loading && (
-                    <div className="loading-overlay" style={{
-                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                        background: 'rgba(255,255,255,0.7)', zIndex: 100, display: 'flex',
-                        alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)',
-                        borderRadius: '0 0 12px 12px'
-                    }}>
-                        <div className="premium-spinner" style={{ width: '40px', height: '40px' }}>
-                            <div className="premium-core"></div>
-                        </div>
-                    </div>
-                )}
-                
-                <div className="table-header-info">
-                    <div className="header-info-left">
-                        <h3>Interview Schedules List</h3>
-                        <span className="count-chip">{totalItems} TOTAL</span>
-                    </div>
-                    <div className="header-info-right text-xs text-slate-500 font-medium">
-                        Showing {interviews.length} entries on page {page + 1}
-                    </div>
-                </div>
-
-                {interviews.length === 0 ? (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '350px' }}>
-                        <EmptyState onCreate={() => { setSelectedInterview(null); setViewMode('create'); }} />
-                    </div>
-                ) : (
-                    <>
-                        <div className="table-responsive" style={{ flex: 1 }}>
-                            <table className="ats-table">
-                                <thead>
-                                    <tr>
-                                        <th onClick={(e) => e.stopPropagation()}>
-                                            <input 
-                                                type="checkbox" 
-                                                checked={selectedRows.length === interviews.length && interviews.length > 0} 
-                                                onChange={selectAllRows}
-                                                style={{ cursor: 'pointer', scale: '1.2' }}
-                                            />
-                                        </th>
-                                        <th>Code</th>
-                                        <th>Candidate & Position</th>
-                                        <th>Round</th>
-                                        <th>Panel Members</th>
-                                        <th>Scheduled</th>
-                                        <th className="text-center">Mode</th>
-                                        <th className="text-center">Status</th>
-                                        <th className="text-center">Feedback</th>
-                                        <th className="text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {interviews.map(interview => (
-                                        <tr key={interview._id || interview.id} className={selectedRows.includes(interview._id || interview.id) ? 'row-selected' : ''}>
-                                            <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={selectedRows.includes(interview._id || interview.id)} 
-                                                    onChange={() => toggleRowSelection(interview._id || interview.id)}
-                                                    style={{ cursor: 'pointer', scale: '1.2' }}
-                                                />
-                                            </td>
-                                            <td>
-                                                <span className="code-badge">
-                                                    {interview.interviewCode || 'PENDING'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div className="job-info">
-                                                    <span className="job-title">
-                                                        {interview.candidateName || (typeof interview.candidate === 'object' ? interview.candidate?.name : interview.candidate) || 'Unknown'}
-                                                    </span>
-                                                    <div className="job-sub-info">
-                                                        {interview.appliedFor || interview.vacancyName || (typeof interview.vacancyId === 'object' ? interview.vacancyId?.positionName : interview.vacancyId) || 'Position N/A'}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="job-info">
-                                                    <span style={{ fontWeight: '700', color: '#334155', fontSize: '0.85rem' }}>
-                                                        {typeof interview.round === 'object' ? interview.round?.roundName : interview.round}
-                                                    </span>
-                                                    <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>
-                                                        {interview.level || 'Final'} Level
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="panel-avatars">
-                                                    {(() => {
-                                                        const list = interview.interviewers || [];
-                                                        if (list.length === 0) {
-                                                            const name = interview.interviewerName || (typeof interview.interviewer === 'object' ? interview.interviewer?.name : interview.interviewer) || 'N/A';
-                                                            const col = getAvatarColor(name);
-                                                            return (
-                                                                <div className="panel-avatar" style={{ backgroundColor: col.bg, color: col.text }} title={name}>
-                                                                    {getInitials(name)}
-                                                                </div>
-                                                            );
-                                                        }
-                                                        return (
-                                                            <>
-                                                                {list.slice(0, 3).map((i, idx) => {
-                                                                    const name = (i && typeof i === 'object') ? i.interviewerName || i.name : (i || 'Pending');
-                                                                    const col = getAvatarColor(name);
-                                                                    return (
-                                                                        <div key={idx} className="panel-avatar" style={{ backgroundColor: col.bg, color: col.text, zIndex: 3 - idx }} title={name}>
-                                                                            {getInitials(name)}
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                                {list.length > 3 && (
-                                                                    <div className="panel-avatar" style={{ backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '9px', zIndex: 0 }}>
-                                                                        +{list.length - 3}
-                                                                    </div>
-                                                                )}
-                                                            </>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="date-info">
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b', fontWeight: '600', fontSize: '0.85rem' }}>
-                                                        <Calendar size={14} className="text-slate-400" />
-                                                        <span>{interview.scheduleDate ? (typeof interview.scheduleDate === 'string' && interview.scheduleDate.includes('T') ? interview.scheduleDate.split('T')[0] : interview.scheduleDate) : interview.date || 'TBA'}</span>
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: '#94a3b8', marginLeft: '1px' }}>
-                                                        <Clock size={13} /> {interview.time || '00:00'}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="text-center">
-                                                <span className="mode-badge" title={interview.mode || 'Online'}>
-                                                    {interview.mode?.toLowerCase().includes('video') ? <Monitor size={14} /> : <MapPin size={14} />}
-                                                    {interview.mode || 'Online'}
-                                                </span>
-                                            </td>
-                                            <td className="text-center">
-                                                <Badge variant={interview.status} onUpdate={() => handleStatusClick(interview)} />
-                                            </td>
-                                            <td className="text-center">
-                                                <Badge variant={interview.interviewResult || 'pending'} onUpdate={() => handleFeedbackClick(interview)}>
-                                                    {interview.interviewResult || 'Pending'}
-                                                </Badge>
-                                            </td>
-                                            <td className="text-right">
-                                                <div className="action-button-group">
-                                                    <button className="row-action view" onClick={() => { setSelectedInterview(interview); setViewMode('view'); }} title="View Details"><Eye size={18} /></button>
-                                                    <button className="row-action edit" onClick={() => { setSelectedInterview(interview); setViewMode('edit'); }} title="Edit"><Edit size={18} /></button>
-                                                    <button className="row-action delete" onClick={() => { setSelectedInterview(interview); setViewMode('delete'); }} title="Delete"><Trash2 size={18} /></button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        {/* Pagination Footer */}
-                        <div className="table-footer-ats">
-                            <div className="footer-left">
-                                Showing <b>{interviews.length}</b> of <b>{totalItems}</b> Schedule(s)
-                            </div>
-                            <div className="footer-right">
-                                <button 
-                                    className={`page-btn ${page === 0 ? 'disabled' : ''}`} 
-                                    onClick={() => page > 0 && fetchInterviews(page - 1)} 
-                                    disabled={page === 0}
-                                >
-                                    Previous
-                                </button>
-                                <div className="page-numbers">
-                                    {Array.from({ length: totalPages }, (_, idx) => (
-                                        <button 
-                                            key={idx} 
-                                            className={`page-num ${page === idx ? 'active' : ''}`}
-                                            onClick={() => fetchInterviews(idx)}
-                                        >
-                                            {idx + 1}
-                                        </button>
-                                    ))}
-                                </div>
-                                <button 
-                                    className={`page-btn ${page >= totalPages - 1 ? 'disabled' : ''}`} 
-                                    onClick={() => page < totalPages - 1 && fetchInterviews(page + 1)} 
-                                    disabled={page >= totalPages - 1}
-                                >
-                                    Next
-                                </button>
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div>
-
-            {showStatusModal && (
-                <div className="modal-overlay" onClick={() => setShowStatusModal(false)}>
-                    <div className="modal-content status-modal-premium" onClick={e => e.stopPropagation()}>
-                        <div className="status-header-premium">
-                            <h2 className="status-header-title-premium">Update Status</h2>
-                            <button className="icon-btn-close" onClick={() => setShowStatusModal(false)}><X size={20} /></button>
-                        </div>
-                        <div className="status-body-premium">
-                            {submittingStatus && (
-                                <div className="loading-overlay-premium">
-                                    <div className="premium-spinner-container">
-                                        <div className="premium-spinner-v2"></div>
-                                        <p>Saving Status...</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="status-target-info-premium">
-                                <span>Updating interview:</span>
-                                <span className="status-target-badge-premium">
-                                    {statusInterview?.interviewCode || statusInterview?.id}
-                                </span>
-                            </div>
-
-                            <div className="status-form-group-premium">
-                                <label className="status-label-premium">Interview Status</label>
-                                <div className="verdict-select-wrapper">
-                                    <select
-                                        value={newStatus}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setNewStatus(val);
-                                            setStatusModalErrors({});
-                                            if (val !== 'Rescheduled' && val !== 'Cancelled') setStatusReason('');
-                                        }}
-                                    >
-                                        <option value="Scheduled">Scheduled</option>
-                                        <option value="Completed">Completed</option>
-                                        <option value="Rescheduled">Rescheduled</option>
-                                        <option value="Cancelled">Cancelled</option>
-                                        <option value="Move to Offer">Move to Offer</option>
-                                    </select>
-                                    <ChevronDown className="select-icon-premium" size={16} />
-                                </div>
-                            </div>
-
-
-                            {(newStatus === 'Rescheduled' || newStatus === 'Cancelled') && (
-                                <div className="status-form-group-premium">
-                                    <label className="status-label-premium">
-                                        {newStatus === 'Rescheduled' ? 'Reason for Reschedule' : 'Reason for Cancellation'}
-                                    </label>
-                                    <textarea
-                                        className={`status-textarea-premium ${statusModalErrors.reason ? 'error' : ''}`}
-                                        placeholder={`Enter details for ${newStatus.toLowerCase()} status...`}
-                                        value={statusReason}
-                                        onChange={(e) => {
-                                            setStatusReason(e.target.value);
-                                            if (e.target.value.trim()) setStatusModalErrors(prev => ({ ...prev, reason: false }));
-                                        }}
-                                    />
-                                    {statusModalErrors.reason && <p className="status-error-msg-premium">Reason is required</p>}
-                                </div>
-                            )}
-
-                            {newStatus === 'Rescheduled' && (
-                                <div className="status-form-row-premium">
-                                    <div className="status-form-group-premium">
-                                        <label className={`status-label-premium ${statusModalErrors.date ? 'error' : ''}`}>New Date</label>
-                                        <input
-                                            type="date"
-                                            value={statusDate}
-                                            onChange={(e) => {
-                                                setStatusDate(e.target.value);
-                                                if (e.target.value) setStatusModalErrors(prev => ({ ...prev, date: false }));
-                                            }}
-                                            className={statusModalErrors.date ? 'error' : ''}
-                                        />
-                                        {statusModalErrors.date && <p className="status-error-msg-premium">Required</p>}
-                                    </div>
-                                    <div className="status-form-group-premium">
-                                        <label className={`status-label-premium ${statusModalErrors.time ? 'error' : ''}`}>New Time</label>
-                                        <input
-                                            type="time"
-                                            value={statusTime}
-                                            onChange={(e) => {
-                                                setStatusTime(e.target.value);
-                                                if (e.target.value) setStatusModalErrors(prev => ({ ...prev, time: false }));
-                                            }}
-                                            className={statusModalErrors.time ? 'error' : ''}
-                                        />
-                                        {statusModalErrors.time && <p className="status-error-msg-premium">Required</p>}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <div className="status-footer-premium">
-                            <button className="btn-secondary-premium" onClick={() => setShowStatusModal(false)} disabled={submittingStatus}>Cancel</button>
-                            <button
-                                className="btn-submit-premium"
-                                onClick={handleStatusConfirm}
-                                disabled={submittingStatus}
-                            >
-                                {submittingStatus ? 'Wait...' : 'Update Status'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {showFeedbackModal && (
-                <div className="modal-overlay" onClick={() => setShowFeedbackModal(false)}>
-                    <div className="modal-content feedback-modal-premium" onClick={e => e.stopPropagation()}>
-                        <div className="feedback-header-premium">
-                            <h2 className="feedback-title-premium">Interview Evaluation</h2>
-                            <button className="icon-btn-close" onClick={() => setShowFeedbackModal(false)}><X size={20} /></button>
-                        </div>
-                        
-                        <div className="feedback-body-premium">
-                            {submittingFeedback && (
-                                <div className="loading-overlay-premium">
-                                    <div className="premium-spinner-container">
-                                        <div className="premium-spinner-v2"></div>
-                                        <p>Processing Evaluation...</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Candidate Info Card */}
-                            <div className="candidate-info-card-premium">
-                                <div className="candidate-avatar-large">
-                                    {getInitials(feedbackInterview?.candidateName)}
-                                </div>
-                                <div className="candidate-details-stack">
-                                    <h3>{feedbackInterview?.candidateName}</h3>
-                                    <div className="round-badge-premium">
-                                        <Clock size={12} />
-                                        <span>{typeof feedbackInterview?.round === 'object' ? feedbackInterview.round?.roundName : feedbackInterview?.round}</span>
-                                    </div>
-                                    <p className="position-text-small">{feedbackInterview?.appliedFor || feedbackInterview?.vacancyName || 'Software Engineer'}</p>
-                                </div>
-                            </div>
-
-                            <div className="feedback-form-grid-premium">
-                                <div className="form-group-premium">
-                                    <label>Overall Verdict <span className="required-star">*</span></label>
-                                    <div className="verdict-select-wrapper">
-                                        <select
-                                            value={interviewResult}
-                                            onChange={(e) => {
-                                                setInterviewResult(e.target.value);
-                                                if (e.target.value) setFeedbackErrors(prev => ({ ...prev, interviewResult: false }));
-                                            }}
-                                            className={feedbackErrors.interviewResult ? 'error' : ''}
-                                        >
-                                            <option value="" disabled>Choose final result</option>
-                                            <option value="Passed">Passed</option>
-                                            <option value="Failed">Failed</option>
-                                            <option value="On Hold">On Hold</option>
-                                            <option value="Move to Offer">Move to Offer</option>
-                                            <option value="Pending">Pending</option>
-                                        </select>
-                                        <ChevronDown className="select-icon-premium" size={16} />
-                                    </div>
-                                    {feedbackErrors.interviewResult && <span className="error-message-alt">Please select a result</span>}
-                                </div>
-
-                                <div className="form-group-premium full-width">
-                                    <label>Detailed Evaluation Notes <span className="required-star">*</span></label>
-                                    <textarea
-                                        placeholder="Type your assessment notes, technical strengths, and areas for improvement..."
-                                        value={feedbackText}
-                                        onChange={(e) => {
-                                            setFeedbackText(e.target.value);
-                                            if (e.target.value.trim()) setFeedbackErrors(prev => ({ ...prev, feedback: false }));
-                                        }}
-                                        className={feedbackErrors.feedback ? 'error' : ''}
-                                    />
-                                    {feedbackErrors.feedback && <span className="error-message-alt">Evaluation notes are required</span>}
-                                </div>
-                            </div>
-                            
-                            <p className="feedback-footer-note">
-                                <AlertTriangle size={14} />
-                                This evaluation is final and will influence the recruitment decision.
-                            </p>
-                        </div>
-
-                        <div className="feedback-footer-premium">
-                            <button className="btn-secondary-premium" onClick={() => setShowFeedbackModal(false)} disabled={submittingFeedback}>
-                                Discard
-                            </button>
-                            <button
-                                className="btn-submit-premium"
-                                onClick={handleFeedbackConfirm}
-                                disabled={submittingFeedback}
-                            >
-                                {submittingFeedback ? 'Submitting...' : 'Save Evaluation'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
             <style>{`
                 .employees-page { padding: 1.5rem; padding-top: 1rem; display: flex; flex-direction: column; gap: 1rem; height: calc(100vh - 64px); background: #f8fafc; overflow: hidden; }
                 
@@ -1936,23 +1332,24 @@ const Interview = () => {
                 /* Filter Bar */
                 .filter-search-container { background: white; padding: 0.65rem 1.25rem; border-radius: 12px; display: flex; gap: 1rem; align-items: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.03); flex-wrap: wrap; flex-shrink: 0; }
                 .search-wrapper { flex: 1; position: relative; display: flex; align-items: center; min-width: 280px; }
-                .search-icon { position: absolute; left: 0.85rem; color: #94a3b8; z-index: 10; }
-                .search-wrapper input { width: 100%; height: 38px; padding: 0 1rem 0 2.5rem; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; font-size: 0.85rem; color: #1e293b; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+                .search-icon { position: absolute; left: 0.85rem; color: #94a3b8; top: 50%; transform: translateY(-50%); z-index: 10; pointer-events: none; }
+                .search-wrapper input { width: 100%; height: 40px; padding: 0 1rem 0 2.5rem; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; font-size: 0.85rem; color: #1e293b; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
                 .search-wrapper input:focus { border-color: #0d5f68; background: white; box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.08); }
                 .filter-actions { display: flex; gap: 0.75rem; align-items: center; flex-shrink: 0; }
                 .filter-dropdown-group { display: flex; gap: 0.5rem; align-items: center; }
-                .filter-dropdown-group select, .date-picker-input { height: 38px; padding: 0 1rem; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.825rem; color: #475569; font-weight: 600; outline: none; cursor: pointer; min-width: 130px; }
-                .filter-dropdown-group select:focus, .date-picker-input:focus { border-color: #0d5f68; background: white; }
-                .btn-icon-alt { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
-                .btn-icon-alt:hover { background: #f1f5f9; color: #0d5f68; border-color: #cbd5e1; }
+                .filter-dropdown-group select, .date-picker-input { height: 40px; padding: 0 1rem; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.825rem; color: #475569; font-weight: 600; outline: none; cursor: pointer; min-width: 130px; transition: all 0.2s; }
+                .filter-dropdown-group select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 1rem; padding-right: 2.5rem; }
+                .filter-dropdown-group select:focus, .date-picker-input:focus { border-color: #0d5f68; background-color: white; box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.08); }
+                .btn-icon-alt { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+                .btn-icon-alt:hover { background: #fee2e2; color: #ef4444; border-color: #fca5a5; }
 
                 /* Table Premium */
                 /* Table Premium - Fully Redesigned */
                 .table-container-premium { background: white; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; flex: 1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); width: 100%; position: relative; margin-top: 0.5rem; }
-                .table-header-info { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: white; flex-wrap: wrap; gap: 0.75rem; }
-                .header-info-left { display: flex; align-items: center; gap: 0.75rem; }
-                .header-info-left h3 { margin: 0; font-size: 1rem; font-weight: 700; color: #1e293b; letter-spacing: -0.0125em; }
-                .count-chip { background: #f1f5f9; color: #64748b; padding: 0.2rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; border: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.025em; }
+                .table-header-info { padding: 1.1rem 1.25rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: white; flex-shrink: 0; }
+                .header-info-left { display: flex; align-items: center; gap: 10px; }
+                .header-info-left h3 { margin: 0; font-size: 1rem; font-weight: 700; color: #1e293b; letter-spacing: -0.0125em; display: flex; align-items: center; }
+                .count-chip { background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 6px; font-size: 0.65rem; font-weight: 700; border: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.025em; }
                 
                 .table-responsive { overflow-x: auto; overflow-y: auto; flex: 1; position: relative; scrollbar-gutter: stable; }
                 .table-responsive::-webkit-scrollbar { height: 6px; width: 6px; }
@@ -2299,121 +1696,528 @@ const Interview = () => {
                     border-radius: 16px !important;
                     box-shadow: 0 25px 50px -12px rgba(13, 95, 104, 0.25) !important;
                 }
-                .status-header-premium {
-                    padding: 1.25rem 1.5rem;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    border-bottom: 1px solid #f1f5f9;
-                }
-                .status-header-title-premium {
-                    font-size: 1.15rem;
-                    font-weight: 800;
-                    color: #0d5f68;
-                    margin: 0;
-                    letter-spacing: -0.0125em;
-                }
-                .status-body-premium {
-                    padding: 1.5rem;
-                    position: relative;
-                }
-                .status-target-info-premium {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    gap: 0.5rem;
-                    margin-bottom: 1.5rem;
-                    color: #64748b;
-                    font-size: 0.85rem;
-                    font-weight: 500;
-                }
-                .status-target-badge-premium {
-                    padding: 0.4rem 1rem;
-                    background: #f8fafc;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 8px;
-                    color: #1e293b;
-                    font-weight: 700;
-                    font-family: 'JetBrains Mono', monospace;
-                }
-                .status-form-group-premium {
-                    margin-bottom: 1rem;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 0.5rem;
-                }
-                .status-form-row-premium {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 1rem;
-                    margin-top: 0.5rem;
-                }
-                .status-label-premium {
-                    font-size: 0.8rem;
-                    font-weight: 700;
-                    color: #0d5f68;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                }
-                .status-label-premium.error { color: #ef4444; }
-                .status-textarea-premium {
-                    width: 100%;
-                    min-height: 80px;
-                    padding: 0.75rem;
-                    border-radius: 10px;
-                    border: 1.5px solid #e2e8f0;
-                    font-size: 0.9rem;
-                    color: #1e293b;
-                    resize: vertical;
-                    outline: none;
-                    transition: all 0.2s;
-                }
-                .status-textarea-premium:focus {
-                    border-color: #0d5f68;
-                    box-shadow: 0 0 0 4px rgba(13, 95, 104, 0.1);
-                }
-                .status-textarea-premium.error {
-                    border-color: #ef4444;
-                    background: #fef2f2;
-                }
-                .status-form-group-premium input, .status-form-group-premium select {
-                    width: 100%;
-                    padding: 0.75rem;
-                    border-radius: 10px;
-                    border: 1.5px solid #e2e8f0;
-                    font-size: 0.9rem;
-                    outline: none;
-                    transition: all 0.2s;
-                    background: white;
-                }
-                .status-form-group-premium select {
-                    appearance: none;
-                    -webkit-appearance: none;
-                    padding-right: 2.5rem;
-                    cursor: pointer;
-                    color: #1e293b;
-                    font-weight: 600;
-                }
-                .status-form-group-premium input:focus, .status-form-group-premium select:focus {
-                    border-color: #0d5f68;
-                    box-shadow: 0 0 0 4px rgba(13, 95, 104, 0.1);
-                }
-                .status-form-group-premium input.error, .status-form-group-premium select.error {
-                    border-color: #ef4444;
-                    background: #fef2f2;
-                }
-                .status-error-msg-premium {
-                    font-size: 0.7rem;
-                    color: #ef4444;
-                    font-weight: 700;
-                    margin-top: 0.25rem;
-                }
-                .status-footer-premium {
-                    padding: 0 1.5rem 2.25rem 1.5rem;
-                    display: flex;
-                    gap: 1rem;
-                }
+                /* Removed duplicated stat card styles */
+
+                .status-header-premium { padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
+                .status-header-title-premium { font-size: 1.15rem; font-weight: 800; color: #0d5f68; margin: 0; letter-spacing: -0.0125em; }
+                .status-body-premium { padding: 1.5rem; position: relative; }
+                .status-target-info-premium { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem; color: #64748b; font-size: 0.85rem; font-weight: 500; }
+                .status-target-badge-premium { padding: 0.4rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; color: #1e293b; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+                .status-form-group-premium { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+                .status-form-row-premium { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem; }
+                .status-label-premium { font-size: 0.8rem; font-weight: 700; color: #0d5f68; text-transform: uppercase; letter-spacing: 0.05em; }
+                .status-textarea-premium { width: 100%; min-height: 80px; padding: 0.75rem; border-radius: 10px; border: 1.5px solid #e2e8f0; font-size: 0.9rem; color: #1e293b; resize: vertical; outline: none; transition: all 0.2s; }
+                .status-textarea-premium:focus { border-color: #0d5f68; box-shadow: 0 0 0 4px rgba(13, 95, 104, 0.1); }
+                .status-form-group-premium input, .status-form-group-premium select { width: 100%; padding: 0.75rem; border-radius: 10px; border: 1.5px solid #e2e8f0; font-size: 0.9rem; outline: none; transition: all 0.2s; background: white; }
+                .status-form-group-premium select { appearance: none; -webkit-appearance: none; padding-right: 2.5rem; cursor: pointer; color: #1e293b; font-weight: 600; }
+                .status-error-msg-premium { font-size: 0.7rem; color: #ef4444; font-weight: 700; margin-top: 0.25rem; }
+                .status-footer-premium { padding: 0 1.5rem 2.25rem 1.5rem; display: flex; gap: 1rem; }
+
             `}</style>
+            {(viewMode === 'create' || viewMode === 'edit') && renderInterviewForm()}
+            {viewMode === 'view' && renderInterviewDetail()}
+            {viewMode === 'delete' && renderDeleteModal()}
+
+            {/* Header Section */}
+            <div className="dashboard-header animate-entry" style={{ padding: '0 0.5rem' }}>
+                <div className="header-left">
+                    <h1 style={{ color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <Calendar size={24} className="text-slate-700 opacity-80" />
+                        Interview Management
+                    </h1>
+                </div>
+                <div className="header-actions">
+                    <button className="btn-primary" onClick={() => { setSelectedInterview(null); setViewMode('create'); }}>
+                        <Plus size={18} strokeWidth={2.5} />
+                        <span>Schedule New Interview</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Stats Section */}
+            <div className="stats-scroller-v6" style={{ marginBottom: '1.25rem' }}>
+                <div className="stats-container-v6">
+                    {[
+                        { label: 'Total Interviews', status: '', icon: <Calendar size={18} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', trend: 12 },
+                        { label: 'Scheduled', status: 'Scheduled', icon: <Clock size={18} />, color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)', trend: 5 },
+                        { label: 'Completed', status: 'Completed', icon: <CheckCircle2 size={18} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', trend: 8 },
+                        { label: 'Rescheduled', status: 'Rescheduled', icon: <RotateCcw size={18} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: -2 },
+                        { label: 'Cancelled', status: 'Cancelled', icon: <XCircle size={18} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', trend: -1 },
+                        { label: 'Pending Feedback', status: 'PendingFeedback', icon: <AlertTriangle size={18} />, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', trend: 3 },
+                    ].map((s, idx) => (
+                        <StatCard
+                            key={idx}
+                            {...s}
+                            count={
+                                isInitialLoading ? '...' :
+                                    s.status === '' ? totalItems :
+                                        s.status === 'PendingFeedback' ? (interviews || []).filter(inv => inv.status === 'Completed' && !inv.feedback).length :
+                                            (interviews || []).filter(inv => inv.status === s.status).length
+                            }
+                            active={s.status === 'PendingFeedback' ? (filters.status === 'Completed' && filters.feedback === 'Pending') : filters.status === s.status}
+                            onClick={() => {
+                                if (s.status === 'PendingFeedback') {
+                                    setFilters(prev => ({ ...prev, status: 'Completed', feedback: 'Pending' }));
+                                } else {
+                                    setFilters(prev => ({ ...prev, status: s.status, feedback: '' }));
+                                }
+                            }}
+                        />
+                    ))}
+                </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="filter-search-container" style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <div className="search-wrapper" style={{ flex: 1 }}>
+                    <Search className="search-icon" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Search by candidate, position or interviewer..."
+                        value={filters.search}
+                        onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                    />
+                </div>
+                <select value={filters.status} onChange={e => setFilters(prev => ({ ...prev, status: e.target.value }))} style={{ height: '40px', padding: '0 2.5rem 0 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: '0.825rem', fontWeight: '600', cursor: 'pointer', outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center' }}>
+                    <option value="">Status</option>
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Rescheduled">Rescheduled</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+                <select value={filters.type} onChange={e => setFilters(prev => ({ ...prev, type: e.target.value }))} style={{ height: '40px', padding: '0 2.5rem 0 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: '0.825rem', fontWeight: '600', cursor: 'pointer', outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center' }}>
+                    <option value="">Mode</option>
+                    <option value="Video">Video Call</option>
+                    <option value="Onsite">Onsite</option>
+                    <option value="Telephone">Telephone</option>
+                </select>
+                <input
+                    type="date"
+                    className="date-picker-input"
+                    value={filters.date}
+                    onChange={e => setFilters(prev => ({ ...prev, date: e.target.value }))}
+                />
+                <button className="btn-icon-alt" onClick={() => setFilters({
+                    interviewId: '', search: '', position: '', round: '', interviewer: '', date: '', type: '', status: '', feedback: ''
+                })} title="Clear Filters">
+                    <RotateCcw size={18} />
+                </button>
+            </div>
+
+            {/* Content Area with Loading/Empty/Data States */}
+            {(!hasLoaded || isInitialLoading || (loading && interviews.length === 0)) ? (
+                <div className="table-container-premium shadow-premium" style={{ minHeight: '610px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', borderRadius: '16px' }}>
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="premium-spinner" style={{ width: '48px', height: '48px' }}>
+                            <div className="premium-core"></div>
+                        </div>
+                        <p style={{ color: '#0d5f68', fontWeight: '600', fontSize: '1rem' }}>Initializing interview dashboard...</p>
+                    </div>
+                </div>
+            ) : (!interviews || interviews.length === 0) ? (
+                <EmptyState
+                    cardTitle="Interview Schedules List"
+                    totalCount={0}
+                    icon={Calendar}
+                    title="No interviews scheduled"
+                    buttonLabel="Schedule Interview"
+                    onCreate={() => { setSelectedInterview(null); setViewMode('create'); }}
+                />
+            ) : (
+                <div className="table-container-premium shadow-premium" style={{ flex: 1, minHeight: '610px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                    {loading && (
+                        <div className="loading-overlay" style={{
+                            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                            background: 'rgba(255,255,255,0.7)', zIndex: 100, display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)',
+                            borderRadius: '16px', gap: '1rem'
+                        }}>
+                            <div className="premium-spinner" style={{ width: '48px', height: '48px' }}>
+                                <div className="premium-core"></div>
+                            </div>
+                            <p style={{ color: '#0d5f68', fontWeight: '600', fontSize: '1rem' }}>Updating list...</p>
+                        </div>
+                    )}
+
+                    <div className="table-header-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9', background: '#ffffff', minHeight: '60px', flexShrink: 0 }}>
+                        <div className="header-info-left" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: '#1e293b' }}>Interview Schedules List</h3>
+                            <span className="count-chip" style={{ background: '#f1f5f9', color: '#64748b', padding: '2px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '800', border: '1px solid #e2e8f0', textTransform: 'uppercase' }}>
+                                {Number(totalItems || 0)} TOTAL
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="table-responsive" style={{ flex: 1 }}>
+                        <table className="ats-table">
+                            <thead>
+                                <tr>
+                                    <th onClick={(e) => e.stopPropagation()}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedRows.length === interviews.length && interviews.length > 0}
+                                            onChange={selectAllRows}
+                                            style={{ cursor: 'pointer', scale: '1.2' }}
+                                        />
+                                    </th>
+                                    <th>Code</th>
+                                    <th>Candidate & Position</th>
+                                    <th>Round</th>
+                                    <th>Panel Members</th>
+                                    <th>Scheduled</th>
+                                    <th className="text-center">Mode</th>
+                                    <th className="text-center">Status</th>
+                                    <th className="text-center">Feedback</th>
+                                    <th className="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {interviews.map(interview => (
+                                    <tr key={interview._id || interview.id} className={selectedRows.includes(interview._id || interview.id) ? 'row-selected' : ''}>
+                                        <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedRows.includes(interview._id || interview.id)}
+                                                onChange={() => toggleRowSelection(interview._id || interview.id)}
+                                                style={{ cursor: 'pointer', scale: '1.2' }}
+                                            />
+                                        </td>
+                                        <td>
+                                            <span className="code-badge">
+                                                {interview.interviewCode || 'PENDING'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div className="job-info">
+                                                <span className="job-title">
+                                                    {interview.candidateName || (typeof interview.candidate === 'object' ? interview.candidate?.name : interview.candidate) || 'Unknown'}
+                                                </span>
+                                                <div className="job-sub-info">
+                                                    {interview.appliedFor || interview.vacancyName || (typeof interview.vacancyId === 'object' ? interview.vacancyId?.positionName : interview.vacancyId) || 'Position N/A'}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="job-info">
+                                                <span style={{ fontWeight: '700', color: '#334155', fontSize: '0.85rem' }}>
+                                                    {typeof interview.round === 'object' ? interview.round?.roundName : interview.round}
+                                                </span>
+                                                <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>
+                                                    {interview.level || 'Final'} Level
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="panel-avatars">
+                                                {(() => {
+                                                    const list = interview.interviewers || [];
+                                                    if (list.length === 0) {
+                                                        const name = interview.interviewerName || (typeof interview.interviewer === 'object' ? interview.interviewer?.name : interview.interviewer) || 'N/A';
+                                                        const col = getAvatarColor(name);
+                                                        return (
+                                                            <div className="panel-avatar" style={{ backgroundColor: col.bg, color: col.text }} title={name}>
+                                                                {getInitials(name)}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <>
+                                                            {list.slice(0, 3).map((i, idx) => {
+                                                                const name = (i && typeof i === 'object') ? i.interviewerName || i.name : (i || 'Pending');
+                                                                const col = getAvatarColor(name);
+                                                                return (
+                                                                    <div key={idx} className="panel-avatar" style={{ backgroundColor: col.bg, color: col.text, zIndex: 3 - idx }} title={name}>
+                                                                        {getInitials(name)}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                            {list.length > 3 && (
+                                                                <div className="panel-avatar" style={{ backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '9px', zIndex: 0 }}>
+                                                                    +{list.length - 3}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="date-info">
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b', fontWeight: '600', fontSize: '0.85rem' }}>
+                                                    <Calendar size={14} className="text-slate-400" />
+                                                    <span>{interview.scheduleDate ? (typeof interview.scheduleDate === 'string' && interview.scheduleDate.includes('T') ? interview.scheduleDate.split('T')[0] : interview.scheduleDate) : interview.date || 'TBA'}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: '#94a3b8', marginLeft: '1px' }}>
+                                                    <Clock size={13} /> {interview.time || '00:00'}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="text-center">
+                                            <span className="mode-badge" title={interview.mode || 'Online'}>
+                                                {interview.mode?.toLowerCase().includes('video') ? <Monitor size={14} /> : <MapPin size={14} />}
+                                                {interview.mode || 'Online'}
+                                            </span>
+                                        </td>
+                                        <td className="text-center">
+                                            <Badge variant={interview.status} onUpdate={() => handleStatusClick(interview)} />
+                                        </td>
+                                        <td className="text-center">
+                                            <Badge variant={interview.interviewResult || 'pending'} onUpdate={() => handleFeedbackClick(interview)}>
+                                                {interview.interviewResult || 'Pending'}
+                                            </Badge>
+                                        </td>
+                                        <td className="text-right">
+                                            <div className="action-button-group">
+                                                <button className="row-action view" onClick={() => { setSelectedInterview(interview); setViewMode('view'); }} title="View Details"><Eye size={18} /></button>
+                                                <button className="row-action edit" onClick={() => { setSelectedInterview(interview); setViewMode('edit'); }} title="Edit"><Edit size={18} /></button>
+                                                <button className="row-action delete" onClick={() => { setSelectedInterview(interview); setViewMode('delete'); }} title="Delete"><Trash2 size={18} /></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {/* Pagination Footer */}
+                    <div className="table-footer-ats">
+                        <div className="footer-left">
+                            Showing <b>{interviews.length}</b> of <b>{totalItems}</b> Schedule(s)
+                        </div>
+                        <div className="footer-right">
+                            <button
+                                className={`page-btn ${page === 0 ? 'disabled' : ''}`}
+                                onClick={() => page > 0 && fetchInterviews(page - 1)}
+                                disabled={page === 0}
+                            >
+                                Previous
+                            </button>
+                            <div className="page-numbers">
+                                {Array.from({ length: totalPages }, (_, idx) => (
+                                    <button
+                                        key={idx}
+                                        className={`page-num ${page === idx ? 'active' : ''}`}
+                                        onClick={() => fetchInterviews(idx)}
+                                    >
+                                        {idx + 1}
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                className={`page-btn ${page >= totalPages - 1 ? 'disabled' : ''}`}
+                                onClick={() => page < totalPages - 1 && fetchInterviews(page + 1)}
+                                disabled={page >= totalPages - 1}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showStatusModal && (
+                <div className="modal-overlay" onClick={() => setShowStatusModal(false)}>
+                    <div className="modal-content status-modal-premium" onClick={e => e.stopPropagation()}>
+                        <div className="status-header-premium">
+                            <h2 className="status-header-title-premium">Update Status</h2>
+                            <button className="icon-btn-close" onClick={() => setShowStatusModal(false)}><X size={20} /></button>
+                        </div>
+                        <div className="status-body-premium">
+                            {submittingStatus && (
+                                <div className="loading-overlay-premium">
+                                    <div className="premium-spinner-container">
+                                        <div className="premium-spinner-v2"></div>
+                                        <p>Saving Status...</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="status-target-info-premium">
+                                <span>Updating interview:</span>
+                                <span className="status-target-badge-premium">
+                                    {statusInterview?.interviewCode || statusInterview?.id}
+                                </span>
+                            </div>
+
+                            <div className="status-form-group-premium">
+                                <label className="status-label-premium">Interview Status</label>
+                                <div className="verdict-select-wrapper">
+                                    <select
+                                        value={newStatus}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewStatus(val);
+                                            setStatusModalErrors({});
+                                            if (val !== 'Rescheduled' && val !== 'Cancelled') setStatusReason('');
+                                        }}
+                                    >
+                                        <option value="Scheduled">Scheduled</option>
+                                        <option value="Completed">Completed</option>
+                                        <option value="Rescheduled">Rescheduled</option>
+                                        <option value="Cancelled">Cancelled</option>
+                                        <option value="Move to Offer">Move to Offer</option>
+                                    </select>
+                                    <ChevronDown className="select-icon-premium" size={16} />
+                                </div>
+                            </div>
+
+
+                            {(newStatus === 'Rescheduled' || newStatus === 'Cancelled') && (
+                                <div className="status-form-group-premium">
+                                    <label className="status-label-premium">
+                                        {newStatus === 'Rescheduled' ? 'Reason for Reschedule' : 'Reason for Cancellation'}
+                                    </label>
+                                    <textarea
+                                        className={`status-textarea-premium ${statusModalErrors.reason ? 'error' : ''}`}
+                                        placeholder={`Enter details for ${newStatus.toLowerCase()} status...`}
+                                        value={statusReason}
+                                        onChange={(e) => {
+                                            setStatusReason(e.target.value);
+                                            if (e.target.value.trim()) setStatusModalErrors(prev => ({ ...prev, reason: false }));
+                                        }}
+                                    />
+                                    {statusModalErrors.reason && <p className="status-error-msg-premium">Reason is required</p>}
+                                </div>
+                            )}
+
+                            {newStatus === 'Rescheduled' && (
+                                <div className="status-form-row-premium">
+                                    <div className="status-form-group-premium">
+                                        <label className={`status-label-premium ${statusModalErrors.date ? 'error' : ''}`}>New Date</label>
+                                        <input
+                                            type="date"
+                                            value={statusDate}
+                                            onChange={(e) => {
+                                                setStatusDate(e.target.value);
+                                                if (e.target.value) setStatusModalErrors(prev => ({ ...prev, date: false }));
+                                            }}
+                                            className={statusModalErrors.date ? 'error' : ''}
+                                        />
+                                        {statusModalErrors.date && <p className="status-error-msg-premium">Required</p>}
+                                    </div>
+                                    <div className="status-form-group-premium">
+                                        <label className={`status-label-premium ${statusModalErrors.time ? 'error' : ''}`}>New Time</label>
+                                        <input
+                                            type="time"
+                                            value={statusTime}
+                                            onChange={(e) => {
+                                                setStatusTime(e.target.value);
+                                                if (e.target.value) setStatusModalErrors(prev => ({ ...prev, time: false }));
+                                            }}
+                                            className={statusModalErrors.time ? 'error' : ''}
+                                        />
+                                        {statusModalErrors.time && <p className="status-error-msg-premium">Required</p>}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="status-footer-premium">
+                            <button className="btn-secondary-premium" onClick={() => setShowStatusModal(false)} disabled={submittingStatus}>Cancel</button>
+                            <button
+                                className="btn-submit-premium"
+                                onClick={handleStatusConfirm}
+                                disabled={submittingStatus}
+                            >
+                                {submittingStatus ? 'Wait...' : 'Update Status'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showFeedbackModal && (
+                <div className="modal-overlay" onClick={() => setShowFeedbackModal(false)}>
+                    <div className="modal-content feedback-modal-premium" onClick={e => e.stopPropagation()}>
+                        <div className="feedback-header-premium">
+                            <h2 className="feedback-title-premium">Interview Evaluation</h2>
+                            <button className="icon-btn-close" onClick={() => setShowFeedbackModal(false)}><X size={20} /></button>
+                        </div>
+
+                        <div className="feedback-body-premium">
+                            {submittingFeedback && (
+                                <div className="loading-overlay-premium">
+                                    <div className="premium-spinner-container">
+                                        <div className="premium-spinner-v2"></div>
+                                        <p>Processing Evaluation...</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Candidate Info Card */}
+                            <div className="candidate-info-card-premium">
+                                <div className="candidate-avatar-large">
+                                    {getInitials(feedbackInterview?.candidateName)}
+                                </div>
+                                <div className="candidate-details-stack">
+                                    <h3>{feedbackInterview?.candidateName}</h3>
+                                    <div className="round-badge-premium">
+                                        <Clock size={12} />
+                                        <span>{typeof feedbackInterview?.round === 'object' ? feedbackInterview.round?.roundName : feedbackInterview?.round}</span>
+                                    </div>
+                                    <p className="position-text-small">{feedbackInterview?.appliedFor || feedbackInterview?.vacancyName || 'Software Engineer'}</p>
+                                </div>
+                            </div>
+
+                            <div className="feedback-form-grid-premium">
+                                <div className="form-group-premium">
+                                    <label>Overall Verdict <span className="required-star">*</span></label>
+                                    <div className="verdict-select-wrapper">
+                                        <select
+                                            value={interviewResult}
+                                            onChange={(e) => {
+                                                setInterviewResult(e.target.value);
+                                                if (e.target.value) setFeedbackErrors(prev => ({ ...prev, interviewResult: false }));
+                                            }}
+                                            className={feedbackErrors.interviewResult ? 'error' : ''}
+                                        >
+                                            <option value="" disabled>Choose final result</option>
+                                            <option value="Passed">Passed</option>
+                                            <option value="Failed">Failed</option>
+                                            <option value="On Hold">On Hold</option>
+                                            <option value="Move to Offer">Move to Offer</option>
+                                            <option value="Pending">Pending</option>
+                                        </select>
+                                        <ChevronDown className="select-icon-premium" size={16} />
+                                    </div>
+                                    {feedbackErrors.interviewResult && <span className="error-message-alt">Please select a result</span>}
+                                </div>
+
+                                <div className="form-group-premium full-width">
+                                    <label>Detailed Evaluation Notes <span className="required-star">*</span></label>
+                                    <textarea
+                                        placeholder="Type your assessment notes, technical strengths, and areas for improvement..."
+                                        value={feedbackText}
+                                        onChange={(e) => {
+                                            setFeedbackText(e.target.value);
+                                            if (e.target.value.trim()) setFeedbackErrors(prev => ({ ...prev, feedback: false }));
+                                        }}
+                                        className={feedbackErrors.feedback ? 'error' : ''}
+                                    />
+                                    {feedbackErrors.feedback && <span className="error-message-alt">Evaluation notes are required</span>}
+                                </div>
+                            </div>
+
+                            <p className="feedback-footer-note">
+                                <AlertTriangle size={14} />
+                                This evaluation is final and will influence the recruitment decision.
+                            </p>
+                        </div>
+
+                        <div className="feedback-footer-premium">
+                            <button className="btn-secondary-premium" onClick={() => setShowFeedbackModal(false)} disabled={submittingFeedback}>
+                                Discard
+                            </button>
+                            <button
+                                className="btn-submit-premium"
+                                onClick={handleFeedbackConfirm}
+                                disabled={submittingFeedback}
+                            >
+                                {submittingFeedback ? 'Submitting...' : 'Save Evaluation'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

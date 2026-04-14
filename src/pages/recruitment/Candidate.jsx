@@ -10,6 +10,7 @@ import {
     Copy, Loader2, Download, AlertCircle, TrendingUp, TrendingDown, Check, ExternalLink, XCircle
 } from 'lucide-react';
 import './Recruitment.css';
+import EmptyState from '../../components/common/EmptyState';
 import api from '../../api/api';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import MultiSelect from '../../components/common/MultiSelect';
@@ -20,27 +21,23 @@ import { locationService } from '../../services/locationService';
 import { candidateService } from '../../services/candidateService';
 
 const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => (
-    <div 
-        className={`stat-card-premium ${active ? 'active' : ''}`} 
+    <div
+        className={`stat-card-premium ${active ? 'active' : ''}`}
         onClick={onClick}
         style={{ '--accent': color, '--accent-bg': bg }}
     >
-        <div className="stat-main">
+        <div className="stat-top-v2" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="stat-icon-v6">{icon}</div>
-            <div className="stat-content-v6">
-                <span className="stat-label-v6">{label}</span>
-                <div className="stat-value-group">
-                    <span className="stat-count-v6">{count}</span>
-                    {trend && (
-                        <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`}>
-                            {trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                            <span>{Math.abs(trend)}%</span>
-                        </div>
-                    )}
-                </div>
-            </div>
+            <div className="stat-count-v6" style={{ fontSize: '1.5rem', fontWeight: '900', color: '#0f172a' }}>{count}</div>
         </div>
-        <div className="stat-indicator"><ChevronRight size={14} /></div>
+        <div className="stat-bottom-v2" style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="stat-label-v6" style={{ fontSize: '0.65rem', fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+            {trend && (
+                <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`} style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.65rem', fontWeight: '800', padding: '2px 6px', borderRadius: '20px', backgroundColor: trend > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: trend > 0 ? '#10b981' : '#ef4444' }}>
+                    {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
+                </div>
+            )}
+        </div>
     </div>
 );
 
@@ -51,6 +48,8 @@ const Candidate = () => {
     const [vacancies, setVacancies] = useState([]);
     const [positions, setPositions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [hasLoaded, setHasLoaded] = useState(false);
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -77,7 +76,7 @@ const Candidate = () => {
     const [currentPage, setCurrentPage] = useState(0);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [totalEntries, setTotalEntries] = useState(0);
-    const [filters, setFilters] = useState({ 
+    const [filters, setFilters] = useState({
         search: '',
         role: '',
         status: '',
@@ -99,12 +98,12 @@ const Candidate = () => {
                 api.get('/skills').catch(() => ({ data: { data: [] } })),
                 locationService.getAllLocations().catch(() => [])
             ]);
-            
+
             const fetched = candRes.data?.data || candRes.data || candRes || [];
             const safeCandidates = Array.isArray(fetched) ? fetched : [];
             setCandidates(safeCandidates);
             setTotalEntries(candRes.data?.total || safeCandidates.length);
-            
+
             const rawVacs = (vacRes.data?.data) || (vacRes.data) || [];
             const rawSkills = (skillRes.data?.data) || (skillRes.data) || [];
             const rawDepts = (deptRes.data?.data) || (deptRes.data) || (Array.isArray(deptRes) ? deptRes : []);
@@ -112,13 +111,13 @@ const Candidate = () => {
 
             setVacancies(Array.isArray(rawVacs) ? rawVacs : []);
             setPositions(Array.isArray(rawPositions) ? rawPositions : []);
-            setDepartments(Array.isArray(rawDepts) ? rawDepts.map(d => ({ 
-                value: d._id || d.id, 
-                label: d.name || d.departmentName 
+            setDepartments(Array.isArray(rawDepts) ? rawDepts.map(d => ({
+                value: d._id || d.id,
+                label: d.name || d.departmentName
             })) : []);
-            setAllSkills(Array.isArray(rawSkills) ? rawSkills.map(s => ({ 
-                value: s._id || s.id || s, 
-                label: s.name || s 
+            setAllSkills(Array.isArray(rawSkills) ? rawSkills.map(s => ({
+                value: s._id || s.id || s,
+                label: s.name || s
             })) : []);
             setAllLocations(Array.isArray(locRes) ? locRes : []);
         } catch (error) {
@@ -126,11 +125,13 @@ const Candidate = () => {
             toast.error("Failed to load dashboard data");
         } finally {
             setLoading(false);
+            setHasLoaded(true);
+            setIsInitialLoading(false);
         }
     }, [currentPage, itemsPerPage, filters]);
 
     useEffect(() => {
-        if (viewMode !== 'list') { 
+        if (viewMode !== 'list') {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
@@ -141,7 +142,7 @@ const Candidate = () => {
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchData(currentPage === 0 && !candidates.length);
-        }, 300); 
+        }, 300);
         return () => clearTimeout(timer);
     }, [fetchData]);
 
@@ -201,7 +202,7 @@ const Candidate = () => {
     const handleEditClick = (c) => {
         const formatForDateInput = (d) => d ? new Date(d).toISOString().split('T')[0] : '';
         let skillsArr = Array.isArray(c.skills) ? c.skills : (typeof c.skills === 'string' ? c.skills.split(',').map(s => s.trim()) : []);
-        
+
         setSelectedCandidate(c);
         setFormData({
             ...c,
@@ -240,12 +241,12 @@ const Candidate = () => {
             // Convert arrays to comma-separated strings for backend multi-ObjectId parsing
             skills: Array.isArray(formData.skills) ? formData.skills.join(', ') : formData.skills,
             preferredLocation: Array.isArray(formData.preferredLocation) ? formData.preferredLocation.join(', ') : formData.preferredLocation,
-            
+
             // Critical: Backend uses new ObjectId(id) - empty strings will cause 400 Error
             vacancyId: formData.vacancyId || null,
             departmentId: formData.departmentId || null,
             currentLocation: formData.currentLocation || null,
-            
+
             // Clean up files and dates
             resumeFile: formData.resumeFile || null,
             resumeUrl: formData.resumeFile?.url || '',
@@ -351,9 +352,9 @@ const Candidate = () => {
             <div className="stats-scroller-v6" style={{ marginBottom: '1.25rem' }}>
                 <div className="stats-container-v6">
                     {stats.map((s, i) => (
-                        <StatCard 
-                            key={i} 
-                            {...s} 
+                        <StatCard
+                            key={i}
+                            {...s}
                             count={s.status === '' ? totalEntries : candidates.filter(c => String(c.status || '').toLowerCase().includes(s.status)).length}
                             active={filters.status?.toLowerCase() === s.status}
                             onClick={() => handleFilterChange('status', s.status === '' ? '' : s.status.charAt(0).toUpperCase() + s.status.slice(1))}
@@ -363,115 +364,146 @@ const Candidate = () => {
             </div>
 
             {/* Filter Bar */}
-            <div className="filter-row-premium">
-                <div className="search-wrap">
-                    <Search size={18} color="#000000" />
-                    <input type="text" placeholder="Search candidates..." value={filters.search} onChange={e => handleFilterChange('search', e.target.value)} />
+            <div className="filter-search-container">
+                <div className="search-wrapper">
+                    <Search className="search-icon" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Search candidates by name, email, or role..."
+                        value={filters.search}
+                        onChange={e => handleFilterChange('search', e.target.value)}
+                    />
                 </div>
-                <div className="filter-selects">
-                    <select value={filters.role} onChange={e => handleFilterChange('role', e.target.value)}>
-                        <option value="">All Roles</option>
-                        {positions.map(p => <option key={p.id} value={p.label}>{p.label}</option>)}
-                    </select>
-                    <select value={filters.status} onChange={e => handleFilterChange('status', e.target.value)}>
-                        <option value="">All Status</option>
-                        <option>New</option>
-                        <option>Shortlisted</option>
-                        <option>Interview Scheduled</option>
-                        <option>Interviewed</option>
-                        <option>Offered</option>
-                        <option>Hired</option>
-                        <option>Rejected</option>
-                    </select>
-                    <button className="reset-btn" onClick={handleResetFilters}><RotateCcw size={18} /></button>
-                </div>
+                <select value={filters.departmentId} onChange={e => handleFilterChange('departmentId', e.target.value)}>
+                    <option value="">All Departments</option>
+                    {departments.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                </select>
+                <select value={filters.role} onChange={e => handleFilterChange('role', e.target.value)}>
+                    <option value="">All Roles</option>
+                    {positions.map(p => <option key={p.id || p.value} value={p.label || p.name}>{p.label || p.name}</option>)}
+                </select>
+                <select value={filters.status} onChange={e => handleFilterChange('status', e.target.value)}>
+                    <option value="">Status</option>
+                    <option>New</option>
+                    <option>Shortlisted</option>
+                    <option>Interview Scheduled</option>
+                    <option>Interviewed</option>
+                    <option>Offered</option>
+                    <option>Hired</option>
+                    <option>Rejected</option>
+                </select>
+                <button className="btn-icon-alt" onClick={handleResetFilters} title="Reset Filters">
+                    <RotateCcw size={18} />
+                </button>
             </div>
 
             {/* Candidate List Table Section */}
-            <div className="table-container-premium shadow-premium">
-                <div className="table-header-info">
-                    <div className="header-info-left">
-                        <h3>Candidates List</h3>
-                        <span className="count-chip">{totalEntries} Total</span>
-                    </div>
-                    <div className="header-info-right text-xs text-slate-500 font-medium">
-                        Showing {candidates.length} entries
+            {isInitialLoading ? (
+                <div className="table-container-premium shadow-premium" style={{ height: '520px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', borderRadius: '16px' }}>
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="premium-spinner" style={{ width: '48px', height: '48px' }}>
+                            <div className="premium-core"></div>
+                        </div>
+                        <p style={{ color: '#0d5f68', fontWeight: '600', fontSize: '0.9rem' }}>Fetching candidates data...</p>
                     </div>
                 </div>
+            ) : candidates.length === 0 && hasLoaded && !loading ? (
+                <EmptyState
+                    cardTitle="Candidates List"
+                    totalCount={0}
+                    icon={Users}
+                    title="No candidates found"
+                    description=""
+                    buttonLabel="Add Candidate"
+                    onCreate={handleAddClick}
+                />
+            ) : (
+                <div className="table-container-premium shadow-premium">
+                    <div className="table-header-info">
+                        <div className="header-info-left">
+                            <h3>Candidates List</h3>
+                            <span className="count-chip">{totalEntries} Total</span>
+                        </div>
+                        <div className="header-info-right text-xs text-slate-500 font-medium">
+                            Showing {candidates.length} entries
+                        </div>
+                    </div>
 
-                <div className="table-responsive">
-                    <table className="ats-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1100px' }}>
-                        <thead>
-                            <tr>
-                                <th style={{ width: '40px', paddingLeft: '1.5rem' }}><input type="checkbox" onChange={selectAllRows} checked={candidates.length > 0 && selectedRows.length === candidates.length} /></th>
-                                <th style={{ width: '140px' }}>CODE</th>
-                                <th style={{ width: '280px' }}>CANDIDATE NAME & ROLE</th>
-                                <th style={{ width: '220px' }}>EMAIL ADDRESS</th>
-                                <th style={{ width: '120px' }}>EXPERIENCE</th>
-                                <th style={{ width: '150px' }}>APPLIED DATE</th>
-                                <th style={{ width: '130px' }}>STATUS</th>
-                                <th style={{ width: '120px', textAlign: 'right', paddingRight: '1.5rem' }}>ACTIONS</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '100px 0' }}><Loader2 className="animate-spin mx-auto text-[#0d5f68]" size={40} /><p>Loading candidates...</p></td></tr>
-                            ) : candidates.length === 0 ? (
-                                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '100px 0' }}><Users size={48} className="mx-auto opacity-20" /><p>No applicants found matching filters.</p></td></tr>
-                            ) : (
-                                candidates.map(c => {
-                                    const styles = getBadgeStyle(c.status);
-                                    const avCol = getAvatarColor(c.name);
-                                    return (
-                                        <tr key={c._id || c.id}>
-                                            <td style={{ textAlign: 'center' }}><input type="checkbox" checked={selectedRows.includes(c._id || c.id)} onChange={() => toggleRowSelection(c._id || c.id)} /></td>
-                                            <td><span style={{ color: '#0d5f68', fontWeight: '700', fontSize: '0.85rem', letterSpacing: '0.02em' }}>{c.candidateCode || (c._id || c.id || '').substring(0, 8).toUpperCase()}</span></td>
-                                            <td>
-                                                <div className="user-info-flex">
-                                                    <div className="avtr" style={{ background: avCol.bg, color: avCol.text, border: 'none', width: '34px', height: '34px', fontSize: '0.8rem' }}>{getInitials(c.name)}</div>
-                                                    <div className="txt">
-                                                        <span style={{ fontSize: '0.95rem', fontWeight: '750', color: '#1e293b' }}>{c.name}</span>
-                                                        <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: '500' }}>{c.role || 'Unassigned'}</span>
+                    <div className="table-responsive">
+                        <table className="ats-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1100px' }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ width: '40px', paddingLeft: '1.5rem' }}><input type="checkbox" onChange={selectAllRows} checked={candidates.length > 0 && selectedRows.length === candidates.length} /></th>
+                                    <th style={{ width: '140px' }}>CODE</th>
+                                    <th style={{ width: '280px' }}>CANDIDATE NAME & ROLE</th>
+                                    <th style={{ width: '220px' }}>EMAIL ADDRESS</th>
+                                    <th style={{ width: '120px' }}>EXPERIENCE</th>
+                                    <th style={{ width: '150px' }}>APPLIED DATE</th>
+                                    <th style={{ width: '130px' }}>STATUS</th>
+                                    <th style={{ width: '120px', textAlign: 'right', paddingRight: '1.5rem' }}>ACTIONS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loading ? (
+                                    <tr><td colSpan="8" style={{ textAlign: 'center', padding: '100px 0' }}><div className="p-list-loader" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', color: '#64748b' }}><Loader2 className="animate-spin text-[#0d5f68]" size={40} /><p className="font-semibold">Loading candidates...</p></div></td></tr>
+                                ) : (
+                                    (candidates || []).map(c => {
+                                        const styles = getBadgeStyle(c.status);
+                                        const avCol = getAvatarColor(c.name);
+                                        return (
+                                            <tr key={c._id || c.id}>
+                                                <td style={{ textAlign: 'center' }}><input type="checkbox" checked={selectedRows.includes(c._id || c.id)} onChange={() => toggleRowSelection(c._id || c.id)} /></td>
+                                                <td><span style={{ color: '#0d5f68', fontWeight: '700', fontSize: '0.85rem', letterSpacing: '0.02em' }}>{c.candidateCode || (c._id || c.id || '').substring(0, 8).toUpperCase()}</span></td>
+                                                <td>
+                                                    <div className="user-info-flex">
+                                                        <div className="avtr" style={{ background: avCol.bg, color: avCol.text, border: 'none', width: '34px', height: '34px', fontSize: '0.8rem' }}>{getInitials(c.name)}</div>
+                                                        <div className="txt">
+                                                            <span style={{ fontSize: '0.95rem', fontWeight: '750', color: '#1e293b' }}>{c.name}</span>
+                                                            <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: '500' }}>{c.role || 'Unassigned'}</span>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </td>
-                                            <td><span style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: '500' }}>{c.email}</span></td>
-                                            <td><span style={{ fontSize: '0.88rem', color: '#475569', fontWeight: '600' }}>{c.experience} Years</span></td>
-                                            <td>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', fontSize: '0.88rem', fontWeight: '600' }}>
-                                                    <Calendar size={14} className="opacity-60" />
-                                                    {new Date(c.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                </div>
-                                            </td>
-                                            <td style={{ textAlign: 'right' }}>
-                                                <span className="st-badge" style={{ backgroundColor: styles.bg, color: styles.color, borderColor: styles.border, fontSize: '0.73rem', fontWeight: '800', padding: '0.4rem 0.8rem' }}>
-                                                    <span className="dot" style={{ backgroundColor: styles.color }}></span>
-                                                    {String(c.status || 'New').toUpperCase()}
-                                                </span>
-                                            </td>
-                                            <td style={{ textAlign: 'right' }}>
-                                                <div className="act-group">
-                                                    <button className="act-row-btn" onClick={() => handleViewDetails(c)}><Eye size={17} /></button>
-                                                    <button className="act-row-btn" onClick={() => handleEditClick(c)}><Edit size={17} /></button>
-                                                    <button className="act-row-btn" onClick={() => handleDelete(c)}><Trash2 size={17} /></button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="footer-paging">
-                    <span className="pg-count">Showing <b>{candidates.length}</b> of <b>{totalEntries}</b> results</span>
-                    <div className="pg-btns">
-                        <button className="pg-nav-btn" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}>Prev</button>
-                        <button className="pg-nav-btn active">1</button>
-                        <button className="pg-nav-btn" disabled={currentPage >= Math.ceil(totalEntries / itemsPerPage) - 1} onClick={() => setCurrentPage(p => p + 1)}>Next</button>
+                                                </td>
+                                                <td style={{ color: '#475569', fontSize: '0.88rem' }}>{c.email || 'N/A'}</td>
+                                                <td style={{ color: '#475569', fontSize: '0.88rem', fontWeight: '500' }}>{c.experience || 'Not specified'}</td>
+                                                <td style={{ color: '#475569', fontSize: '0.88rem' }}>{c.appliedDate ? new Date(c.appliedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</td>
+                                                <td>
+                                                    <span style={{
+                                                        backgroundColor: styles.bg,
+                                                        color: styles.text,
+                                                        padding: '4px 12px',
+                                                        borderRadius: '20px',
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: '700',
+                                                        display: 'inline-block',
+                                                        textTransform: 'capitalize'
+                                                    }}>
+                                                        {c.status}
+                                                    </span>
+                                                </td>
+                                                <td style={{ textAlign: 'right' }}>
+                                                    <div className="act-group">
+                                                        <button className="act-row-btn" onClick={() => handleViewDetails(c)}><Eye size={17} /></button>
+                                                        <button className="act-row-btn" onClick={() => handleEditClick(c)}><Edit size={17} /></button>
+                                                        <button className="act-row-btn" onClick={() => handleDelete(c)}><Trash2 size={17} /></button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="footer-paging">
+                        <span className="pg-count">Showing <b>{candidates.length}</b> of <b>{totalEntries}</b> results</span>
+                        <div className="pg-btns">
+                            <button className="pg-nav-btn" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}>Prev</button>
+                            <button className="pg-nav-btn active">1</button>
+                            <button className="pg-nav-btn" disabled={currentPage >= Math.ceil(totalEntries / itemsPerPage) - 1} onClick={() => setCurrentPage(p => p + 1)}>Next</button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Modals */}
             {viewMode === 'delete' && (
@@ -570,7 +602,7 @@ const Candidate = () => {
                                     </div>
                                     <div className="form-group" style={{ gridColumn: 'span 2' }}>
                                         <label>Current Location</label>
-                                        <SearchableSelect 
+                                        <SearchableSelect
                                             options={allLocations}
                                             value={formData.currentLocation}
                                             onChange={v => handleInputChange('currentLocation', v)}
@@ -594,7 +626,7 @@ const Candidate = () => {
                                     </div>
                                     <div className="form-group">
                                         <label>Vacancy Reference</label>
-                                        <SearchableSelect 
+                                        <SearchableSelect
                                             options={vacancies.map(v => ({ value: v._id || v.id, label: v.requestNumber || v.position?.name || 'Vacancy' }))}
                                             value={formData.vacancyId}
                                             onChange={v => handleInputChange('vacancyId', v)}
@@ -603,7 +635,7 @@ const Candidate = () => {
                                     </div>
                                     <div className="form-group">
                                         <label>Department</label>
-                                        <SearchableSelect 
+                                        <SearchableSelect
                                             options={departments}
                                             value={formData.departmentId}
                                             onChange={v => handleInputChange('departmentId', v)}
@@ -638,7 +670,7 @@ const Candidate = () => {
                                     </div>
                                     <div className="form-group" style={{ gridColumn: 'span 2' }}>
                                         <label>Preferred Working Locations</label>
-                                        <MultiSelect 
+                                        <MultiSelect
                                             options={allLocations}
                                             value={formData.preferredLocation || []}
                                             onChange={v => handleInputChange('preferredLocation', v)}
@@ -654,7 +686,7 @@ const Candidate = () => {
                                 <div className="modal-info-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem' }}>
                                     <div className="form-group" style={{ gridColumn: 'span 4' }}>
                                         <label>Core Skills</label>
-                                        <MultiSelect 
+                                        <MultiSelect
                                             options={allSkills}
                                             value={formData.skills || []}
                                             onChange={v => handleInputChange('skills', v)}
@@ -763,8 +795,8 @@ const Candidate = () => {
                                     <div className="info-item">
                                         <label>Status</label>
                                         <div>
-                                            <span className="st-badge" style={{ 
-                                                backgroundColor: getBadgeStyle(selectedCandidate.status).bg, 
+                                            <span className="st-badge" style={{
+                                                backgroundColor: getBadgeStyle(selectedCandidate.status).bg,
                                                 color: getBadgeStyle(selectedCandidate.status).text,
                                                 borderColor: getBadgeStyle(selectedCandidate.status).border
                                             }}>
@@ -828,21 +860,20 @@ const Candidate = () => {
                 .stats-scroller-v6 { overflow-x: auto; padding: 0.5rem 0.5rem 1.25rem 0.5rem; margin: 0 -0.5rem; flex-shrink: 0; }
                 .stats-scroller-v6::-webkit-scrollbar { height: 4px; }
                 .stats-scroller-v6::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                .stats-container-v6 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.75rem; width: 100%; }
                 
-                .stats-container-v6 { display: flex; gap: 1rem; min-width: max-content; }
-                
-                .stat-card-premium { background: white; padding: 0.85rem 1.15rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; min-width: 210px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+                .stat-card-premium { background: white; padding: 0.85rem 1rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: space-between; height: 100%; min-width: 0; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
                 .stat-card-premium:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
-                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-2px); }
+                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-1px); }
                 .stat-card-premium.active::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); }
                 
                 .stat-main { display: flex; align-items: center; gap: 0.75rem; }
-                .stat-icon-v6 { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; }
-                .stat-icon-v6 svg { width: 18px; height: 18px; }
+                .stat-icon-v6 { width: 34px; height: 34px; border-radius: 8px; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+                .stat-icon-v6 svg { width: 16px; height: 16px; }
                 .stat-content-v6 { display: flex; flex-direction: column; gap: 1px; }
                 .stat-label-v6 { font-size: 0.625rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
                 .stat-value-group { display: flex; align-items: baseline; gap: 0.5rem; }
-                .stat-count-v6 { font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1; }
+                .stat-count-v6 { font-size: 1.5rem; font-weight: 900; color: #0f172a; line-height: 1; }
                 
                 .stat-trend { display: flex; align-items: center; gap: 2px; font-size: 0.6rem; font-weight: 700; padding: 1px 5px; border-radius: 20px; }
                 .stat-trend.up { color: #10b981; background: rgba(16, 185, 129, 0.1); }
@@ -851,12 +882,19 @@ const Candidate = () => {
                 .stat-indicator { color: #cbd5e1; transition: transform 0.2s; }
                 .stat-card-premium:hover .stat-indicator { transform: translateX(3px); color: var(--accent); }
 
-                .filter-row-premium { background: white; padding: 1rem; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border: 1px solid #f1f5f9; }
-                .search-wrap { display: flex; align-items: center; gap: 0.75rem; background: #f1f5f9; padding: 0 1rem; height: 44px; border-radius: 8px; flex: 1; max-width: 400px; }
-                .search-wrap input { background: transparent; border: none; outline: none; flex: 1; font-size: 0.9rem; color: #334155; }
-                .filter-selects { display: flex; gap: 0.75rem; }
-                .filter-selects select { height: 44px; padding: 0 1rem; border-radius: 8px; border: 1px solid #e2e8f0; font-weight: 600; outline: none; color: #475569; min-width: 140px; }
-                .reset-btn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #e2e8f0; background: white; border-radius: 8px; color: #94a3b8; cursor: pointer; }
+                /* Premium Filter Bar - Vacancy Style */
+                .filter-search-container { background: white; padding: 0.65rem 1rem; border-radius: 12px; display: flex; gap: 0.75rem; align-items: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.03); flex-shrink: 0; margin-bottom: 1rem; }
+                .search-wrapper { flex: 1; position: relative; display: flex; align-items: center; }
+                .search-icon { position: absolute; left: 0.85rem; color: #94a3b8; top: 50%; transform: translateY(-50%); pointer-events: none; }
+                .search-wrapper input { width: 100%; height: 40px; padding: 0 1rem 0 2.5rem; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; font-size: 0.875rem; outline: none; transition: all 0.2s; }
+                .search-wrapper input:focus { border-color: #0d5f68; background: white; box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.1); }
+                
+                .filter-search-container select { height: 40px; padding: 0 2.5rem 0 1rem; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.875rem; font-weight: 600; cursor: pointer; outline: none; transition: all 0.2s; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.75rem center; min-width: 140px; }
+                .filter-search-container select:hover { border-color: #cbd5e1; }
+                .filter-search-container select:focus { border-color: #0d5f68; background-color: white; box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.1); }
+                
+                .btn-icon-alt { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+                .btn-icon-alt:hover { border-color: #0d5f68; color: #0d5f68; background: white; }
 
                 .table-container-premium { background: white; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; flex: 1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); width: 100%; position: relative; margin-top: 0.5rem; }
                 .table-header-info { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: white; flex-wrap: wrap; gap: 0.75rem; flex-shrink: 0; }
@@ -911,3 +949,4 @@ const Candidate = () => {
 };
 
 export default Candidate;
+

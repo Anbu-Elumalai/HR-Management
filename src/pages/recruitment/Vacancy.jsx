@@ -12,32 +12,29 @@ import { departmentService } from '../../services/departmentService';
 import { positionService } from '../../services/positionService';
 import { employeeService } from '../../services/employeeService';
 import { projectService } from '../../services/projectService';
+import EmptyState from '../../components/common/EmptyState';
 import api from '../../api/api';
 import toast from 'react-hot-toast';
 import MultiSelect from '../../components/common/MultiSelect';
 
 const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => (
-    <div 
-        className={`stat-card-premium ${active ? 'active' : ''}`} 
+    <div
+        className={`stat-card-premium ${active ? 'active' : ''}`}
         onClick={onClick}
         style={{ '--accent': color, '--accent-bg': bg }}
     >
-        <div className="stat-main">
+        <div className="stat-top-v2" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="stat-icon-v6">{icon}</div>
-            <div className="stat-content-v6">
-                <span className="stat-label-v6">{label}</span>
-                <div className="stat-value-group">
-                    <span className="stat-count-v6">{count}</span>
-                    {trend && (
-                        <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`}>
-                            {trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                            <span>{Math.abs(trend)}%</span>
-                        </div>
-                    )}
-                </div>
-            </div>
+            <div className="stat-count-v6" style={{ fontSize: '1.5rem', fontWeight: '900', color: '#0f172a' }}>{count}</div>
         </div>
-        <div className="stat-indicator"><ChevronRight size={14} /></div>
+        <div className="stat-bottom-v2" style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="stat-label-v6" style={{ fontSize: '0.65rem', fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: '1.2' }}>{label}</div>
+            {trend && (
+                <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`} style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.65rem', fontWeight: '800', padding: '2px 6px', borderRadius: '20px', backgroundColor: trend > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: trend > 0 ? '#10b981' : '#ef4444' }}>
+                    {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
+                </div>
+            )}
+        </div>
     </div>
 );
 
@@ -69,19 +66,7 @@ const Badge = ({ variant, children, onUpdate }) => {
     );
 };
 
-const EmptyState = ({ onCreate }) => (
-    <div className="empty-state-card">
-        <div className="empty-icon-container">
-            <Briefcase size={48} />
-        </div>
-        <h3>No vacancies found</h3>
-        <p>Try adjusting your filters or create a new vacancy request to get started.</p>
-        <button className="btn-primary" onClick={onCreate}>
-            <Plus size={18} />
-            Create Vacancy
-        </button>
-    </div>
-);
+
 
 const Vacancy = () => {
     const [viewMode, setViewMode] = useState('list'); // 'list', 'create', 'edit', 'view'
@@ -97,6 +82,8 @@ const Vacancy = () => {
     const [allSkills, setAllSkills] = useState([]);
     const [allLocations, setAllLocations] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [hasLoaded, setHasLoaded] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [vacancies, setVacancies] = useState([]);
     const [page, setPage] = useState(0);
@@ -104,11 +91,19 @@ const Vacancy = () => {
     const [hasMore, setHasMore] = useState(true);
     const [fetchingMore, setFetchingMore] = useState(false);
     const [totalVacancies, setTotalVacancies] = useState(0);
+    const [dashboardStats, setDashboardStats] = useState({
+        totalVacancies: { count: 0, trend: 0 },
+        openPositions: { count: 0, trend: 0 },
+        draftJobs: { count: 0, trend: 0 },
+        pendingApproval: { count: 0, trend: 0 },
+        filledJobs: { count: 0, trend: 0 },
+        cancelled: { count: 0, trend: 0 }
+    });
     const tableWrapperRef = useRef(null);
     const loadingRef = useRef(false);
 
     const [filterCode, setFilterCode] = useState('');
-    const [filterPosition, setFilterPosition] = useState('');
+    const [filterSearch, setFilterSearch] = useState('');
     const [filterDepartment, setFilterDepartment] = useState('');
     const [filterProject, setFilterProject] = useState('');
     const [filterVacancies, setFilterVacancies] = useState('');
@@ -236,6 +231,7 @@ const Vacancy = () => {
             await Promise.all(selectedRows.map(id => api.patch(`/vacancies/${id}/approval`, { approvalStatus: 'approved' })));
             toast.success(`Approved ${selectedRows.length} vacancies!`);
             fetchVacancies();
+            fetchDashboardStats();
             setSelectedRows([]);
         } catch (error) {
             toast.error("Failed to approve some vacancies");
@@ -252,6 +248,7 @@ const Vacancy = () => {
             await Promise.all(selectedRows.map(id => api.delete(`/vacancies/${id}`)));
             toast.success(`Deleted ${selectedRows.length} vacancies!`);
             fetchVacancies();
+            fetchDashboardStats();
             setSelectedRows([]);
         } catch (error) {
             toast.error("Failed to delete some vacancies");
@@ -288,6 +285,17 @@ const Vacancy = () => {
         document.body.removeChild(link);
     };
 
+    const fetchDashboardStats = useCallback(async () => {
+        try {
+            const res = await api.get('/vacancies/dashboard/stats');
+            if (res.data?.data) {
+                setDashboardStats(res.data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching dashboard stats:", error);
+        }
+    }, []);
+
     // Function to fetch initial vacancies or with filters
     const fetchVacancies = useCallback(async (isInitial = false, pageNum = 0) => {
         if (isInitial) setLoading(true);
@@ -296,7 +304,7 @@ const Vacancy = () => {
                 page: pageNum,
                 limit: limit,
                 vacancyCode: filterCode,
-                position: filterPosition,
+                search: filterSearch,
                 department: filterDepartment,
                 project: filterProject,
                 vacancies: filterVacancies,
@@ -319,15 +327,19 @@ const Vacancy = () => {
             console.error("Error fetching vacancies:", error);
             toast.error("Failed to fetch vacancies");
         } finally {
-            if (isInitial) setLoading(false);
+            setLoading(false);
+            setHasLoaded(true);
+            setIsInitialLoading(false);
+            loadingRef.current = false;
         }
-    }, [limit, filterCode, filterPosition, filterDepartment, filterProject, filterVacancies, filterFilled, filterRemaining, filterHiringType, filterTargetDate, filterStatus, filterApproval]);
+    }, [page, filterCode, filterSearch, filterDepartment, filterProject, filterVacancies, filterFilled, filterRemaining, filterHiringType, filterTargetDate, filterStatus, filterApproval]);
 
     // Removed infinite scroll listener in favor of traditional pagination
     useEffect(() => {
         // Master Data & Initial Load
         loadMasterData();
         fetchVacancies(true, 0);
+        fetchDashboardStats();
     }, []);
 
     useEffect(() => {
@@ -335,11 +347,11 @@ const Vacancy = () => {
             if (!loading && viewMode === 'list') {
                 fetchVacancies(false, 0);
             }
-        }, 500); 
+        }, 500);
         return () => clearTimeout(debounceTimer);
     }, [
-        filterCode, filterPosition, filterDepartment, filterProject, 
-        filterVacancies, filterFilled, filterRemaining, filterHiringType, 
+        filterCode, filterSearch, filterDepartment, filterProject,
+        filterVacancies, filterFilled, filterRemaining, filterHiringType,
         filterTargetDate, filterStatus, filterApproval
     ]);
 
@@ -518,6 +530,7 @@ const Vacancy = () => {
 
                     // Refresh vacancies list
                     fetchVacancies();
+                    fetchDashboardStats();
 
                     setViewMode('list');
                     setSelectedVacancy(null);
@@ -551,6 +564,7 @@ const Vacancy = () => {
 
             // Refresh vacancies list
             fetchVacancies();
+            fetchDashboardStats();
 
             setShowDeleteModal(false);
             setVacancyToDelete(null);
@@ -581,6 +595,7 @@ const Vacancy = () => {
 
             // Refresh vacancies list
             fetchVacancies();
+            fetchDashboardStats();
 
             setShowApprovalModal(false);
             setVacancyForApproval(null);
@@ -611,6 +626,7 @@ const Vacancy = () => {
 
             // Refresh vacancies list
             fetchVacancies();
+            fetchDashboardStats();
 
             setShowStatusModal(false);
             setVacancyForStatus(null);
@@ -1337,7 +1353,7 @@ const Vacancy = () => {
 
     const handleResetFilters = () => {
         setFilterCode('');
-        setFilterPosition('');
+        setFilterSearch('');
         setFilterDepartment('');
         setFilterProject('');
         setFilterVacancies('');
@@ -1351,13 +1367,13 @@ const Vacancy = () => {
 
     // Legacy client-side filtering is now handled by the server-side query.
 
-    const stats = [
-        { label: 'Total Vacancies', status: '', icon: <Briefcase size={20} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', trend: 12 },
-        { label: 'Open Positions', status: 'open', icon: <Users size={20} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', trend: 5 },
-        { label: 'Draft Jobs', status: 'draft', icon: <File size={20} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)', trend: -2 },
-        { label: 'Pending Approval', status: 'pending', filterType: 'approval', icon: <RotateCcw size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: 8 },
-        { label: 'Filled Jobs', status: 'filled', icon: <CheckCircle size={20} />, color: '#2dd4bf', bg: 'rgba(45, 212, 191, 0.1)', trend: 15 },
-        { label: 'Cancelled', status: 'cancelled', icon: <XCircle size={20} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', trend: -1 }
+    const statsConfig = [
+        { label: 'Total Vacancies', key: 'totalVacancies', status: '', icon: <Briefcase size={20} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)' },
+        { label: 'Open Positions', key: 'openPositions', status: 'open', icon: <Users size={20} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
+        { label: 'Draft Jobs', key: 'draftJobs', status: 'draft', icon: <File size={20} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' },
+        { label: 'Pending Approval', key: 'pendingApproval', status: 'pending', filterType: 'approval', icon: <RotateCcw size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
+        { label: 'Filled Jobs', key: 'filledJobs', status: 'filled', icon: <CheckCircle size={20} />, color: '#2dd4bf', bg: 'rgba(45, 212, 191, 0.1)' },
+        { label: 'Cancelled', key: 'cancelled', status: 'cancelled', icon: <XCircle size={20} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' }
     ];
 
     return (
@@ -1391,71 +1407,60 @@ const Vacancy = () => {
             {/* Stats Section */}
             <div className="stats-scroller-v6" style={{ marginBottom: '1.25rem' }}>
                 <div className="stats-container-v6">
-                    {stats.map((s, i) => (
-                        <StatCard 
-                            key={i} 
-                            {...s} 
-                            count={s.status === '' ? totalVacancies : 
-                                   s.filterType === 'approval' ? vacancies.filter(v => v.approvalStatus?.toLowerCase() === s.status).length :
-                                   vacancies.filter(v => v.status?.toLowerCase() === s.status).length}
-                            active={s.filterType === 'approval' ? filterApproval === s.status : filterStatus === s.status}
-                            onClick={() => {
-                                if (s.filterType === 'approval') {
-                                    setFilterApproval(s.status);
-                                    setFilterStatus('');
-                                } else {
-                                    setFilterStatus(s.status);
-                                    setFilterApproval('');
-                                }
-                            }}
-                        />
-                    ))}
+                    {statsConfig.map((s, i) => {
+                        const statData = dashboardStats[s.key] || { count: 0, trend: 0 };
+                        return (
+                            <StatCard
+                                key={i}
+                                {...s}
+                                count={statData.count}
+                                trend={statData.trend}
+                                active={s.filterType === 'approval' ? filterApproval === s.status : filterStatus === s.status}
+                                onClick={() => {
+                                    if (s.filterType === 'approval') {
+                                        setFilterApproval(s.status);
+                                        setFilterStatus('');
+                                    } else {
+                                        setFilterStatus(s.status);
+                                        setFilterApproval('');
+                                    }
+                                }}
+                            />
+                        );
+                    })}
                 </div>
             </div>
 
             {/* Filter & Search Bar */}
-            <div className="filter-search-container">
-                <div className="search-wrapper">
+            <div className="filter-search-container" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem' }}>
+                <div className="search-wrapper" style={{ flex: 1 }}>
                     <Search className="search-icon" size={18} />
                     <input
                         type="text"
-                        placeholder="Search by code, position, department, recruiter..."
-                        value={filterPosition}
-                        onChange={e => setFilterPosition(e.target.value)}
+                        placeholder="Search by code, position, department..."
+                        value={filterSearch}
+                        onChange={e => setFilterSearch(e.target.value)}
                     />
                 </div>
-                <div className="filter-actions">
-                    <div className="filter-dropdown-group">
-                        <select value={filterDepartment} onChange={e => setFilterDepartment(e.target.value)}>
-                            <option value="">Department</option>
-                            {departments.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-                        </select>
-                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                            <option value="">Status</option>
-                            <option value="draft">Draft</option>
-                            <option value="open">Open</option>
-                            <option value="closed">Closed</option>
-                            <option value="filled">Filled</option>
-                            <option value="cancelled">Cancelled</option>
-                        </select>
-                        <select value={filterApproval} onChange={e => setFilterApproval(e.target.value)}>
-                            <option value="">Approval</option>
-                            <option value="pending">Pending</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
-                        <input
-                            type="date"
-                            className="date-picker-input"
-                            value={filterTargetDate}
-                            onChange={e => setFilterTargetDate(e.target.value)}
-                            placeholder="Target Date"
-                        />
-                    </div>
-                    <button type="button" className="btn-icon-alt" onClick={handleResetFilters} title="Clear Filters">
-                        <RotateCcw size={18} />
-                    </button>
-                </div>
+                <select value={filterDepartment} onChange={e => setFilterDepartment(e.target.value)} style={{ height: '40px', padding: '0 2.5rem 0 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: '0.825rem', fontWeight: '600', cursor: 'pointer', outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center' }}>
+                    <option value="">Department</option>
+                    {departments.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                </select>
+                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ height: '40px', padding: '0 2.5rem 0 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: '0.825rem', fontWeight: '600', cursor: 'pointer', outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center' }}>
+                    <option value="">Status</option>
+                    <option value="draft">Draft</option>
+                    <option value="open">Open</option>
+                    <option value="closed">Closed</option>
+                </select>
+                <input
+                    type="date"
+                    className="date-picker-input"
+                    value={filterTargetDate}
+                    onChange={e => setFilterTargetDate(e.target.value)}
+                />
+                <button type="button" className="btn-icon-alt" onClick={handleResetFilters} title="Clear Filters">
+                    <RotateCcw size={18} />
+                </button>
             </div>
 
             {/* Bulk Toolbar */}
@@ -1474,168 +1479,188 @@ const Vacancy = () => {
             )}
 
             {/* Table Section */}
-            <div className="table-container-premium shadow-premium">
-                <div className="table-header-info">
-                    <div className="header-info-left">
-                        <h3>Vacancies List</h3>
-                        <span className="count-chip">{totalVacancies} Total</span>
-                    </div>
-                    <div className="header-info-right text-xs text-slate-500 font-medium">
-                        Showing {vacancies.length} entries
-                    </div>
-                </div>
-
-                <div className="table-responsive" ref={tableWrapperRef}>
-                    <table className="ats-table">
-                        <thead>
-                            <tr>
-                                <th style={{ width: '40px' }}>
-                                    <input
-                                        type="checkbox"
-                                        onChange={selectAllRows}
-                                        checked={vacancies.length > 0 && selectedRows.length === vacancies.length}
-                                    />
-                                </th>
-                                <th style={{ width: '120px' }}>CODE</th>
-                                <th style={{ width: '250px' }}>JOB TITLE & DEPT</th>
-                                <th style={{ width: '100px' }}>OPENINGS</th>
-                                <th style={{ width: '150px' }}>APPLICANTS</th>
-                                <th style={{ width: '140px' }}>TARGET DATE</th>
-                                <th style={{ width: '120px' }}>APPROVAL</th>
-                                <th style={{ width: '120px' }}>STATUS</th>
-                                <th style={{ width: '120px' }} className="text-right pr-6">ACTIONS</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {vacancies.length === 0 && !fetchingMore ? (
-                                <tr>
-                                    <td colSpan="9">
-                                        <EmptyState onCreate={() => setViewMode('create')} />
-                                    </td>
-                                </tr>
-                            ) : (
-                                vacancies.map((v) => {
-                                    const isSelected = selectedRows.includes(v._id || v.id);
-                                    const deptName = departments.find(d => d.value === v.departmentId)?.label || v.departmentId || 'N/A';
-                                    const posName = positions.find(p => p.value === v.positionId)?.label || v.positionId || 'N/A';
-
-                                    // Internal Mock Data for Applicants (Redesign requirement)
-                                    const applicants = v.appliedApplicants || 0;
-                                    const shortlisted = v.shortlistedCount || 0;
-
-                                    return (
-                                        <tr key={v._id || v.id} className={isSelected ? 'row-selected' : ''}>
-                                            <td>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => toggleRowSelection(v._id || v.id)}
-                                                />
-                                            </td>
-                                            <td>
-                                                <span className="code-badge">{v.requestNumber || v.id || 'N/A'}</span>
-                                            </td>
-                                            <td>
-                                                <div className="job-info">
-                                                    <span className="job-title">{posName}</span>
-                                                    <div className="job-sub-info">
-                                                        <span className="dept-name">{deptName}</span>
-                                                        <span className="dot-sep"></span>
-                                                        <span className="manager-name">{v.reportingManager || 'Unassigned'}</span>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="opening-counter">
-                                                    <span className="filled">{v.filledPositions || 0}</span>
-                                                    <span className="sep">/</span>
-                                                    <span className="total">{v.numberOfVacancy || 0}</span>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="applicant-stats">
-                                                    <span className="total-app">{applicants} Applied</span>
-                                                    <div className="pipeline-mini">
-                                                        <div className="pipe-seg shortlisted" style={{ width: applicants > 0 ? `${(shortlisted / applicants) * 100}%` : '0%' }} title={`Shortlisted: ${shortlisted}`}></div>
-                                                        <div className="pipe-seg interviewed" style={{ width: applicants > 0 ? '15%' : '0%' }} title="Interviewing"></div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="date-info">
-                                                    <Calendar size={14} className="text-slate-400" />
-                                                    <span>{(v.requiredDate || v.requisitionDate) ? new Date(v.requiredDate || v.requisitionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</span>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <Badge variant={v.approvalStatus} onUpdate={() => handleApprovalClick(v)} />
-                                            </td>
-                                            <td>
-                                                <Badge variant={v.status} onUpdate={() => handleStatusClick(v)} />
-                                            </td>
-                                            <td className="text-right">
-                                                <div className="action-button-group">
-                                                    <button type="button" className="row-action view" onClick={() => handleViewClick(v)} title="View Details">
-                                                        <Eye size={18} />
-                                                    </button>
-                                                    <button type="button" className="row-action edit" onClick={() => handleEditClick(v)} title="Edit Vacancy">
-                                                        <Edit size={18} />
-                                                    </button>
-                                                    <button type="button" className="row-action delete" onClick={() => handleDeleteClick(v)} title="Delete Vacancy">
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                            {fetchingMore && (
-                                <tr className="no-hover">
-                                    <td colSpan="9" className="py-6 text-center">
-                                        <div className="premium-loader-inline"></div>
-                                        <span className="text-sm font-medium text-slate-500 ml-3">Fetching more postings...</span>
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div className="table-footer-ats">
-                    <div className="footer-left">
-                        Showing <b>{totalVacancies > 0 ? page * limit + 1 : 0}</b> to <b>{Math.min((page + 1) * limit, totalVacancies)}</b> of <b>{totalVacancies}</b> entries
-                    </div>
-                    <div className="footer-right">
-                        <button 
-                            className={`page-btn ${page === 0 ? 'disabled' : ''}`} 
-                            onClick={() => page > 0 && fetchVacancies(false, page - 1)} 
-                            disabled={page === 0}
-                        >
-                            Previous
-                        </button>
-                        <div className="page-numbers">
-                            {[...Array(Math.min(5, Math.ceil(totalVacancies / limit)))].map((_, i) => (
-                                <button 
-                                    key={i} 
-                                    className={`page-num ${page === i ? 'active' : ''}`}
-                                    onClick={() => fetchVacancies(false, i)}
-                                >
-                                    {i + 1}
-                                </button>
-                            ))}
-                            {Math.ceil(totalVacancies / limit) > 5 && <span className="px-2">...</span>}
+            {isInitialLoading ? (
+                <div className="table-container-premium shadow-premium" style={{ height: '520px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', borderRadius: '16px' }}>
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="premium-spinner" style={{ width: '48px', height: '48px' }}>
+                            <div className="premium-core"></div>
                         </div>
-                        <button 
-                            className={`page-btn ${ (page + 1) * limit >= totalVacancies ? 'disabled' : ''}`} 
-                            onClick={() => (page + 1) * limit < totalVacancies && fetchVacancies(false, page + 1)} 
-                            disabled={(page + 1) * limit >= totalVacancies}
-                        >
-                            Next
-                        </button>
+                        <p style={{ color: '#0d5f68', fontWeight: '600', fontSize: '0.9rem' }}>Fetching vacancies list...</p>
                     </div>
                 </div>
-            </div>
+            ) : vacancies.length === 0 && hasLoaded && !loading ? (
+                <EmptyState
+                    cardTitle="Vacancies List"
+                    totalCount={0}
+                    icon={Briefcase}
+                    title="No vacancies found"
+                    buttonLabel="Post Vacancy"
+                    onCreate={() => { setViewMode('create'); setSelectedVacancy(null); }}
+                />
+            ) : (
+                <div className="table-container-premium shadow-premium">
+                    <div className="table-header-info">
+                        <div className="header-info-left">
+                            <h3>Vacancies List</h3>
+                            <span className="count-chip">{totalVacancies} Total</span>
+                        </div>
+                        <div className="header-info-right text-xs text-slate-500 font-medium">
+                            Showing {vacancies.length} entries
+                        </div>
+                    </div>
+
+                    <div className="table-responsive" ref={tableWrapperRef}>
+                        <table className="ats-table">
+                            <thead>
+                                <tr>
+                                    <th style={{ width: '40px' }}>
+                                        <input
+                                            type="checkbox"
+                                            onChange={selectAllRows}
+                                            checked={vacancies.length > 0 && selectedRows.length === vacancies.length}
+                                        />
+                                    </th>
+                                    <th style={{ width: '120px' }}>CODE</th>
+                                    <th style={{ width: '250px' }}>JOB TITLE & DEPT</th>
+                                    <th style={{ width: '100px' }}>OPENINGS</th>
+                                    <th style={{ width: '150px' }}>APPLICANTS</th>
+                                    <th style={{ width: '140px' }}>TARGET DATE</th>
+                                    <th style={{ width: '120px' }}>APPROVAL</th>
+                                    <th style={{ width: '120px' }}>STATUS</th>
+                                    <th style={{ width: '120px' }} className="text-right pr-6">ACTIONS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan="9">
+                                            <div style={{ height: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#64748b' }}>
+                                                <div className="premium-loader-inline"></div>
+                                                <span className="text-sm font-semibold">Loading vacancies...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    vacancies.map((v) => {
+                                        const isSelected = selectedRows.includes(v._id || v.id);
+                                        const deptName = departments.find(d => d.value === v.departmentId)?.label || v.departmentId || 'N/A';
+                                        const posName = positions.find(p => p.value === v.positionId)?.label || v.positionId || 'N/A';
+
+                                        // Internal Mock Data for Applicants (Redesign requirement)
+                                        const applicants = v.appliedApplicants || 0;
+                                        const shortlisted = Math.floor(applicants * 0.4);
+
+                                        return (
+                                            <tr key={v._id || v.id} className={isSelected ? 'selected' : ''}>
+                                                <td>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleRowSelection(v._id || v.id)}
+                                                    />
+                                                </td>
+                                                <td>
+                                                    <div className="vacancy-code-v6" onClick={() => handleViewClick(v)}>
+                                                        {v.requestNumber || 'VAC-000'}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div className="vacancy-main-v6">
+                                                        <span className="v-title" onClick={() => handleViewClick(v)}>{v.positionName}</span>
+                                                        <span className="v-dept">{deptName} • {posName}</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div className="opening-chip" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <span className="num" style={{ fontWeight: '700', color: '#0d5f68' }}>{v.openings || '0 / 1'}</span>
+                                                        <span className="lab" style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Available</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div className="applicant-stats">
+                                                        <span className="total-app">{applicants} Applied</span>
+                                                        <div className="pipeline-mini">
+                                                            <div className="pipe-seg shortlisted" style={{ width: applicants > 0 ? `${(shortlisted / applicants) * 100}%` : '0%' }} title={`Shortlisted: ${shortlisted}`}></div>
+                                                            <div className="pipe-seg interviewed" style={{ width: applicants > 0 ? '15%' : '0%' }} title="Interviewing"></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div className="date-info">
+                                                        <Calendar size={14} className="text-slate-400" />
+                                                        <span>{(v.requiredDate || v.requisitionDate) ? new Date(v.requiredDate || v.requisitionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <Badge variant={v.approvalStatus} onUpdate={() => handleApprovalClick(v)} />
+                                                </td>
+                                                <td>
+                                                    <Badge variant={v.status} onUpdate={() => handleStatusClick(v)} />
+                                                </td>
+                                                <td className="text-right">
+                                                    <div className="action-button-group">
+                                                        <button type="button" className="row-action view" onClick={() => handleViewClick(v)} title="View Details">
+                                                            <Eye size={18} />
+                                                        </button>
+                                                        <button type="button" className="row-action edit" onClick={() => handleEditClick(v)} title="Edit Vacancy">
+                                                            <Edit size={18} />
+                                                        </button>
+                                                        <button type="button" className="row-action delete" onClick={() => handleDeleteClick(v)} title="Delete Vacancy">
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                                {fetchingMore && (
+                                    <tr className="no-hover">
+                                        <td colSpan="9" className="py-6 text-center">
+                                            <div className="premium-loader-inline"></div>
+                                            <span className="text-sm font-medium text-slate-500 ml-3">Fetching more postings...</span>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div className="table-footer-ats">
+                        <div className="footer-left">
+                            Showing <b>{totalVacancies > 0 ? page * limit + 1 : 0}</b> to <b>{Math.min((page + 1) * limit, totalVacancies)}</b> of <b>{totalVacancies}</b> entries
+                        </div>
+                        <div className="footer-right">
+                            <button
+                                className={`page-btn ${page === 0 ? 'disabled' : ''}`}
+                                onClick={() => page > 0 && fetchVacancies(false, page - 1)}
+                                disabled={page === 0}
+                            >
+                                Previous
+                            </button>
+                            <div className="page-numbers">
+                                {[...Array(Math.min(5, Math.ceil(totalVacancies / limit)))].map((_, i) => (
+                                    <button
+                                        key={i}
+                                        className={`page-num ${page === i ? 'active' : ''}`}
+                                        onClick={() => fetchVacancies(false, i)}
+                                    >
+                                        {i + 1}
+                                    </button>
+                                ))}
+                                {Math.ceil(totalVacancies / limit) > 5 && <span className="px-2">...</span>}
+                            </div>
+                            <button
+                                className={`page-btn ${(page + 1) * limit >= totalVacancies ? 'disabled' : ''}`}
+                                onClick={() => (page + 1) * limit < totalVacancies && fetchVacancies(false, page + 1)}
+                                disabled={(page + 1) * limit >= totalVacancies}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style>{`
                 .vacancy-dashboard {
@@ -1787,11 +1812,11 @@ const Vacancy = () => {
                 .stats-scroller-v6::-webkit-scrollbar { height: 4px; }
                 .stats-scroller-v6::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
                 
-                .stats-container-v6 { display: flex; gap: 1rem; min-width: max-content; }
+                .stats-container-v6 { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.75rem; width: 100%; }
                 
-                .stat-card-premium { background: white; padding: 0.85rem 1.15rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; min-width: 210px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+                .stat-card-premium { background: white; padding: 0.85rem 1rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: space-between; height: 100%; min-width: 0; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
                 .stat-card-premium:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
-                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-2px); }
+                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-1px); }
                 .stat-card-premium.active::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); }
                 
                 .stat-main { display: flex; align-items: center; gap: 0.75rem; }
@@ -1800,7 +1825,7 @@ const Vacancy = () => {
                 .stat-content-v6 { display: flex; flex-direction: column; gap: 1px; }
                 .stat-label-v6 { font-size: 0.625rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
                 .stat-value-group { display: flex; align-items: baseline; gap: 0.5rem; }
-                .stat-count-v6 { font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1; }
+                .stat-count-v6 { font-size: 1.5rem; font-weight: 900; color: #0f172a; line-height: 1; }
                 
                 .stat-trend { display: flex; align-items: center; gap: 2px; font-size: 0.6rem; font-weight: 700; padding: 1px 5px; border-radius: 20px; }
                 .stat-trend.up { color: #10b981; background: rgba(16, 185, 129, 0.1); }
@@ -1810,17 +1835,13 @@ const Vacancy = () => {
                 .stat-card-premium:hover .stat-indicator { transform: translateX(3px); color: var(--accent); }
 
                 /* Filter Bar */
-                .filter-search-container {
-                    background: white;
-                    padding: 0.65rem 1rem;
-                    border-radius: 12px;
-                    display: flex;
-                    gap: 0.75rem;
-                    align-items: center;
-                    border: 1px solid #e2e8f0;
-                    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-                    flex-shrink: 0;
-                }
+                .filter-search-container { background: white; padding: 0.65rem 1rem; border-radius: 12px; display: flex; gap: 0.75rem; align-items: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.03); flex-shrink: 0; }
+                .btn-icon-alt { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 1px solid #e2e8f0; background: white; border-radius: 8px; color: #94a3b8; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+                .btn-icon-alt:hover { color: #0d5f68; border-color: #0d5f68; background: #f8fafc; }
+
+                .stat-count-v6 { font-size: 1.5rem; font-weight: 900; color: #0f172a; line-height: 1; }
+                .stat-label-v6 { font-size: 0.65rem; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; }
+
                 .search-wrapper {
                     flex: 1;
                     position: relative;
@@ -1831,10 +1852,13 @@ const Vacancy = () => {
                     position: absolute;
                     left: 0.85rem;
                     color: #94a3b8;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    pointer-events: none;
                 }
                 .search-wrapper input {
                     width: 100%;
-                    height: 38px;
+                    height: 40px;
                     padding: 0 1rem 0 2.5rem;
                     border: 1px solid #e2e8f0;
                     background: #f8fafc;
@@ -1859,7 +1883,7 @@ const Vacancy = () => {
                     gap: 0.5rem;
                 }
                 .filter-dropdown-group select, .date-picker-input {
-                    height: 38px;
+                    height: 40px;
                     padding: 0 1rem;
                     border-radius: 8px;
                     border: 1px solid #e2e8f0;
@@ -1870,6 +1894,14 @@ const Vacancy = () => {
                     outline: none;
                     cursor: pointer;
                     transition: border-color 0.2s, background-color 0.2s;
+                    appearance: none;
+                }
+                .filter-dropdown-group select {
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+                    background-repeat: no-repeat;
+                    background-position: right 0.75rem center;
+                    background-size: 1rem;
+                    padding-right: 2.5rem;
                 }
                 .filter-dropdown-group select:hover, .date-picker-input:hover {
                     border-color: #cbd5e1;
@@ -1878,10 +1910,11 @@ const Vacancy = () => {
                 .filter-dropdown-group select:focus, .date-picker-input:focus {
                     border-color: #0d5f68;
                     background: white;
+                    box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.08);
                 }
                 .btn-icon-alt {
-                    width: 38px;
-                    height: 38px;
+                    width: 40px;
+                    height: 40px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -2275,37 +2308,7 @@ const Vacancy = () => {
                     border-color: #0d5f68;
                     box-shadow: 0 1px 2px rgba(13, 95, 104, 0.2);
                 }
-                              /* Empty State */
-                .empty-state-card {
-                    padding: 3rem 2rem;
-                    text-align: center;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    color: #64748b;
-                }
-                .empty-icon-container {
-                    width: 70px;
-                    height: 70px;
-                    border-radius: 16px;
-                    background: #f1f5f9;
-                    color: #94a3b8;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    margin-bottom: 1.25rem;
-                }
-                .empty-state-card h3 {
-                    margin: 0;
-                    font-size: 1.15rem;
-                    color: #1e293b;
-                    font-weight: 700;
-                }
-                .empty-state-card p {
-                    max-width: 300px;
-                    margin: 0.5rem 0 1.25rem;
-                    font-size: 0.875rem;
-                }
+
 
                 .animate-toolbar-in {
                     animation: toolbarIn 0.3s ease-out forwards;
@@ -2325,9 +2328,9 @@ const Vacancy = () => {
                     display: flex !important;
                     align-items: center !important;
                     justify-content: center !important;
-                    background: rgba(0,0,0,0.5);
+                    background: rgba(0,0,0,0.65);
                     backdrop-filter: blur(4px);
-                    z-index: 9999;
+                    z-index: 5000;
                 }
                 .modal-content {
                     margin: auto; /* Fallback centering */

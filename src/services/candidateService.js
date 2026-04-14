@@ -8,10 +8,12 @@ export const candidateService = {
             const queryParams = new URLSearchParams({
                 page,
                 limit,
+                search: filters.search || '',
                 candidateId: filters.candidateId || '',
                 name: filters.name || '',
                 status: filters.status || '',
-                appliedFor: filters.role || filters.appliedFor || ''
+                appliedFor: filters.role || filters.appliedFor || '',
+                departmentId: filters.departmentId || ''
             }).toString();
             
             const response = await api.get(`${BASE_PATH}?${queryParams}`);

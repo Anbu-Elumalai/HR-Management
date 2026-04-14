@@ -12,29 +12,26 @@ import { candidateService } from '../../services/candidateService';
 import { departmentService } from '../../services/departmentService';
 import { employeeService } from '../../services/employeeService';
 import toast from 'react-hot-toast';
+import EmptyState from '../../components/common/EmptyState';
 
 const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => (
-    <div 
-        className={`stat-card-premium ${active ? 'active' : ''}`} 
+    <div
+        className={`stat-card-premium ${active ? 'active' : ''}`}
         onClick={onClick}
         style={{ '--accent': color, '--accent-bg': bg }}
     >
-        <div className="stat-main">
+        <div className="stat-top-v2" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="stat-icon-v6">{icon}</div>
-            <div className="stat-content-v6">
-                <span className="stat-label-v6">{label}</span>
-                <div className="stat-value-group">
-                    <span className="stat-count-v6">{count}</span>
-                    {trend && (
-                        <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`}>
-                            {trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                            <span>{Math.abs(trend)}%</span>
-                        </div>
-                    )}
-                </div>
-            </div>
+            <div className="stat-count-v6" style={{ fontSize: '1.5rem', fontWeight: '900', color: '#0f172a' }}>{count}</div>
         </div>
-        <div className="stat-indicator"><ChevronRight size={14} /></div>
+        <div className="stat-bottom-v2" style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="stat-label-v6" style={{ fontSize: '0.65rem', fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: '1.2' }}>{label}</div>
+            {trend && (
+                <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`} style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.65rem', fontWeight: '800', padding: '2px 6px', borderRadius: '20px', backgroundColor: trend > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: trend > 0 ? '#10b981' : '#ef4444' }}>
+                    {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
+                </div>
+            )}
+        </div>
     </div>
 );
 
@@ -58,19 +55,7 @@ const Badge = ({ variant }) => {
     );
 };
 
-const EmptyState = ({ onCreate }) => (
-    <div className="empty-state-card shadow-sm animate-fade-in">
-        <div className="empty-icon-with-bg">
-            <FileCheck size={42} strokeWidth={1.5} />
-        </div>
-        <h3>No Offers Found</h3>
-        <p>It looks like you haven't generated any offer letters yet. Start the hiring process by creating one.</p>
-        <button className="btn-primary" onClick={onCreate}>
-            <Plus size={18} />
-            Create Offer
-        </button>
-    </div>
-);
+
 
 const Offer = () => {
     const [viewMode, setViewMode] = useState('list');
@@ -82,6 +67,7 @@ const Offer = () => {
     const [departments, setDepartments] = useState([]);
     const [locations, setLocations] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [hasLoaded, setHasLoaded] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [formTab, setFormTab] = useState('basic');
@@ -113,14 +99,33 @@ const Offer = () => {
     const fetchOffers = useCallback(async (p = 0) => {
         setLoading(true);
         try {
-            const q = new URLSearchParams({ page: p, limit: 10, ...filters });
+            const q = new URLSearchParams({ page: String(p), limit: '10', ...filters });
             const res = await api.get(`/offers?${q.toString()}`);
-            if (res.data) { setOffers(res.data.data || []); setTotalItems(res.data.total || 0); setPage(p); }
-        } catch (err) { console.error(err); } finally { setLoading(false); }
+            if (res.data) {
+                setOffers(res.data.data || []);
+                setTotalItems(res.data.total || 0);
+                setPage(p);
+            }
+        } catch (err) {
+            console.error('Error fetching offers:', err);
+        } finally {
+            setLoading(false);
+            setHasLoaded(true);
+        }
     }, [filters]);
 
-    useEffect(() => { loadRefData(); fetchOffers(0); }, []);
-    useEffect(() => { const t = setTimeout(() => { if (viewMode === 'list') fetchOffers(0); }, 500); return () => clearTimeout(t); }, [filters, viewMode, fetchOffers]);
+    useEffect(() => { loadRefData(); }, [loadRefData]);
+
+    const initialFetchDone = useRef(false);
+    useEffect(() => {
+        if (!initialFetchDone.current) {
+            fetchOffers(0);
+            initialFetchDone.current = true;
+            return;
+        }
+        const t = setTimeout(() => { if (viewMode === 'list') fetchOffers(0); }, 500);
+        return () => clearTimeout(t);
+    }, [filters, viewMode, fetchOffers]);
 
     const handleCandidateChange = async (cid) => {
         const c = candidates.find(x => String(x._id || x.id) === String(cid));
@@ -175,7 +180,7 @@ const Offer = () => {
                     </div>
                     <button className="mh-close-v2" onClick={() => setViewMode('list')}><X size={22} /></button>
                 </div>
-                
+
                 <div className="premium-modal-tabs">
                     <button className={`p-tab ${formTab === 'basic' ? 'active' : ''}`} onClick={() => setFormTab('basic')}><Building size={16} /> Basic Details</button>
                     <button className={`p-tab ${formTab === 'salary' ? 'active' : ''}`} onClick={() => setFormTab('salary')}><DollarSign size={16} /> Salary & CTC</button>
@@ -216,7 +221,7 @@ const Offer = () => {
                         )}
                         {formTab === 'salary' && (
                             <div className="p-salary-section">
-                                <div className="p-field full-w"><label>Annual CTC Amount</label><div className="p-ctc-input"><IndianRupee size={20}/><input type="number" placeholder="0.00" value={formData.ctc} onChange={e => handleSalaryCalc(e.target.value)} /></div></div>
+                                <div className="p-field full-w"><label>Annual CTC Amount</label><div className="p-ctc-input"><IndianRupee size={20} /><input type="number" placeholder="0.00" value={formData.ctc} onChange={e => handleSalaryCalc(e.target.value)} /></div></div>
                                 <div className="p-breakdown">
                                     <div className="pb-row"><span>Basic Pay (40%)</span><b>{renderPrice(formData.salaryBreakdown.basic)}</b></div>
                                     <div className="pb-row"><span>HRA</span><b>{renderPrice(formData.salaryBreakdown.hra)}</b></div>
@@ -259,7 +264,7 @@ const Offer = () => {
     return (
         <div className="vacancy-dashboard animate-entry" style={{ padding: '1.25rem 1.5rem', background: '#f8fafc', overflow: 'hidden', height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
             {(viewMode === 'create' || viewMode === 'edit') && <Modal />}
-            
+
             <header className="dashboard-header" style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div className="header-left"><h1><FileText size={24} className="text-[#0d5f68]" /> Offer Letters</h1></div>
                 <div className="header-actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -271,7 +276,7 @@ const Offer = () => {
             <div className="stats-scroller-v6" style={{ marginBottom: '1.5rem' }}>
                 <div className="stats-container-v6">
                     {statConfig.map((s, idx) => (
-                        <StatCard 
+                        <StatCard
                             key={idx}
                             {...s}
                             count={s.status === '' ? totalItems : offers.filter(o => o.status === s.status).length}
@@ -282,26 +287,47 @@ const Offer = () => {
                 </div>
             </div>
 
-            <div className="filter-search-container" style={{ marginBottom: '1rem' }}>
-                <div className="search-wrapper"><Search size={18} className="search-icon" /><input type="text" placeholder="Search by candidate name..." value={filters.candidateName} onChange={e => setFilters({ ...filters, candidateName: e.target.value })} /></div>
-                <div className="filter-actions">
-                    <div className="filter-dropdown-group">
-                        <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })}><option value="">All Statuses</option><option value="Draft">Draft</option><option value="Pending Approval">Pending Approval</option><option value="Sent">Sent</option><option value="Accepted">Accepted</option><option value="Rejected">Rejected</option><option value="Expired">Expired</option></select>
-                        <button className="btn-icon-alt" onClick={() => setFilters({ candidateName: '', status: '', departmentName: '', joiningDate: '' })}><RotateCcw size={18} /></button>
-                    </div>
-                </div>
+            <div className="filter-search-container" style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <div className="search-wrapper" style={{ flex: 1 }}><Search size={18} className="search-icon" /><input type="text" placeholder="Search by candidate name..." value={filters.candidateName} onChange={e => setFilters({ ...filters, candidateName: e.target.value })} /></div>
+                <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })} style={{ height: '40px', padding: '0 2.5rem 0 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer', outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center' }}>
+                    <option value="">All Statuses</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Pending Approval">Pending Approval</option>
+                    <option value="Sent">Sent</option>
+                    <option value="Accepted">Accepted</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Expired">Expired</option>
+                </select>
+                <button className="btn-icon-alt" onClick={() => setFilters({ candidateName: '', status: '', departmentName: '', joiningDate: '' })} title="Clear Filters"><RotateCcw size={18} /></button>
             </div>
 
-            <div className="table-container-premium shadow-premium">
-                <div className="table-header-info">
-                    <div className="header-info-left"><h3>Offers List</h3><span className="count-chip">{totalItems} TOTAL</span></div>
-                    <div className="header-info-right text-xs text-slate-500 font-medium">Showing {offers.length} entries</div>
+            {loading ? (
+                <div className="table-container-premium shadow-premium" style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white' }}>
+                    <div className="p-list-loader" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                        <Loader2 className="animate-spin text-[#0d5f68]" size={40} />
+                        <span className="font-semibold text-slate-500">Loading offers...</span>
+                    </div>
                 </div>
-                
-                <div className="table-responsive">
-                    {loading ? <div className="p-list-loader"><Loader2 className="animate-spin" size={32} /><span>Fetching data...</span></div> : offers.length === 0 ? <div style={{height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}><EmptyState onCreate={() => setViewMode('create')} /></div> : (
+            ) : (offers.length === 0 && hasLoaded) ? (
+                <EmptyState
+                    cardTitle="Offers List"
+                    totalCount={0}
+                    icon={FileCheck}
+                    title="No offers found"
+                    description=""
+                    buttonLabel="Create Offer"
+                    onCreate={() => setViewMode('create')}
+                />
+            ) : (
+                <div className="table-container-premium shadow-premium">
+                    <div className="table-header-info">
+                        <div className="header-info-left"><h3>Offers List</h3><span className="count-chip">{totalItems} TOTAL</span></div>
+                        <div className="header-info-right text-xs text-slate-500 font-medium">Showing {offers.length} entries</div>
+                    </div>
+
+                    <div className="table-responsive">
                         <table className="ats-table">
-                            <thead><tr><th style={{ width: '40px' }}><input type="checkbox" /></th><th style={{width: '120px'}}>CODE</th><th>CANDIDATE</th><th>ROLE / VACANCY</th><th style={{width: '180px'}}>DEPARTMENT</th><th className="text-right" style={{width: '140px'}}>CTC</th><th className="text-center" style={{width: '150px'}}>STATUS</th><th className="text-right pr-6" style={{width: '120px'}}>ACTIONS</th></tr></thead>
+                            <thead><tr><th style={{ width: '40px' }}><input type="checkbox" /></th><th style={{ width: '120px' }}>CODE</th><th>CANDIDATE</th><th>ROLE / VACANCY</th><th style={{ width: '180px' }}>DEPARTMENT</th><th className="text-right" style={{ width: '140px' }}>CTC</th><th className="text-center" style={{ width: '150px' }}>STATUS</th><th className="text-right pr-6" style={{ width: '120px' }}>ACTIONS</th></tr></thead>
                             <tbody>
                                 {offers.map(o => (
                                     <tr key={o._id}>
@@ -312,21 +338,15 @@ const Offer = () => {
                                         <td><span className="manager-name">{o.departmentName}</span></td>
                                         <td className="text-right font-bold text-[#0d5f68]">{renderPrice(o.ctc)}</td>
                                         <td className="text-center"><Badge variant={o.status} /></td>
-                                        <td className="text-right pr-4"><div className="action-button-group"><button className="row-action edit" onClick={() => { setSelectedOffer(o); setFormData({ ...o }); setViewMode('edit'); }}><Edit size={16} /></button><button className="row-action delete" onClick={() => { if(window.confirm('Delete?')) api.delete(`/offers/${o._id}`).then(() => fetchOffers(page))}}><Trash2 size={16} /></button></div></td>
+                                        <td className="text-right pr-6"><button className="action-btn-premium" onClick={() => { setSelectedOffer(o); setViewMode('view'); }}><Eye size={16} /></button><button className="action-btn-premium" onClick={() => { setSelectedOffer(o); setViewMode('edit'); }} title="Edit"><Edit size={16} /></button></td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                    )}
-                </div>
-
-                {offers.length > 0 && (
-                    <div className="table-footer-ats">
-                        <div className="footer-left">Showing <b>{page * 10 + 1}</b> to <b>{Math.min((page + 1) * 10, totalItems)}</b> of <b>{totalItems}</b></div>
-                        <div className="footer-right"><button className={`page-btn ${page === 0 ? 'disabled' : ''}`} disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button><button className={`page-btn ${(page + 1) * 10 >= totalItems ? 'disabled' : ''}`} disabled={(page + 1) * 10 >= totalItems} onClick={() => setPage(page + 1)}>Next</button></div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+
 
             <style>{`
                 .vacancy-dashboard { height: calc(100vh - 64px); display: flex; flex-direction: column; overflow: hidden; }
@@ -343,11 +363,11 @@ const Offer = () => {
                 .stats-scroller-v6::-webkit-scrollbar { height: 4px; }
                 .stats-scroller-v6::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
                 
-                .stats-container-v6 { display: flex; gap: 1rem; min-width: max-content; }
+                .stats-container-v6 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.75rem; width: 100%; }
                 
-                .stat-card-premium { background: white; padding: 1rem 1.25rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; min-width: 220px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+                .stat-card-premium { background: white; padding: 0.85rem 1rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: space-between; height: 100%; min-width: 0; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
                 .stat-card-premium:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
-                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-2px); }
+                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-1px); }
                 .stat-card-premium.active::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); }
                 
                 .stat-main { display: flex; align-items: center; gap: 0.85rem; }
@@ -366,11 +386,16 @@ const Offer = () => {
 
                 .filter-search-container { background: white; padding: 0.65rem 1rem; border-radius: 12px; display: flex; gap: 0.75rem; align-items: center; border: 1px solid #e2e8f0; }
                 .search-wrapper { flex: 1; position: relative; display: flex; align-items: center; }
-                .search-icon { position: absolute; left: 0.85rem; color: #94a3b8; }
-                .search-wrapper input { width: 100%; height: 38px; padding: 0 1rem 0 2.5rem; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; font-size: 0.85rem; outline: none; }
-                .filter-dropdown-group { display: flex; gap: 0.5rem; }
-                .filter-dropdown-group select { height: 38px; padding: 0 1rem; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.825rem; font-weight: 600; cursor: pointer; }
-                .btn-icon-alt { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer; }
+                .search-icon { position: absolute; left: 0.85rem; color: #94a3b8; top: 50%; transform: translateY(-50%); pointer-events: none; }
+                .search-wrapper input { width: 100%; height: 40px; padding: 0 1rem 0 2.5rem; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; font-size: 0.875rem; outline: none; transition: all 0.2s; }
+                .search-wrapper input:focus { border-color: #0d5f68; background: white; box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.1); }
+                .filter-actions { display: flex; align-items: center; }
+                .filter-dropdown-group { display: flex; gap: 0.75rem; align-items: center; }
+                .filter-dropdown-group select { height: 40px; padding: 0 2.5rem 0 1rem; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.875rem; font-weight: 600; cursor: pointer; outline: none; transition: all 0.2s; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.75rem center; }
+                .filter-dropdown-group select:hover { border-color: #cbd5e1; }
+                .filter-dropdown-group select:focus { border-color: #0d5f68; background-color: white; box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.1); }
+                .btn-icon-alt { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer; transition: all 0.2s; }
+                .btn-icon-alt:hover { border-color: #0d5f68; color: #0d5f68; background: white; }
 
                 .table-container-premium { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
                 .table-header-info { padding: 0.85rem 1.25rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: white; }
@@ -424,13 +449,11 @@ const Offer = () => {
                 .btn-draft { background: #f1f5f9; color: #1e293b; border: none; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 700; cursor: pointer; }
                 .btn-issue { background: #0d5f68; color: white; border: none; padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(13, 95, 104, 0.2); }
 
-                .empty-state-card { padding: 3rem 2rem; display: flex; flex-direction: column; align-items: center; text-align: center; background: white; border-radius: 12px; }
-                .empty-icon-with-bg { width: 80px; height: 80px; background: #f8fafc; border-radius: 20px; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem; color: #94a3b8; }
-                .empty-state-card h3 { font-size: 1.3rem; font-weight: 800; color: #1e293b; margin: 0 0 0.5rem; }
-                .empty-state-card p { font-size: 0.9rem; color: #64748b; max-width: 400px; line-height: 1.6; margin-bottom: 2rem; }
+
             `}</style>
         </div>
     );
 };
 
 export default Offer;
+
