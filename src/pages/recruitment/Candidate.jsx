@@ -72,6 +72,16 @@ const Candidate = () => {
     const [uploading, setUploading] = useState(false);
     const [formErrors, setFormErrors] = useState({});
 
+    const [dashboardStats, setDashboardStats] = useState({
+        totalCandidates: { count: 0, trend: 0 },
+        newApplicants: { count: 0, trend: 0 },
+        shortlisted: { count: 0, trend: 0 },
+        interviewing: { count: 0, trend: 0 },
+        offered: { count: 0, trend: 0 },
+        hired: { count: 0, trend: 0 },
+        rejected: { count: 0, trend: 0 }
+    });
+
     // Filtering & Pagination State
     const [currentPage, setCurrentPage] = useState(0);
     const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -130,6 +140,26 @@ const Candidate = () => {
         }
     }, [currentPage, itemsPerPage, filters]);
 
+    const fetchDashboardStats = useCallback(async () => {
+        try {
+            const res = await api.get('/candidates/dashboard/stats');
+            const statsData = res.data?.data;
+            if (statsData) {
+                setDashboardStats({
+                    totalCandidates: statsData.totalCandidates || { count: 0, trend: 0 },
+                    newApplicants: statsData.newApplicants || { count: 0, trend: 0 },
+                    shortlisted: statsData.shortlisted || { count: 0, trend: 0 },
+                    interviewing: statsData.interviewing || { count: 0, trend: 0 },
+                    offered: statsData.offered || { count: 0, trend: 0 },
+                    hired: statsData.hired || { count: 0, trend: 0 },
+                    rejected: statsData.rejected || { count: 0, trend: 0 }
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching candidate dashboard stats:', error);
+        }
+    }, []);
+
     useEffect(() => {
         if (viewMode !== 'list') {
             document.body.style.overflow = 'hidden';
@@ -145,6 +175,10 @@ const Candidate = () => {
         }, 300);
         return () => clearTimeout(timer);
     }, [fetchData]);
+
+    useEffect(() => {
+        fetchDashboardStats();
+    }, [fetchDashboardStats]);
 
     const handleFilterChange = (field, value) => {
         setFilters(prev => ({ ...prev, [field]: value }));
@@ -225,6 +259,7 @@ const Candidate = () => {
             await candidateService.deleteCandidate(selectedCandidate._id || selectedCandidate.id);
             toast.success('Candidate removed');
             fetchData();
+            fetchDashboardStats();
             setViewMode('list');
         } catch (error) {
             toast.error('Deletion failed');
@@ -263,6 +298,7 @@ const Candidate = () => {
             }
             setViewMode('list');
             fetchData();
+            fetchDashboardStats();
         } catch (error) {
             toast.error(error.response?.data?.message || "Operation failed");
         } finally {
@@ -319,14 +355,14 @@ const Candidate = () => {
     };
 
     const stats = useMemo(() => [
-        { label: 'Total Candidates', status: '', icon: <Users size={20} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', trend: 12 },
-        { label: 'New Applicants', status: 'new', icon: <Clock size={20} />, color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)', trend: 5 },
-        { label: 'Shortlisted', status: 'shortlisted', icon: <CheckCircle size={20} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', trend: 8 },
-        { label: 'Interviewing', status: 'interview', icon: <Calendar size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: 15 },
-        { label: 'Offered', status: 'offered', icon: <FileText size={20} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)', trend: -2 },
-        { label: 'Hired', status: 'hired', icon: <TrendingUp size={20} />, color: '#059669', bg: 'rgba(5, 150, 105, 0.1)', trend: 10 },
-        { label: 'Rejected', status: 'rejected', icon: <XCircle size={20} />, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.1)', trend: -1 },
-    ], [totalEntries]);
+        { label: 'Total Candidates', status: '', icon: <Users size={20} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', ...dashboardStats.totalCandidates },
+        { label: 'New Applicants', status: 'new', icon: <Clock size={20} />, color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)', ...dashboardStats.newApplicants },
+        { label: 'Shortlisted', status: 'shortlisted', icon: <CheckCircle size={20} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', ...dashboardStats.shortlisted },
+        { label: 'Interviewing', status: 'interviewing', icon: <Calendar size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', ...dashboardStats.interviewing },
+        { label: 'Offered', status: 'offered', icon: <FileText size={20} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)', ...dashboardStats.offered },
+        { label: 'Hired', status: 'hired', icon: <TrendingUp size={20} />, color: '#059669', bg: 'rgba(5, 150, 105, 0.1)', ...dashboardStats.hired },
+        { label: 'Rejected', status: 'rejected', icon: <XCircle size={20} />, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.1)', ...dashboardStats.rejected },
+    ], [dashboardStats]);
 
     const selectAllRows = (e) => {
         if (e.target.checked) setSelectedRows(candidates.map(c => c._id || c.id));

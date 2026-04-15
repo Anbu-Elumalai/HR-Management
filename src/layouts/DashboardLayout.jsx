@@ -34,6 +34,7 @@ const DashboardLayout = () => {
 
         .main-content {
           margin-left: 260px; /* Width of sidebar */
+          width: calc(100% - 260px);
           display: flex;
           flex-direction: column;
           min-height: 100vh;
@@ -122,7 +123,8 @@ const DashboardLayout = () => {
         }
 
         .page-content {
-          padding: 0; 
+          width: 100%;
+          padding: 0;
           /* Pages handle their own padding or we can set it here */
         }
       `}</style>

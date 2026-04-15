@@ -17,6 +17,18 @@ import api from '../../api/api';
 import toast from 'react-hot-toast';
 import MultiSelect from '../../components/common/MultiSelect';
 
+const FILTER_STORAGE_KEY = 'vacancyManagementFilters';
+
+const getSavedFilters = () => {
+    if (typeof window === 'undefined') return {};
+    try {
+        return JSON.parse(window.localStorage.getItem(FILTER_STORAGE_KEY) || '{}');
+    } catch (error) {
+        console.error('Vacancy filter restore failed:', error);
+        return {};
+    }
+};
+
 const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => (
     <div
         className={`stat-card-premium ${active ? 'active' : ''}`}
@@ -38,27 +50,26 @@ const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => 
     </div>
 );
 
+const statusVariants = {
+    open: { bg: 'rgba(16, 185, 129, 0.12)', color: '#047857', label: 'Open' },
+    pending: { bg: 'rgba(249, 115, 22, 0.12)', color: '#c2410c', label: 'Pending' },
+    filled: { bg: 'rgba(59, 130, 246, 0.12)', color: '#1d4ed8', label: 'Filled' },
+    cancelled: { bg: 'rgba(239, 68, 68, 0.12)', color: '#b91c1c', label: 'Cancelled' },
+    closed: { bg: 'rgba(148, 163, 184, 0.12)', color: '#334155', label: 'Closed' },
+    draft: { bg: 'rgba(148, 163, 184, 0.08)', color: '#475569', label: 'Draft' },
+    approved: { bg: 'rgba(16, 185, 129, 0.12)', color: '#047857', label: 'Approved' },
+    rejected: { bg: 'rgba(239, 68, 68, 0.12)', color: '#b91c1c', label: 'Rejected' }
+};
+
 const Badge = ({ variant, children, onUpdate }) => {
-    const variants = {
-        open: { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', label: 'Open' },
-        draft: { bg: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', label: 'Draft' },
-        closed: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Closed' },
-        cancelled: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Cancelled' },
-        filled: { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', label: 'Filled' },
-        pending: { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', label: 'Pending' },
-        approved: { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', label: 'Approved' },
-        rejected: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'Rejected' },
-        high: { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', label: 'High' },
-        medium: { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', label: 'Medium' },
-        low: { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', label: 'Low' },
-    };
-    const style = variants[variant?.toLowerCase()] || variants.draft;
+    const style = statusVariants[variant?.toLowerCase()] || statusVariants.draft;
 
     return (
         <span
             className={`badge-pill ${onUpdate ? 'badge-clickable' : ''}`}
             style={{ backgroundColor: style.bg, color: style.color }}
             onClick={onUpdate}
+            title={style.label}
         >
             <span className="badge-dot" style={{ backgroundColor: style.color }}></span>
             {style.label}
@@ -69,6 +80,7 @@ const Badge = ({ variant, children, onUpdate }) => {
 
 
 const Vacancy = () => {
+    const savedFilters = getSavedFilters();
     const [viewMode, setViewMode] = useState('list'); // 'list', 'create', 'edit', 'view'
     const [selectedVacancy, setSelectedVacancy] = useState(null);
 
@@ -86,7 +98,7 @@ const Vacancy = () => {
     const [hasLoaded, setHasLoaded] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [vacancies, setVacancies] = useState([]);
-    const [page, setPage] = useState(0);
+    const [page, setPage] = useState(savedFilters.page || 0);
     const [limit] = useState(10);
     const [hasMore, setHasMore] = useState(true);
     const [fetchingMore, setFetchingMore] = useState(false);
@@ -102,17 +114,19 @@ const Vacancy = () => {
     const tableWrapperRef = useRef(null);
     const loadingRef = useRef(false);
 
-    const [filterCode, setFilterCode] = useState('');
-    const [filterSearch, setFilterSearch] = useState('');
-    const [filterDepartment, setFilterDepartment] = useState('');
-    const [filterProject, setFilterProject] = useState('');
-    const [filterVacancies, setFilterVacancies] = useState('');
-    const [filterFilled, setFilterFilled] = useState('');
-    const [filterRemaining, setFilterRemaining] = useState('');
-    const [filterHiringType, setFilterHiringType] = useState('');
-    const [filterTargetDate, setFilterTargetDate] = useState('');
-    const [filterStatus, setFilterStatus] = useState('');
-    const [filterApproval, setFilterApproval] = useState('');
+    const [filterCode, setFilterCode] = useState(savedFilters.filterCode || '');
+    const [filterSearch, setFilterSearch] = useState(savedFilters.filterSearch || '');
+    const [filterDepartment, setFilterDepartment] = useState(savedFilters.filterDepartment || '');
+    const [filterProject, setFilterProject] = useState(savedFilters.filterProject || '');
+    const [filterVacancies, setFilterVacancies] = useState(savedFilters.filterVacancies || '');
+    const [filterFilled, setFilterFilled] = useState(savedFilters.filterFilled || '');
+    const [filterRemaining, setFilterRemaining] = useState(savedFilters.filterRemaining || '');
+    const [filterHiringType, setFilterHiringType] = useState(savedFilters.filterHiringType || '');
+    const [filterTargetDate, setFilterTargetDate] = useState(savedFilters.filterTargetDate || '');
+    const [filterStatus, setFilterStatus] = useState(savedFilters.filterStatus || '');
+    const [filterApproval, setFilterApproval] = useState(savedFilters.filterApproval || '');
+    const filterDebounceRef = useRef(null);
+    const skipFilterEffectRef = useRef(true);
 
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [vacancyToDelete, setVacancyToDelete] = useState(null);
@@ -302,7 +316,7 @@ const Vacancy = () => {
         try {
             const params = new URLSearchParams({
                 page: pageNum,
-                limit: limit,
+                limit,
                 vacancyCode: filterCode,
                 search: filterSearch,
                 department: filterDepartment,
@@ -332,28 +346,55 @@ const Vacancy = () => {
             setIsInitialLoading(false);
             loadingRef.current = false;
         }
-    }, [page, filterCode, filterSearch, filterDepartment, filterProject, filterVacancies, filterFilled, filterRemaining, filterHiringType, filterTargetDate, filterStatus, filterApproval]);
+    }, [filterCode, filterSearch, filterDepartment, filterProject, filterVacancies, filterFilled, filterRemaining, filterHiringType, filterTargetDate, filterStatus, filterApproval, limit]);
 
-    // Removed infinite scroll listener in favor of traditional pagination
     useEffect(() => {
-        // Master Data & Initial Load
         loadMasterData();
-        fetchVacancies(true, 0);
         fetchDashboardStats();
+        fetchVacancies(true, page);
+        skipFilterEffectRef.current = false;
     }, []);
 
     useEffect(() => {
-        const debounceTimer = setTimeout(() => {
-            if (!loading && viewMode === 'list') {
+        if (skipFilterEffectRef.current) return;
+
+        if (filterDebounceRef.current) {
+            clearTimeout(filterDebounceRef.current);
+        }
+
+        filterDebounceRef.current = setTimeout(() => {
+            if (viewMode === 'list') {
                 fetchVacancies(false, 0);
             }
-        }, 500);
-        return () => clearTimeout(debounceTimer);
-    }, [
-        filterCode, filterSearch, filterDepartment, filterProject,
-        filterVacancies, filterFilled, filterRemaining, filterHiringType,
-        filterTargetDate, filterStatus, filterApproval
-    ]);
+        }, 300);
+
+        return () => {
+            if (filterDebounceRef.current) {
+                clearTimeout(filterDebounceRef.current);
+            }
+        };
+    }, [filterCode, filterSearch, filterDepartment, filterProject, filterVacancies, filterFilled, filterRemaining, filterHiringType, filterTargetDate, filterStatus, filterApproval, viewMode, fetchVacancies]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const filterState = {
+            filterCode,
+            filterSearch,
+            filterDepartment,
+            filterProject,
+            filterVacancies,
+            filterFilled,
+            filterRemaining,
+            filterHiringType,
+            filterTargetDate,
+            filterStatus,
+            filterApproval,
+            page
+        };
+
+        window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filterState));
+    }, [filterCode, filterSearch, filterDepartment, filterProject, filterVacancies, filterFilled, filterRemaining, filterHiringType, filterTargetDate, filterStatus, filterApproval, page]);
 
     // Keep client-side sorting/filtering for immediate UI response if needed, 
     // but the main data is now server-controlled
@@ -1363,17 +1404,21 @@ const Vacancy = () => {
         setFilterTargetDate('');
         setFilterStatus('');
         setFilterApproval('');
+        setPage(0);
+        if (typeof window !== 'undefined') {
+            window.localStorage.removeItem(FILTER_STORAGE_KEY);
+        }
     };
 
     // Legacy client-side filtering is now handled by the server-side query.
 
     const statsConfig = [
-        { label: 'Total Vacancies', key: 'totalVacancies', status: '', icon: <Briefcase size={20} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)' },
-        { label: 'Open Positions', key: 'openPositions', status: 'open', icon: <Users size={20} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
-        { label: 'Draft Jobs', key: 'draftJobs', status: 'draft', icon: <File size={20} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' },
-        { label: 'Pending Approval', key: 'pendingApproval', status: 'pending', filterType: 'approval', icon: <RotateCcw size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
-        { label: 'Filled Jobs', key: 'filledJobs', status: 'filled', icon: <CheckCircle size={20} />, color: '#2dd4bf', bg: 'rgba(45, 212, 191, 0.1)' },
-        { label: 'Cancelled', key: 'cancelled', status: 'cancelled', icon: <XCircle size={20} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' }
+        { label: 'Total Vacancies', key: 'totalVacancies', highlighted: true, icon: <Briefcase size={18} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)' },
+        { label: 'Open Positions', key: 'openPositions', highlighted: true, status: 'open', icon: <Users size={18} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
+        { label: 'Draft Jobs', key: 'draftJobs', status: 'draft', icon: <File size={18} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' },
+        { label: 'Pending Approval', key: 'pendingApproval', status: 'pending', filterType: 'approval', icon: <RotateCcw size={18} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
+        { label: 'Filled Jobs', key: 'filledJobs', status: 'filled', icon: <CheckCircle size={18} />, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)' },
+        { label: 'Cancelled', key: 'cancelled', status: 'cancelled', icon: <XCircle size={18} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' }
     ];
 
     return (
@@ -1415,12 +1460,12 @@ const Vacancy = () => {
                                 {...s}
                                 count={statData.count}
                                 trend={statData.trend}
-                                active={s.filterType === 'approval' ? filterApproval === s.status : filterStatus === s.status}
+                                active={s.highlighted}
                                 onClick={() => {
                                     if (s.filterType === 'approval') {
                                         setFilterApproval(s.status);
                                         setFilterStatus('');
-                                    } else {
+                                    } else if (s.status) {
                                         setFilterStatus(s.status);
                                         setFilterApproval('');
                                     }
@@ -1432,35 +1477,42 @@ const Vacancy = () => {
             </div>
 
             {/* Filter & Search Bar */}
-            <div className="filter-search-container" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem' }}>
-                <div className="search-wrapper" style={{ flex: 1 }}>
+            <div className="filter-search-container" style={{ marginBottom: '1.25rem' }}>
+                <div className="search-wrapper">
                     <Search className="search-icon" size={18} />
                     <input
                         type="text"
+                        aria-label="Search vacancies"
                         placeholder="Search by code, position, department..."
                         value={filterSearch}
                         onChange={e => setFilterSearch(e.target.value)}
                     />
                 </div>
-                <select value={filterDepartment} onChange={e => setFilterDepartment(e.target.value)} style={{ height: '40px', padding: '0 2.5rem 0 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: '0.825rem', fontWeight: '600', cursor: 'pointer', outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center' }}>
-                    <option value="">Department</option>
-                    {departments.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-                </select>
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ height: '40px', padding: '0 2.5rem 0 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: '0.825rem', fontWeight: '600', cursor: 'pointer', outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center' }}>
-                    <option value="">Status</option>
-                    <option value="draft">Draft</option>
-                    <option value="open">Open</option>
-                    <option value="closed">Closed</option>
-                </select>
-                <input
-                    type="date"
-                    className="date-picker-input"
-                    value={filterTargetDate}
-                    onChange={e => setFilterTargetDate(e.target.value)}
-                />
-                <button type="button" className="btn-icon-alt" onClick={handleResetFilters} title="Clear Filters">
-                    <RotateCcw size={18} />
-                </button>
+                <div className="filter-dropdown-group">
+                    <select value={filterDepartment} onChange={e => setFilterDepartment(e.target.value)} className="filter-input" aria-label="Department filter">
+                        <option value="">Department</option>
+                        {departments.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                    </select>
+                    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="filter-input" aria-label="Status filter">
+                        <option value="">Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="open">Open</option>
+                        <option value="closed">Closed</option>
+                        <option value="filled">Filled</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                    <input
+                        type="date"
+                        className="filter-input date-picker-input"
+                        value={filterTargetDate}
+                        onChange={e => setFilterTargetDate(e.target.value)}
+                        aria-label="Target date filter"
+                    />
+                    <button type="button" className="btn-secondary-outline filter-reset-btn" onClick={handleResetFilters}>
+                        <RotateCcw size={16} />
+                        Reset Filters
+                    </button>
+                </div>
             </div>
 
             {/* Bulk Toolbar */}
@@ -1493,8 +1545,8 @@ const Vacancy = () => {
                     cardTitle="Vacancies List"
                     totalCount={0}
                     icon={Briefcase}
-                    title="No vacancies found"
-                    buttonLabel="Post Vacancy"
+                    title="No Vacancies Found"
+                    buttonLabel="Create Vacancy"
                     onCreate={() => { setViewMode('create'); setSelectedVacancy(null); }}
                 />
             ) : (
@@ -1532,19 +1584,42 @@ const Vacancy = () => {
                             </thead>
                             <tbody>
                                 {loading ? (
-                                    <tr>
-                                        <td colSpan="9">
-                                            <div style={{ height: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#64748b' }}>
-                                                <div className="premium-loader-inline"></div>
-                                                <span className="text-sm font-semibold">Loading vacancies...</span>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    [...Array(5)].map((_, idx) => (
+                                        <tr className="skeleton-row" key={`skeleton-${idx}`}>
+                                            <td><div className="skeleton-block" /></td>
+                                            <td><div className="skeleton-block" /></td>
+                                            <td><div className="skeleton-block skeleton-block-wide" /></td>
+                                            <td><div className="skeleton-block" /></td>
+                                            <td><div className="skeleton-block" /></td>
+                                            <td><div className="skeleton-block" /></td>
+                                            <td><div className="skeleton-block" /></td>
+                                            <td><div className="skeleton-block" /></td>
+                                            <td><div className="skeleton-block" /></td>
+                                        </tr>
+                                    ))
                                 ) : (
                                     vacancies.map((v) => {
                                         const isSelected = selectedRows.includes(v._id || v.id);
                                         const deptName = departments.find(d => d.value === v.departmentId)?.label || v.departmentId || 'N/A';
                                         const posName = positions.find(p => p.value === v.positionId)?.label || v.positionId || 'N/A';
+
+                                        const parseCount = (value) => {
+                                            if (typeof value === 'number') return value;
+                                            if (!value) return 0;
+                                            const parsed = parseInt(String(value).split('/')[0].trim(), 10);
+                                            return Number.isNaN(parsed) ? 0 : parsed;
+                                        };
+
+                                        const parseTotal = (value) => {
+                                            if (typeof value === 'number') return value;
+                                            if (!value) return null;
+                                            const parts = String(value).split('/').map(part => part.trim()).filter(Boolean);
+                                            const parsed = parseInt(parts[parts.length - 1], 10);
+                                            return Number.isNaN(parsed) ? null : parsed;
+                                        };
+
+                                        const openings = parseCount(v.openings ?? v.numberOfVacancy);
+                                        const totalOpenings = (parseTotal(v.totalOpenings) ?? parseCount(v.numberOfVacancy)) || openings || 0;
 
                                         // Internal Mock Data for Applicants (Redesign requirement)
                                         const applicants = v.appliedApplicants || 0;
@@ -1556,24 +1631,24 @@ const Vacancy = () => {
                                                     <input
                                                         type="checkbox"
                                                         checked={isSelected}
-                                                        onChange={() => toggleRowSelection(v._id || v.id)}
+                                                        onChange={(e) => { e.stopPropagation(); toggleRowSelection(v._id || v.id); }}
                                                     />
                                                 </td>
                                                 <td>
-                                                    <div className="vacancy-code-v6" onClick={() => handleViewClick(v)}>
+                                                    <div className="vacancy-code-v6">
                                                         {v.requestNumber || 'VAC-000'}
                                                     </div>
                                                 </td>
                                                 <td>
                                                     <div className="vacancy-main-v6">
-                                                        <span className="v-title" onClick={() => handleViewClick(v)}>{v.positionName}</span>
+                                                        <span className="v-title">{v.positionName}</span>
                                                         <span className="v-dept">{deptName} • {posName}</span>
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <div className="opening-chip" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <span className="num" style={{ fontWeight: '700', color: '#0d5f68' }}>{v.openings || '0 / 1'}</span>
-                                                        <span className="lab" style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Available</span>
+                                                    <div className="opening-cell">
+                                                        <span className="opening-count"><strong>{openings}</strong> / {totalOpenings}</span>
+                                                        <span className="opening-label">Available</span>
                                                     </div>
                                                 </td>
                                                 <td>
@@ -1599,13 +1674,13 @@ const Vacancy = () => {
                                                 </td>
                                                 <td className="text-right">
                                                     <div className="action-button-group">
-                                                        <button type="button" className="row-action view" onClick={() => handleViewClick(v)} title="View Details">
+                                                        <button type="button" className="row-action view" onClick={(e) => { e.stopPropagation(); handleViewClick(v); }} title="View Details">
                                                             <Eye size={18} />
                                                         </button>
-                                                        <button type="button" className="row-action edit" onClick={() => handleEditClick(v)} title="Edit Vacancy">
+                                                        <button type="button" className="row-action edit" onClick={(e) => { e.stopPropagation(); handleEditClick(v); }} title="Edit Vacancy">
                                                             <Edit size={18} />
                                                         </button>
-                                                        <button type="button" className="row-action delete" onClick={() => handleDeleteClick(v)} title="Delete Vacancy">
+                                                        <button type="button" className="row-action delete" onClick={(e) => { e.stopPropagation(); handleDeleteClick(v); }} title="Delete Vacancy">
                                                             <Trash2 size={18} />
                                                         </button>
                                                     </div>
@@ -1664,13 +1739,17 @@ const Vacancy = () => {
 
             <style>{`
                 .vacancy-dashboard {
-                    padding: 1.25rem 1.75rem;
+                    width: 100%;
+                    max-width: none;
+                    padding: 1.75rem 2rem;
+                    margin: 0;
                     display: flex;
                     flex-direction: column;
                     gap: 1.25rem;
                     background: #f8fafc;
-                    height: calc(100vh - 64px);
-                    overflow: hidden;
+                    min-height: calc(100vh - 64px);
+                    height: auto;
+                    overflow: auto;
                     /* Removed contain: content to allow fixed modals to reference viewport */
                 }
                 .animate-entry {
@@ -1686,7 +1765,7 @@ const Vacancy = () => {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    margin-bottom: 0.5rem;
+                    margin-bottom: 1.25rem;
                     flex-shrink: 0;
                 }
                 .header-left h1 {
@@ -1809,10 +1888,12 @@ const Vacancy = () => {
 
                 /* New Premium Stats */
                 .stats-scroller-v6 { overflow-x: auto; padding: 0.5rem 0.5rem 1.25rem 0.5rem; margin: 0 -0.5rem; flex-shrink: 0; }
+                .stats-scroller-v6 { margin-bottom: 1.25rem; }
+                .stats-container-v6 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.95rem; width: 100%; }
                 .stats-scroller-v6::-webkit-scrollbar { height: 4px; }
                 .stats-scroller-v6::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
                 
-                .stats-container-v6 { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.75rem; width: 100%; }
+                .stats-container-v6 { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.9rem; width: 100%; }
                 
                 .stat-card-premium { background: white; padding: 0.85rem 1rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: space-between; height: 100%; min-width: 0; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
                 .stat-card-premium:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
@@ -1835,15 +1916,16 @@ const Vacancy = () => {
                 .stat-card-premium:hover .stat-indicator { transform: translateX(3px); color: var(--accent); }
 
                 /* Filter Bar */
-                .filter-search-container { background: white; padding: 0.65rem 1rem; border-radius: 12px; display: flex; gap: 0.75rem; align-items: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.03); flex-shrink: 0; }
-                .btn-icon-alt { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 1px solid #e2e8f0; background: white; border-radius: 8px; color: #94a3b8; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+                .filter-search-container { background: white; padding: 0.9rem 1rem; border-radius: 18px; display: flex; gap: 0.85rem; align-items: center; border: 1px solid #e2e8f0; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06); flex-shrink: 0; flex-wrap: wrap; width: 100%; }
+                .btn-icon-alt { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #e2e8f0; background: white; border-radius: 10px; color: #94a3b8; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
                 .btn-icon-alt:hover { color: #0d5f68; border-color: #0d5f68; background: #f8fafc; }
 
                 .stat-count-v6 { font-size: 1.5rem; font-weight: 900; color: #0f172a; line-height: 1; }
                 .stat-label-v6 { font-size: 0.65rem; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; }
 
                 .search-wrapper {
-                    flex: 1;
+                    flex: 2 2 420px;
+                    min-width: 300px;
                     position: relative;
                     display: flex;
                     align-items: center;
@@ -1877,76 +1959,85 @@ const Vacancy = () => {
                     display: flex;
                     gap: 0.75rem;
                     align-items: center;
+                    justify-content: flex-end;
+                    flex: 1 1 240px;
+                    flex-wrap: wrap;
                 }
                 .filter-dropdown-group {
-                    display: flex;
-                    gap: 0.5rem;
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                    gap: 0.75rem;
+                    width: 100%;
                 }
-                .filter-dropdown-group select, .date-picker-input {
-                    height: 40px;
+                .filter-input,
+                .date-picker-input {
+                    min-width: 180px;
+                    height: 44px;
                     padding: 0 1rem;
-                    border-radius: 8px;
+                    border-radius: 10px;
                     border: 1px solid #e2e8f0;
                     background: #f8fafc;
-                    font-size: 0.825rem;
+                    font-size: 0.875rem;
                     color: #475569;
                     font-weight: 600;
                     outline: none;
                     cursor: pointer;
-                    transition: border-color 0.2s, background-color 0.2s;
+                    transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
                     appearance: none;
                 }
-                .filter-dropdown-group select {
-                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-                    background-repeat: no-repeat;
-                    background-position: right 0.75rem center;
-                    background-size: 1rem;
-                    padding-right: 2.5rem;
-                }
-                .filter-dropdown-group select:hover, .date-picker-input:hover {
+                .filter-input:hover,
+                .date-picker-input:hover {
                     border-color: #cbd5e1;
                     background: #f1f5f9;
                 }
-                .filter-dropdown-group select:focus, .date-picker-input:focus {
+                .filter-input:focus,
+                .date-picker-input:focus {
                     border-color: #0d5f68;
                     background: white;
                     box-shadow: 0 0 0 3px rgba(13, 95, 104, 0.08);
                 }
-                .btn-icon-alt {
-                    width: 40px;
-                    height: 40px;
-                    display: flex;
+                .filter-input {
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+                    background-repeat: no-repeat;
+                    background-position: right 1rem center;
+                    background-size: 1rem;
+                    padding-right: 2.4rem;
+                }
+                .btn-secondary-outline.filter-reset-btn {
+                    min-width: 150px;
+                    display: inline-flex;
                     align-items: center;
                     justify-content: center;
-                    border-radius: 8px;
-                    border: 1px solid #e2e8f0;
-                    background: #f8fafc;
-                    color: #64748b;
-                    cursor: pointer;
-                    transition: all 0.2s;
+                    gap: 0.45rem;
+                    color: #475569;
+                    background: #ffffff;
+                    border: 1px solid #cbd5e1;
+                    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
                 }
-                .btn-icon-alt:hover {
-                    background: #fee2e2;
-                    color: #ef4444;
-                    border-color: #fca5a5;
+                .btn-secondary-outline.filter-reset-btn:hover {
+                    color: #0d5f68;
+                    border-color: #0d5f68;
+                    background: rgba(13, 95, 104, 0.06);
                 }
 
                 .table-container-premium {
                     background: white;
-                    border-radius: 12px;
+                    border-radius: 18px;
                     border: 1px solid #e2e8f0;
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
                     flex: 1;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+                    box-shadow: 0 18px 42px rgba(15,23,42,0.08);
                     width: 100%;
+                    min-width: 0;
                 }
                 .table-responsive {
                     overflow-x: auto;
                     overflow-y: auto;
                     flex: 1;
                     position: relative;
+                    min-width: 0;
                 }
                 /* Custom Scrollbar */
                 .table-responsive::-webkit-scrollbar {
@@ -1967,7 +2058,7 @@ const Vacancy = () => {
                     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.03);
                 }
                 .table-header-info {
-                    padding: 0.75rem 1.25rem;
+                    padding: 1rem 1.25rem;
                     border-bottom: 1px solid #e2e8f0;
                     display: flex;
                     justify-content: space-between;
@@ -2005,35 +2096,100 @@ const Vacancy = () => {
                 }
                 .ats-table th {
                     background: #f8fafc;
-                    padding: 0.65rem 1.25rem;
-                    font-size: 0.65rem;
+                    padding: 0.85rem 1.25rem;
+                    font-size: 0.72rem;
                     font-weight: 700;
                     text-transform: uppercase;
                     color: #475569;
-                    letter-spacing: 0.05em;
+                    letter-spacing: 0.06em;
                     text-align: left;
                     border-bottom: 1px solid #e2e8f0;
                     position: sticky;
                     top: 0;
-                    z-index: 10;
+                    z-index: 20;
                     white-space: nowrap;
                 }
                 .ats-table td {
-                    padding: 0.75rem 1.25rem;
+                    padding: 1rem 1.25rem;
                     border-bottom: 1px solid #f1f5f9;
                     vertical-align: middle;
-                    transition: background-color 0.15s ease;
-                    white-space: nowrap;
+                    transition: background-color 0.15s ease, transform 0.15s ease;
+                }
+                .ats-table tr {
+                    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
                 }
                 .ats-table tr:last-child td { border-bottom: none; }
-                .ats-table tr:hover td {
-                    background: #f8fafc;
-                }
+                .ats-table tbody tr { cursor: pointer; }
+                .ats-table tbody tr.no-hover { cursor: default; }
                 .ats-table tr:hover {
-                    background: #f8fafc;
+                    background-color: #f0f9ff;
+                    transform: translateY(-1px);
+                    box-shadow: inset 0 0 0 1px rgba(13, 95, 104, 0.08);
+                }
+                .ats-table tr:hover td {
+                    background-color: transparent;
                 }
                 .row-selected td {
-                    background: rgba(13, 95, 104, 0.02) !important;
+                    background: rgba(13, 95, 104, 0.06) !important;
+                }
+                .opening-cell {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.25rem;
+                }
+                .opening-count {
+                    font-size: 0.95rem;
+                    font-weight: 800;
+                    color: #0f172a;
+                }
+                .opening-label {
+                    font-size: 0.72rem;
+                    color: #64748b;
+                    text-transform: uppercase;
+                    font-weight: 700;
+                    letter-spacing: 0.04em;
+                }
+                .row-action {
+                    width: 34px;
+                    height: 34px;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: #94a3b8;
+                    transition: color 0.2s, background-color 0.2s, opacity 0.2s;
+                    cursor: pointer;
+                    background: transparent;
+                    border: none;
+                    opacity: 0.68;
+                }
+                .row-action:hover {
+                    background: #f1f5f9;
+                    opacity: 1;
+                }
+                .row-action svg {
+                    width: 17px;
+                    height: 17px;
+                }
+                .skeleton-row td {
+                    padding: 1rem 1.25rem;
+                    background: transparent;
+                    border-bottom: 1px solid #f1f5f9;
+                }
+                .skeleton-block {
+                    width: 100%;
+                    min-height: 14px;
+                    background: linear-gradient(90deg, #f3f4f6 0%, #e2e8f0 50%, #f3f4f6 100%);
+                    background-size: 200% 100%;
+                    border-radius: 8px;
+                    animation: skeleton-loading 1.4s ease-in-out infinite;
+                }
+                .skeleton-block-wide {
+                    max-width: 220px;
+                }
+                @keyframes skeleton-loading {
+                    0% { background-position: 200% 0; }
+                    100% { background-position: -200% 0; }
                 }
 
                 /* Row Elements */
@@ -2159,21 +2315,24 @@ const Vacancy = () => {
                     padding-right: 0.5rem;
                 }
                 .row-action {
-                    width: 30px;
-                    height: 30px;
-                    border-radius: 6px;
+                    width: 34px;
+                    height: 34px;
+                    border-radius: 8px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    color: #94a3b8;
-                    transition: color 0.2s, background-color 0.2s;
+                    color: rgba(71, 85, 105, 0.72);
+                    transition: all 0.2s ease;
                     cursor: pointer;
                     background: transparent;
                     border: none;
+                    opacity: 0.88;
                 }
                 .row-action:hover {
-                    background: #f1f5f9;
+                    background: #f8fafc;
                     color: #0d5f68;
+                    transform: translateY(-1px);
+                    opacity: 1;
                 }
                 .row-action svg {
                     width: 17px;
