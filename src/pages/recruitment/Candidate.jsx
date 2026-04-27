@@ -663,7 +663,7 @@ const Candidate = () => {
                                     <div className="form-group">
                                         <label>Vacancy Reference</label>
                                         <SearchableSelect
-                                            options={vacancies.map(v => ({ value: v._id || v.id, label: v.requestNumber || v.position?.name || 'Vacancy' }))}
+                                            options={vacancies.map(v => ({ value: v._id || v.id, label: v.requestNumber ? `${v.requestNumber} - ${v.positionName || v.position?.name || 'Vacancy'}` : (v.positionName || v.position?.name || 'Vacancy') }))}
                                             value={formData.vacancyId}
                                             onChange={v => handleInputChange('vacancyId', v)}
                                             placeholder="Select Vacancy"

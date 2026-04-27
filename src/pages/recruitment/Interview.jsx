@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import {
     Plus, Search, Eye, Edit, Trash2, X, RotateCcw,
@@ -23,7 +23,7 @@ const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => 
             <div className="stat-count-v6" style={{ fontSize: '1.5rem', fontWeight: '900', color: '#0f172a' }}>{count}</div>
         </div>
         <div className="stat-bottom-v2" style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div className="stat-label-v6" style={{ fontSize: '0.65rem', fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: '1.2' }}>{label}</div>
+            <div className="stat-label-v6" style={{ fontSize: '0.65rem', fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
             {trend && (
                 <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`} style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.65rem', fontWeight: '800', padding: '2px 6px', borderRadius: '20px', backgroundColor: trend > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: trend > 0 ? '#10b981' : '#ef4444' }}>
                     {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
@@ -406,22 +406,10 @@ const Interview = () => {
     React.useEffect(() => {
         setErrors({});
     }, [viewMode]);
-    const filterEffectFirstRender = useRef(true);
-    // ── Filtering Effect ─────────────────────────────────────────────────────
-    React.useEffect(() => {
-        if (filterEffectFirstRender.current) {
-            filterEffectFirstRender.current = false;
-            return;
-        }
-        const timer = setTimeout(() => {
-            fetchInterviews(0);
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [filters]);
-    // ────────────────────────────────────────────────────────────────────────
+    const fetchInterviews = useCallback(async (pageNum = 0, initial = false) => {
+        if (initial) setIsInitialLoading(true);
+        else setLoading(true);
 
-    const fetchInterviews = async (pageNum = 0) => {
-        setLoading(true);
         try {
             const queryParams = new URLSearchParams({
                 page: String(pageNum),
@@ -441,8 +429,24 @@ const Interview = () => {
             toast.error('Failed to load interviews');
         } finally {
             setLoading(false);
+            setIsInitialLoading(false);
+            setHasLoaded(true);
         }
-    };
+    }, [filters, limit]);
+
+    const filterEffectFirstRender = useRef(true);
+    // ── Filtering Effect ─────────────────────────────────────────────────────
+    React.useEffect(() => {
+        if (filterEffectFirstRender.current) {
+            filterEffectFirstRender.current = false;
+            return;
+        }
+        const timer = setTimeout(() => {
+            if (viewMode === 'list') fetchInterviews(0);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [filters, fetchInterviews, viewMode]);
+    // ────────────────────────────────────────────────────────────────────────
 
     const toggleRowSelection = (id) => {
         setSelectedRows(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
@@ -560,19 +564,18 @@ const Interview = () => {
                 api.get('/interview-rounds').catch(() => ({ data: [] }))
             ]);
             setCandidates(candRes.data || []);
-            setVacancies(vacRes.data?.data || []);
+            const rawVacs = (vacRes.data?.data) || (vacRes.data) || [];
+            setVacancies(Array.isArray(rawVacs) ? rawVacs : []);
             setEmployees(empRes || []);
             setDepartments(deptRes || []);
             setRoles(rolesRes.data?.data || []);
             setInterviewRounds(roundRes.data?.data || []);
 
             // Fetch first page of interviews
-            await fetchInterviews(0);
+            await fetchInterviews(0, true);
         } catch (error) {
             console.error('Error fetching background data:', error);
-        } finally {
             setIsInitialLoading(false);
-            setLoading(false);
             setHasLoaded(true);
         }
     };
@@ -854,7 +857,7 @@ const Interview = () => {
                                         <option value="" disabled>Select Vacancy</option>
                                         {Array.isArray(vacancies) && vacancies.map(v => (
                                             <option key={v._id || v.id} value={v._id || v.id}>
-                                                {v.requestNumber} - {v.position?.name || v.jobTitle || v.role}
+                                                {v.requestNumber ? `${v.requestNumber} - ` : ''}{v.positionName || v.position?.name || v.jobTitle || v.role || 'Vacancy'}
                                             </option>
                                         ))}
                                     </select>
@@ -1307,20 +1310,20 @@ const Interview = () => {
                 .stats-scroller-v6::-webkit-scrollbar { height: 4px; }
                 .stats-scroller-v6::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
                 
-                .stats-container-v6 { display: flex; gap: 1rem; min-width: max-content; }
+                .stats-container-v6 { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.75rem; width: 100%; }
                 
-                .stat-card-premium { background: white; padding: 0.85rem 1.15rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; min-width: 210px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+                .stat-card-premium { background: white; padding: 0.85rem 1rem; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: space-between; height: 100%; min-width: 0; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
                 .stat-card-premium:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
-                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-2px); }
+                .stat-card-premium.active { border-color: var(--accent); background: linear-gradient(to bottom right, white, var(--accent-bg)); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); transform: translateY(-1px); }
                 .stat-card-premium.active::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); }
                 
                 .stat-main { display: flex; align-items: center; gap: 0.75rem; }
-                .stat-icon-v6 { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; }
-                .stat-icon-v6 svg { width: 18px; height: 18px; }
+                .stat-icon-v6 { width: 34px; height: 34px; border-radius: 8px; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+                .stat-icon-v6 svg { width: 16px; height: 16px; }
                 .stat-content-v6 { display: flex; flex-direction: column; gap: 1px; }
                 .stat-label-v6 { font-size: 0.625rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
                 .stat-value-group { display: flex; align-items: baseline; gap: 0.5rem; }
-                .stat-count-v6 { font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1; }
+                .stat-count-v6 { font-size: 1.5rem; font-weight: 900; color: #0f172a; line-height: 1; }
                 
                 .stat-trend { display: flex; align-items: center; gap: 2px; font-size: 0.6rem; font-weight: 700; padding: 1px 5px; border-radius: 20px; }
                 .stat-trend.up { color: #10b981; background: rgba(16, 185, 129, 0.1); }
@@ -1696,8 +1699,18 @@ const Interview = () => {
                     border-radius: 16px !important;
                     box-shadow: 0 25px 50px -12px rgba(13, 95, 104, 0.25) !important;
                 }
-                /* Removed duplicated stat card styles */
+                .premium-spinner { position: relative; border-radius: 50%; border: 4px solid #f1f5f9; border-top-color: #0d5f68; animation: spin 1s linear infinite; }
+                .premium-core { position: absolute; inset: 4px; border-radius: 50%; background: rgba(13, 95, 104, 0.1); }
+                @keyframes spin { to { transform: rotate(360deg); } }
 
+                .loading-overlay {
+                    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(255, 255, 255, 0.7); z-index: 100; display: flex;
+                    flex-direction: column; align-items: center; justify-content: center;
+                    backdrop-filter: blur(2px); border-radius: 16px; gap: 1rem;
+                }
+
+                /* Status Modal Premium Styles */
                 .status-header-premium { padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
                 .status-header-title-premium { font-size: 1.15rem; font-weight: 800; color: #0d5f68; margin: 0; letter-spacing: -0.0125em; }
                 .status-body-premium { padding: 1.5rem; position: relative; }
@@ -1712,7 +1725,7 @@ const Interview = () => {
                 .status-form-group-premium select { appearance: none; -webkit-appearance: none; padding-right: 2.5rem; cursor: pointer; color: #1e293b; font-weight: 600; }
                 .status-error-msg-premium { font-size: 0.7rem; color: #ef4444; font-weight: 700; margin-top: 0.25rem; }
                 .status-footer-premium { padding: 0 1.5rem 2.25rem 1.5rem; display: flex; gap: 1rem; }
-
+        
             `}</style>
             {(viewMode === 'create' || viewMode === 'edit') && renderInterviewForm()}
             {viewMode === 'view' && renderInterviewDetail()}
@@ -1738,12 +1751,12 @@ const Interview = () => {
             <div className="stats-scroller-v6" style={{ marginBottom: '1.25rem' }}>
                 <div className="stats-container-v6">
                     {[
-                        { label: 'Total Interviews', status: '', icon: <Calendar size={18} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', trend: 12 },
-                        { label: 'Scheduled', status: 'Scheduled', icon: <Clock size={18} />, color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)', trend: 5 },
-                        { label: 'Completed', status: 'Completed', icon: <CheckCircle2 size={18} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', trend: 8 },
-                        { label: 'Rescheduled', status: 'Rescheduled', icon: <RotateCcw size={18} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: -2 },
-                        { label: 'Cancelled', status: 'Cancelled', icon: <XCircle size={18} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', trend: -1 },
-                        { label: 'Pending Feedback', status: 'PendingFeedback', icon: <AlertTriangle size={18} />, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', trend: 3 },
+                        { label: 'Total Interviews', status: '', icon: <Calendar size={20} />, color: '#0d5f68', bg: 'rgba(13, 95, 104, 0.1)', trend: 12 },
+                        { label: 'Scheduled', status: 'Scheduled', icon: <Clock size={20} />, color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)', trend: 5 },
+                        { label: 'Completed', status: 'Completed', icon: <CheckCircle2 size={20} />, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', trend: 8 },
+                        { label: 'Rescheduled', status: 'Rescheduled', icon: <RotateCcw size={20} />, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: -2 },
+                        { label: 'Cancelled', status: 'Cancelled', icon: <XCircle size={20} />, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', trend: -1 },
+                        { label: 'Pending Feedback', status: 'PendingFeedback', icon: <AlertTriangle size={20} />, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', trend: 3 },
                     ].map((s, idx) => (
                         <StatCard
                             key={idx}
@@ -1805,7 +1818,7 @@ const Interview = () => {
             </div>
 
             {/* Content Area with Loading/Empty/Data States */}
-            {(!hasLoaded || isInitialLoading || (loading && interviews.length === 0)) ? (
+            {isInitialLoading ? (
                 <div className="table-container-premium shadow-premium" style={{ minHeight: '610px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', borderRadius: '16px' }}>
                     <div className="flex flex-col items-center gap-4">
                         <div className="premium-spinner" style={{ width: '48px', height: '48px' }}>
@@ -1826,13 +1839,7 @@ const Interview = () => {
             ) : (
                 <div className="table-container-premium shadow-premium" style={{ flex: 1, minHeight: '610px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                     {loading && (
-                        <div className="loading-overlay" style={{
-                            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                            background: 'rgba(255,255,255,0.7)', zIndex: 100, display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)',
-                            borderRadius: '16px', gap: '1rem'
-                        }}>
+                        <div className="loading-overlay">
                             <div className="premium-spinner" style={{ width: '48px', height: '48px' }}>
                                 <div className="premium-core"></div>
                             </div>

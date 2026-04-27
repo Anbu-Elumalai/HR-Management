@@ -25,7 +25,7 @@ const StatCard = ({ label, count, icon, color, bg, trend, active, onClick }) => 
             <div className="stat-count-v6" style={{ fontSize: '1.5rem', fontWeight: '900', color: '#0f172a' }}>{count}</div>
         </div>
         <div className="stat-bottom-v2" style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div className="stat-label-v6" style={{ fontSize: '0.65rem', fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: '1.2' }}>{label}</div>
+            <div className="stat-label-v6" style={{ fontSize: '0.65rem', fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
             {trend && (
                 <div className={`stat-trend ${trend > 0 ? 'up' : 'down'}`} style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.65rem', fontWeight: '800', padding: '2px 6px', borderRadius: '20px', backgroundColor: trend > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: trend > 0 ? '#10b981' : '#ef4444' }}>
                     {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
@@ -66,7 +66,8 @@ const Offer = () => {
     const [employees, setEmployees] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [locations, setLocations] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [hasLoaded, setHasLoaded] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [loadingDetails, setLoadingDetails] = useState(false);
@@ -89,15 +90,19 @@ const Offer = () => {
                 api.get('/locations?limit=100').catch(() => ({ data: { data: [] } }))
             ]);
             setCandidates(c.data || []);
-            setVacancies(v.data?.data || []);
+            const rawVacs = v.data?.data || v.data || [];
+            setVacancies(Array.isArray(rawVacs) ? rawVacs : []);
             setEmployees(e || []);
             setDepartments(d || []);
-            setLocations(l.data?.data || []);
+            const rawLocs = l.data?.data || l.data || [];
+            setLocations(Array.isArray(rawLocs) ? rawLocs : []);
         } catch (err) { console.error(err); }
     }, []);
 
-    const fetchOffers = useCallback(async (p = 0) => {
-        setLoading(true);
+    const fetchOffers = useCallback(async (p = 0, initial = false) => {
+        if (initial) setIsInitialLoading(true);
+        else setLoading(true);
+        
         try {
             const q = new URLSearchParams({ page: String(p), limit: '10', ...filters });
             const res = await api.get(`/offers?${q.toString()}`);
@@ -110,6 +115,7 @@ const Offer = () => {
             console.error('Error fetching offers:', err);
         } finally {
             setLoading(false);
+            setIsInitialLoading(false);
             setHasLoaded(true);
         }
     }, [filters]);
@@ -119,11 +125,13 @@ const Offer = () => {
     const initialFetchDone = useRef(false);
     useEffect(() => {
         if (!initialFetchDone.current) {
-            fetchOffers(0);
+            fetchOffers(0, true);
             initialFetchDone.current = true;
             return;
         }
-        const t = setTimeout(() => { if (viewMode === 'list') fetchOffers(0); }, 500);
+        const t = setTimeout(() => { 
+            if (viewMode === 'list') fetchOffers(0); 
+        }, 500);
         return () => clearTimeout(t);
     }, [filters, viewMode, fetchOffers]);
 
@@ -196,7 +204,20 @@ const Offer = () => {
                                     <div className="p-card-header"><Users size={14} /> Candidate Selection</div>
                                     <div className="p-field-row">
                                         <div className="p-field"><label>Candidate</label><select value={formData.candidateId} onChange={e => handleCandidateChange(e.target.value)}><option value="">Select Candidate</option>{candidates.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}</select></div>
-                                        <div className="p-field"><label>Vacancy</label><select value={formData.vacancyId} onChange={e => setFormData({ ...formData, vacancyId: e.target.value })}><option value="">Select Vacancy</option>{vacancies.map(v => <option key={v._id} value={v._id}>{v.jobTitle}</option>)}</select></div>
+                                        <div className="p-field">
+                                            <label>Vacancy</label>
+                                            <select 
+                                                value={formData.vacancyId} 
+                                                onChange={e => setFormData({ ...formData, vacancyId: e.target.value })}
+                                            >
+                                                <option value="">Select Vacancy</option>
+                                                {Array.isArray(vacancies) && vacancies.map(v => (
+                                                    <option key={v._id || v.id} value={v._id || v.id}>
+                                                        {v.positionName || v.jobTitle || v.requestNumber || 'Vacancy'}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="p-form-card">
@@ -301,11 +322,13 @@ const Offer = () => {
                 <button className="btn-icon-alt" onClick={() => setFilters({ candidateName: '', status: '', departmentName: '', joiningDate: '' })} title="Clear Filters"><RotateCcw size={18} /></button>
             </div>
 
-            {loading ? (
-                <div className="table-container-premium shadow-premium" style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white' }}>
-                    <div className="p-list-loader" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                        <Loader2 className="animate-spin text-[#0d5f68]" size={40} />
-                        <span className="font-semibold text-slate-500">Loading offers...</span>
+            {isInitialLoading ? (
+                <div className="table-container-premium shadow-premium" style={{ minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', borderRadius: '16px' }}>
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="premium-spinner" style={{ width: '48px', height: '48px' }}>
+                            <div className="premium-core"></div>
+                        </div>
+                        <p style={{ color: '#0d5f68', fontWeight: '600', fontSize: '1rem' }}>Initializing offer dashboard...</p>
                     </div>
                 </div>
             ) : (offers.length === 0 && hasLoaded) ? (
@@ -319,13 +342,22 @@ const Offer = () => {
                     onCreate={() => setViewMode('create')}
                 />
             ) : (
-                <div className="table-container-premium shadow-premium">
+                <div className="table-container-premium shadow-premium" style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: '400px' }}>
+                    {loading && (
+                        <div className="loading-overlay">
+                            <div className="premium-spinner" style={{ width: '42px', height: '42px' }}>
+                                <div className="premium-core"></div>
+                            </div>
+                            <p style={{ color: '#0d5f68', fontWeight: '700', fontSize: '0.9rem' }}>Updating list...</p>
+                        </div>
+                    )}
+                    
                     <div className="table-header-info">
                         <div className="header-info-left"><h3>Offers List</h3><span className="count-chip">{totalItems} TOTAL</span></div>
                         <div className="header-info-right text-xs text-slate-500 font-medium">Showing {offers.length} entries</div>
                     </div>
 
-                    <div className="table-responsive">
+                    <div className="table-responsive" style={{ flex: 1 }}>
                         <table className="ats-table">
                             <thead><tr><th style={{ width: '40px' }}><input type="checkbox" /></th><th style={{ width: '120px' }}>CODE</th><th>CANDIDATE</th><th>ROLE / VACANCY</th><th style={{ width: '180px' }}>DEPARTMENT</th><th className="text-right" style={{ width: '140px' }}>CTC</th><th className="text-center" style={{ width: '150px' }}>STATUS</th><th className="text-right pr-6" style={{ width: '120px' }}>ACTIONS</th></tr></thead>
                             <tbody>
@@ -383,6 +415,20 @@ const Offer = () => {
                 
                 .stat-indicator { color: #cbd5e1; transition: transform 0.2s; }
                 .stat-card-premium:hover .stat-indicator { transform: translateX(3px); color: var(--accent); }
+
+                .loading-overlay {
+                    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(255, 255, 255, 0.7); z-index: 100; display: flex;
+                    flex-direction: column; align-items: center; justify-content: center;
+                    backdrop-filter: blur(2px); border-radius: 16px; gap: 1rem;
+                }
+                
+                .premium-spinner { 
+                    position: relative; border-radius: 50%; border: 3px solid #f1f5f9; border-top-color: #0d5f68; 
+                    animation: spin 1s linear infinite; 
+                }
+                .premium-core { position: absolute; inset: 4px; border-radius: 50%; background: rgba(13, 95, 104, 0.1); }
+                @keyframes spin { to { transform: rotate(360deg); } }
 
                 .filter-search-container { background: white; padding: 0.65rem 1rem; border-radius: 12px; display: flex; gap: 0.75rem; align-items: center; border: 1px solid #e2e8f0; }
                 .search-wrapper { flex: 1; position: relative; display: flex; align-items: center; }
